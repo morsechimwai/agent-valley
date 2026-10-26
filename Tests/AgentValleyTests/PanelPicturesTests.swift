@@ -375,6 +375,11 @@ final class PanelPicturesTests: XCTestCase {
             open()
             picture("open")
             checkHeight()
+            // Its finished sub-agents unfolded: under the envelope, a line from it to each.
+            if let checkout = store.sessions.first(where: { $0.name == "Refactor checkout flow" }) {
+                state.doneExpanded.insert(checkout.id)
+                picture("done-open")
+            }
         case "crew":
             // A sub-agent of the checkout asks to run a command: its branch red, the card whole,
             // the sessions around it folded to fit.

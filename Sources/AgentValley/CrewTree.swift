@@ -153,6 +153,8 @@ struct CrewAnchors: PreferenceKey {
 /// Draws a card's branches over it. Decoration only: it takes no clicks and VoiceOver skips it.
 struct CrewTreeView: View {
     let anchors: [String: Anchor<CGRect>]
+    /// What the trunk runs down from: the lead, or the envelope its finished sub-agents hang off.
+    var root = "lead"
     /// The rows with a branch, top to bottom.
     let order: [String]
     let hot: Set<String>
@@ -161,7 +163,7 @@ struct CrewTreeView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            if let lead = anchors["lead"].map({ proxy[$0] }), !order.isEmpty {
+            if let lead = anchors[root].map({ proxy[$0] }), !order.isEmpty {
                 let branches = order.compactMap { id in
                     anchors[id].map { proxy[$0] }.map { CrewTree.Branch(id: id, y: $0.midY, endX: $0.minX - 3, hot: hot.contains(id)) }
                 }

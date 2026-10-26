@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8 — 2026-10-26
+
+- Open the envelope of finished sub-agents and they sit inside it now: one step further in, each on a line from the envelope, not from the lead. The lead's line ends at the envelope.
+
 ## 0.3.7 — 2026-10-26
 
 - Answering from the notch takes one press now. Settings › Claude Code has an Install the plugin button: it runs Claude Code's own `claude plugin` command, and the switch turns on once the plugin is in. Then start Claude Code again; sessions already open don't have it.

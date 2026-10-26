@@ -2648,7 +2648,8 @@ struct SessionCardView: View {
         let live = card.liveAgents(holding: holding)
         let finished = card.doneAgents(holding: holding)
         // The rows a line runs to from the lead, top to bottom, and the ones that wait on the person.
-        let branches = live.map(\.id) + (finished.isEmpty ? [] : ["done"]) + (showingDone ? finished.map(\.id) : [])
+        // The finished ones hang off the envelope, not the lead: they are what it holds.
+        let branches = live.map(\.id) + (finished.isEmpty ? [] : ["done"])
         let hot = Set(live.filter { CrewTree.hot($0, requests: asking?.requests($0.id).count ?? 0) }.map(\.id))
         // A new one shows once the packet running down reaches it; the lead lights up as one gets back.
         // One that waits on the person shows at once: its request must not be answered unseen.
@@ -2736,14 +2737,17 @@ struct SessionCardView: View {
                 if showingDone {
                     ForEach(finished) { row in
                         AgentRowView(row: row, compact: compact, reserveHide: hide != nil || reserveHide, owner: card.owner)
-                            .padding(.leading, CrewTree.indent).transition(.opacity)
+                            .padding(.leading, CrewTree.indent * 2).transition(.opacity)
                     }
                 }
             }
         }
         .padding(CardStyle.inset)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-        .overlayPreferenceValue(CrewAnchors.self) { CrewTreeView(anchors: $0, order: branches, hot: hot, pulses: pulses) }
+        .overlayPreferenceValue(CrewAnchors.self) { anchors in
+            CrewTreeView(anchors: anchors, order: branches, hot: hot, pulses: pulses)
+            if showingDone { CrewTreeView(anchors: anchors, root: "done", order: finished.map(\.id), hot: []) }
+        }
         // Rows settle in as agents start, and the card closes up as they finish: also once a
         // packet has run up from one.
         .animation(motion.list, value: card.agents.map { $0.id + ($0.status == .done ? " done" : "") } + running.sorted())
