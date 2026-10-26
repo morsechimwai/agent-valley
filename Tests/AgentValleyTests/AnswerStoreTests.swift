@@ -74,6 +74,58 @@ final class AnswerStoreTests: XCTestCase {
         XCTAssertFalse(store.pluginLost, "switched off: the line goes")
     }
 
+    // Whether the plugin is in is looked at with the switch off too: until it is, cards point the way.
+    func testPluginInstalledIsCheckedWithTheSwitchOff() throws {
+        let list = home.appendingPathComponent("installed_plugins.json")
+        let registry = home.appendingPathComponent("known_marketplaces.json")
+        store.checkPlugin(registry: registry, installedList: list)
+        XCTAssertFalse(store.pluginInstalled, "no list yet")
+        try PluginPlaceTests.installedList(scope: "user").write(to: list)
+        store.checkPlugin(registry: registry, installedList: list)
+        XCTAssertTrue(store.pluginInstalled)
+        try PluginPlaceTests.installedList().write(to: list)
+        store.checkPlugin(registry: registry, installedList: list)
+        XCTAssertFalse(store.pluginInstalled, "taken out again")
+    }
+
+    // Installed while the app runs, the switch turns on, once: turned on in the same send, the two
+    // sinks called each other until the stack ran out.
+    func testAPluginPutInTurnsTheSwitchOn() throws {
+        let settings = Settings(defaults: try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString)))
+        let list = home.appendingPathComponent("installed_plugins.json")
+        let watches = store.follow(settings, installedList: list)
+        XCTAssertFalse(settings.answers)
+        try PluginPlaceTests.installedList(scope: "user").write(to: list)
+        store.checkPlugin(installedList: list)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertTrue(settings.answers)
+        XCTAssertTrue(store.pluginInstalled)
+        // Install itself turns the switch on as well: no loop either.
+        try PluginPlaceTests.installedList().write(to: list)
+        store.checkPlugin(installedList: list)
+        settings.answers = false
+        try PluginPlaceTests.installedList(scope: "user").write(to: list)
+        settings.answers = true
+        store.checkPlugin(installedList: list)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertTrue(settings.answers)
+        withExtendedLifetime(watches) {}
+        store.setEnabled(false)
+    }
+
+    // Already in at launch with the switch off: the person switched it off, and it stays off.
+    func testAPluginAlreadyInLeavesTheSwitchAlone() throws {
+        let settings = Settings(defaults: try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString)))
+        let list = home.appendingPathComponent("installed_plugins.json")
+        try PluginPlaceTests.installedList(scope: "user").write(to: list)
+        let watches = store.follow(settings, installedList: list)
+        store.checkPlugin(installedList: list)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        XCTAssertFalse(settings.answers)
+        XCTAssertTrue(store.pluginInstalled)
+        withExtendedLifetime(watches) {}
+    }
+
     func testAnAnswerLeavesItsOutcomeForAMoment() {
         let id = add(ask())
         store.reconcile(with: [card(main: row("/r/p/s1.jsonl", open: ["ls"]))])

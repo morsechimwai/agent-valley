@@ -605,6 +605,8 @@ final class FormatTests: XCTestCase {
     func testAWaitSaysWhereToAnswerOnce() {
         XCTAssertNil(WayToAnswer.words(appKnown: true))
         XCTAssertEqual(WayToAnswer.words(appKnown: false), "Answer in the terminal.")
+        // Until the plugin is in, the card also points to where it goes in.
+        XCTAssertEqual(Format.answerHereNextTime, "Answer here next time")
     }
 
     // What the line under a card's name says when the pointer rests on it: where the session runs.
@@ -620,17 +622,20 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(Format.place(apart), "web-app feat/dashboard (worktree)")
     }
 
-    // The app asks the person to run a command it will not run itself: it never writes into
-    // ~/.claude. Nine of thirteen testers stopped at the bare command. Before it now stands
-    // what the plugin does, and around it the two things to do, in order.
+    // Nine of thirteen testers stopped at the bare command. Before it now stands what the plugin
+    // does, a button that runs it when pressed, and the one step left after.
     func testTheInstallCommandComesWithWhatItDoesAndWhatToDo() {
-        XCTAssertEqual(Format.pluginWhat, "The plugin is inside this app, and the command points Claude Code at it. It adds two hooks to Claude Code: each permission prompt and question is handed to this app, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before.")
-        XCTAssertEqual(Format.installSteps.run, "1. Copy this and run it in a terminal: the Terminal app, or wherever you start Claude Code.")
-        XCTAssertEqual(Format.installSteps.restart, "2. Start Claude Code again. Sessions that were already open do not have the plugin.")
+        XCTAssertEqual(Format.pluginWhat, "The plugin is inside this app, and installing it points Claude Code at it. It adds two hooks to Claude Code: each permission prompt and question is handed to this app, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before.")
+        XCTAssertEqual(Format.installButton, "Install the plugin")
+        XCTAssertEqual(Format.installSteps.run, "Install runs this command for you. Or copy it and run it in a terminal yourself: the Terminal app, or wherever you start Claude Code.")
+        XCTAssertEqual(Format.installSteps.restart, "Then start Claude Code again. Sessions that were already open do not have the plugin.")
+        XCTAssertEqual(Format.installResult(.installed), "Installed, and the switch is on.")
+        XCTAssertEqual(Format.installResult(.noClaude), "Couldn't find Claude Code's claude command. Copy the command and run it in a terminal.")
+        XCTAssertEqual(Format.installResult(.failed("it took over a minute")), "Couldn't install: it took over a minute. Copy the command and run it in a terminal.")
         XCTAssertEqual(Format.marketplaceNote, "In the command, \u{201C}marketplace\u{201D} is Claude Code's word for a list of plugins. Nothing is bought.")
-        // Before the switch is on, the caption says there is something to read behind it.
-        XCTAssertTrue(Format.answersCaption(on: false).hasSuffix(" Needs a plugin that comes with this app: switch on to read what it does and how to install it."))
-        XCTAssertFalse(Format.answersCaption(on: true).contains("Needs a plugin"))
+        // Until the plugin is in, the caption says it is needed, and where it goes in.
+        XCTAssertTrue(Format.answersCaption(installed: false).hasSuffix(" Needs a plugin that comes with this app: install it below."))
+        XCTAssertFalse(Format.answersCaption(installed: true).contains("Needs a plugin"))
         // The way out reads as a way out, not as word that a plugin is already in.
         XCTAssertEqual(Format.removePlugin, "How to remove the plugin")
     }
@@ -685,7 +690,7 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(Format.timeHelp, "How long it has been working since it was last given something to do, or how long it has been quiet or waiting")
         // "Used anyway once more than eight are listed."
         // "It allows only what it can show in full": who allows, and how much is in full.
-        XCTAssertEqual(Format.answersCaption(on: true), "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command.")
+        XCTAssertEqual(Format.answersCaption(installed: true), "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command.")
         // "Put this away": a phrasal verb.
         XCTAssertEqual(Format.hideRequestHelp, "Removes this from the panel without answering it. It still waits in the terminal.")
         // "once the shortcut has opened the panel" read as "one time".
@@ -746,7 +751,7 @@ final class FormatTests: XCTestCase {
     // A release checks for updates from the start, with no switch turned on first: the promise
     // says so there, and only there.
     func testReadOnlyMentionsUpdatesOnlyWhenOn() {
-        let old = "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them. Answering requests, checking plan limits online and showing a session's tab stay off until you turn on their switch; each switch says what it does."
+        let old = "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them: Install the plugin runs Claude Code's own command, only when you press it. Answering requests stays off until the plugin is in; checking plan limits online and showing a session's tab, until you turn on their switch. Each switch says what it does."
         XCTAssertEqual(Format.readOnly(updates: false), old)
         XCTAssertEqual(Format.readOnly(updates: true), old + " It asks GitHub once a day if there's a new version; that switch starts on.")
     }
@@ -763,10 +768,10 @@ final class FormatTests: XCTestCase {
     // that reads the Keychain and goes online: six of thirteen testers caught it, one nearly
     // left over it. The promise now holds with every switch on, and names what is behind one.
     func testThePromiseHoldsWithEverySwitchOn() {
-        XCTAssertEqual(Format.readOnly(updates: false), "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them. Answering requests, checking plan limits online and showing a session's tab stay off until you turn on their switch; each switch says what it does.")
+        XCTAssertEqual(Format.readOnly(updates: false), "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them: Install the plugin runs Claude Code's own command, only when you press it. Answering requests stays off until the plugin is in; checking plan limits online and showing a session's tab, until you turn on their switch. Each switch says what it does.")
         XCTAssertFalse(Format.readOnly(updates: false).contains("Changes nothing"))
         // Each of those switches does say what it adds.
-        XCTAssertTrue(Format.answersCaption(on: false).contains("buttons to answer"))
+        XCTAssertTrue(Format.answersCaption(installed: false).contains("buttons to answer"))
         XCTAssertTrue(Format.tabCaption.hasPrefix("Asks Terminal, iTerm2 or Ghostty to show the session's own tab."))
     }
 

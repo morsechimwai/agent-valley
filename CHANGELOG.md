@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.7 — 2026-10-26
+
+- Answering from the notch takes one press now. Settings › Claude Code has an Install the plugin button: it runs Claude Code's own `claude plugin` command, and the switch turns on once the plugin is in. Then start Claude Code again; sessions already open don't have it.
+- Until then, a session that waits on you shows Answer here next time beside Go to its app, and it takes you to that button.
+- Rather paste the command yourself? It's still there to copy, and we turn the switch on when we see the plugin arrive.
+- We run `claude plugin` only when you press Install, never on our own.
+
 ## 0.3.6 — 2026-10-26
 
 - Export PDF writes a plain statement of work now, one you can hand a client as it is: the project and the period at the top, the total at API prices beside them, a bar for each day, what each agent and each model cost, and a line for every session or project. Our mark sits small in the bottom-right corner. Our faces stay out of it.

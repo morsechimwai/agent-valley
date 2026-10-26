@@ -492,7 +492,7 @@ enum Format {
     /// named, and each is off until its switch is turned on.
     /// `updates`: this copy checks for new versions, which a release does from the start.
     static func readOnly(updates: Bool) -> String {
-        "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them. Answering requests, checking plan limits online and showing a session's tab stay off until you turn on their switch; each switch says what it does."
+        "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them: Install the plugin runs Claude Code's own command, only when you press it. Answering requests stays off until the plugin is in; checking plan limits online and showing a session's tab, until you turn on their switch. Each switch says what it does."
             + (updates ? " It asks GitHub once a day if there's a new version; that switch starts on." : "")
     }
     static let updatesTitle = "Check for updates"
@@ -547,12 +547,27 @@ enum Format {
     /// asks them to run a command it does not run itself, so it owes them what the command
     /// does: nine of thirteen testers stopped at a bare command, and the one who came to check
     /// what the app touches found nothing said. Only what `plugin/` does.
-    static let pluginWhat = "The plugin is inside this app, and the command points Claude Code at it. It adds two hooks to Claude Code: each permission prompt and question is handed to this app, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before."
-    /// The two things to do, in the order they are done, the command between them.
+    static let pluginWhat = "The plugin is inside this app, and installing it points Claude Code at it. It adds two hooks to Claude Code: each permission prompt and question is handed to this app, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before."
+    /// Under the button: what it runs, which can also be pasted by hand. Then the one step left.
+    /// The button since 2026-10-26: nine of thirteen testers stopped at the command alone.
     static let installSteps = (
-        run: "1. Copy this and run it in a terminal: the Terminal app, or wherever you start Claude Code.",
-        restart: "2. Start Claude Code again. Sessions that were already open do not have the plugin."
+        run: "Install runs this command for you. Or copy it and run it in a terminal yourself: the Terminal app, or wherever you start Claude Code.",
+        restart: "Then start Claude Code again. Sessions that were already open do not have the plugin."
     )
+    static let installButton = "Install the plugin"
+    static let installing = "Installing"
+    /// What became of the last press of Install, on the line under the command.
+    static func installResult(_ result: PluginInstall.Result) -> String {
+        switch result {
+        case .installed: return "Installed, and the switch is on."
+        case .noClaude: return "Couldn't find Claude Code's claude command. Copy the command and run it in a terminal."
+        case .failed(let reason): return "Couldn't install: \(reason). Copy the command and run it in a terminal."
+        }
+    }
+    /// Beside the way to the terminal on a card that waits: this one is answered there, the next
+    /// one need not be. To the settings, where the plugin goes in.
+    static let answerHereNextTime = "Answer here next time"
+    static let answerHereNextTimeHelp = "Set up answering from the notch"
     /// Under the command: the one word in it that reads as something else.
     static let marketplaceNote = "In the command, \u{201C}marketplace\u{201D} is Claude Code's word for a list of plugins. Nothing is bought."
     /// The line that unfolds the way out. Not "Remove the plugin": standing there before
@@ -600,9 +615,9 @@ enum Format {
         showing ? "Hide what the symbols mean" : legendTitle
     }
 
-    /// Under the switch that turns answering on. Once it is on, how to install is right below.
-    static func answersCaption(on: Bool) -> String {
-        "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command." + (on ? "" : " Needs a plugin that comes with this app: switch on to read what it does and how to install it.")
+    /// Under the switch that turns answering on. Until the plugin is in, how to install is right below.
+    static func answersCaption(installed: Bool) -> String {
+        "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command." + (installed ? "" : " Needs a plugin that comes with this app: install it below.")
     }
     static let barMascotCaption = "The mascot on the bar is the agent to look at first."
     /// Past this many sub-agents in the list, each takes one line: at two lines each, a dozen
@@ -998,6 +1013,11 @@ struct PanelView: View {
             let at = NotchPanel.handlingClick ? NotchPanel.when(NotchPanel.pressedAt) : Date()
             if answers.goes(clickAt: at) { owner.bringForward() }
         }
+        // Until the plugin is in and the switch on, each card that waits points the way there.
+        .environment(\.setUpAnswers, settings.answers && answers.pluginInstalled ? nil : {
+            state.settingsTab = .claudeCode
+            state.showingSettings = true
+        })
     }
 
     /// What the band says is below, with those who wait in red. The red count swells once per `pulse`.
@@ -2382,6 +2402,15 @@ extension EnvironmentValues {
         get { self[GoToKey.self] }
         set { self[GoToKey.self] = newValue }
     }
+    /// To the page where the plugin goes in, while requests cannot be answered here. Nil once they can.
+    var setUpAnswers: (() -> Void)? {
+        get { self[SetUpAnswersKey.self] }
+        set { self[SetUpAnswersKey.self] = newValue }
+    }
+}
+
+private struct SetUpAnswersKey: EnvironmentKey {
+    static let defaultValue: (() -> Void)? = nil
 }
 
 /// The app a session runs in, by its icon and its name. A click goes there, as a click on the
@@ -2782,6 +2811,7 @@ extension SessionCardView {
 struct WayToAnswer: View {
     let owner: OwnerApp?
     @Environment(\.goTo) private var goTo
+    @Environment(\.setUpAnswers) private var setUp
 
     /// Words only where there is no button: the row already says "needs you", and the button names the app.
     static func words(appKnown: Bool) -> String? {
@@ -2792,12 +2822,25 @@ struct WayToAnswer: View {
         if let words = Self.words(appKnown: owner != nil) {
             Text(verbatim: words).foregroundStyle(.white.opacity(0.6))
         }
-        if let owner {
-            // Filled, as the one thing to do here.
-            Button { goTo(owner) } label: {
-                Text(verbatim: Format.goTo(app: owner.name)).panelButton(filled: true)
+        if owner != nil || setUp != nil {
+            HStack(spacing: 8) {
+                if let owner {
+                    // Filled, as the one thing to do now.
+                    Button { goTo(owner) } label: {
+                        Text(verbatim: Format.goTo(app: owner.name)).panelButton(filled: true)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if let setUp {
+                    // Outlined: it is for the next request, not this one.
+                    Button(action: setUp) {
+                        Text(verbatim: Format.answerHereNextTime).panelButton()
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text(verbatim: Format.answerHereNextTimeHelp))
+                    .accessibilityHint(Text(verbatim: Format.answerHereNextTimeHelp))
+                }
             }
-            .buttonStyle(.plain)
             .padding(.top, 4)
         }
     }

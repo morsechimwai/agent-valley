@@ -35,9 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.$planLimits
             .sink { [limits] on in limits.setEnabled(on) }
             .store(in: &watches)
-        settings.$answers
-            .sink { [answers] on in answers.setEnabled(on); answers.checkPlugin() }
-            .store(in: &watches)
+        watches.formUnion(answers.follow(settings))
         settings.$goToTab
             .sink { [store] on in store.setTabs(on) }
             .store(in: &watches)

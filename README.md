@@ -72,7 +72,7 @@ When an agent asks a question or waits for permission, a red count appears besid
 <p align="center"><img src="docs/needs-you.gif" alt="The top of a Mac screen. An agent works in a terminal. It asks to run git push origin preview: the terminal waits and a red 1 appears beside the notch. The pointer opens the panel over the terminal and presses Allow once. The panel shuts and the push goes through." width="544"></p>
 
 - **Jump to its app in one click.** Turn on Go to the session's tab in the Shortcuts settings, and Terminal and iTerm2 open the exact tab. Ghostty does too, unless two sessions run in the same folder.
-- **Answer from the notch.** Allow once or Deny, using a plugin you install yourself: turn on Answer from the notch in the Claude Code settings, run the command it shows, then start Claude Code again.
+- **Answer from the notch.** Allow once or Deny, using a plugin that comes with the app: press Install the plugin in the Claude Code settings (or run the command it shows in a terminal), then start Claude Code again. Until it's in, every session that waits on you has a button that takes you there.
 - **We talk.** With sounds on, whoever runs the session plays a few notes on their own instrument and says what it needs: a command, an edit, a question, a plan. Rather have a plain chime? Settings has one. Sounds are on from the start, and one switch in Settings turns them off.
 
 ### See what each project cost
@@ -160,8 +160,8 @@ Seven more at [agentvalley.app/comics](https://agentvalley.app/comics/).
 - Asks GitHub once a day whether there's a new version. That's the whole conversation. Turn it off in Settings.
 - Besides its own settings and its updates, it writes only in one folder: `~/Library/Application Support/AgentValley`. Nothing in `~/.claude` changes, unless you put the crew in your terminal.
 - You start that yourself, with a command from the app's settings. It sets the status line in `~/.claude/settings.json` and adds our font to `~/Library/Fonts`. With Ghostty, it also adds one line to Ghostty's config. From then on the app keeps the font and that line up to date. The command that takes the crew out undoes all of it.
-- The only hooks are the plugin's two, and you install it yourself. One brings Allow and Deny to the notch; the other only waits, at the end of a turn, while you're Away with a phone paired.
-- While Answer from the notch is on, it reads `~/.claude/plugins/known_marketplaces.json` to check that the plugin still finds the app.
+- The only hooks are the plugin's two, and only you put it in: Install the plugin runs Claude Code's own `claude plugin` command when you press it, never on its own. One brings Allow and Deny to the notch; the other only waits, at the end of a turn, while you're Away with a phone paired.
+- It reads `~/.claude/plugins/installed_plugins.json` to see whether the plugin is in, and while Answer from the notch is on, `~/.claude/plugins/known_marketplaces.json` to check that the plugin still finds the app.
 - Never answers for you. Allow happens only when you choose it.
 
 ## Sponsor the crew

@@ -39,6 +39,10 @@ struct SettingsView: View {
     @State private var copied: String?
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    /// Install is running. Its button waits, so a second press does not run it twice.
+    @State private var installing = false
+    /// What became of the last press of Install, while this page is up.
+    @State private var installResult: PluginInstall.Result?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -182,10 +186,11 @@ struct SettingsView: View {
     @ViewBuilder private var claudeCode: some View {
         SettingGroup {
             VStack(alignment: .leading, spacing: 10) {
-                SettingRow(title: "Answer from the notch", caption: Format.answersCaption(on: settings.answers)) {
+                SettingRow(title: "Answer from the notch", caption: Format.answersCaption(installed: answers.pluginInstalled)) {
                     Switch(title: "Answer from the notch", isOn: $settings.answers)
                 }
-                if settings.answers { install }
+                // Shown with the switch off too while the plugin is not in: the cards that wait send people here.
+                if settings.answers || !answers.pluginInstalled { install }
             }
             // What was put in by hand comes out by hand, and the way out is there whether or not
             // the switch is on: switching off does not take the plugin out. After the command
@@ -209,22 +214,28 @@ struct SettingsView: View {
         }
     }
 
-    /// What the plugin does and how to put it in, under its switch once that is on.
-    /// The person installs it themselves: the app never writes into ~/.claude.
+    /// What the plugin does and how to put it in, under its switch. The person puts it in: the
+    /// button runs Claude Code's own command only when pressed, and the app never writes into ~/.claude.
     @ViewBuilder private var install: some View {
         VStack(alignment: .leading, spacing: 6) {
             let command = Format.installCommand(resources: Bundle.main.resourceURL ?? Bundle.main.bundleURL, replacing: answers.pluginLost)
             // What it does before how to put it in, and each in full: none of it may end in "…".
             Text(verbatim: Format.pluginWhat).settingCaption()
-            Text(verbatim: Format.installSteps.run).settingCaption().padding(.top, 2)
-            // Whole, however long the app's path is: it is run in a terminal as it stands.
-            commandRow(command, spoken: "Copy the install command")
-            if answers.pluginLost {
-                // In full white, as a failure on this page is.
-                Text(verbatim: Format.pluginLostNote).settingCaption(failure: true)
+            if !answers.pluginInstalled || answers.pluginLost {
+                installButton(command).padding(.top, 2)
+                Text(verbatim: Format.installSteps.run).settingCaption().padding(.top, 2)
+                // Whole, however long the app's path is: it can be run in a terminal as it stands.
+                commandRow(command, spoken: "Copy the install command")
+                if answers.pluginLost {
+                    // In full white, as a failure on this page is.
+                    Text(verbatim: Format.pluginLostNote).settingCaption(failure: true)
+                }
+                Text(verbatim: Format.marketplaceNote).settingCaption()
+            }
+            if let installResult {
+                Text(verbatim: Format.installResult(installResult)).settingCaption(failure: installResult != .installed)
             }
             Text(verbatim: Format.installSteps.restart).settingCaption()
-            Text(verbatim: Format.marketplaceNote).settingCaption()
             if let status = Format.answersStatus(answers.state, now: Date()) {
                 // A failure in full white, as every other one on this page.
                 Text(verbatim: status).settingCaption(failure: answers.state.isFailure).lineLimit(3)
@@ -326,6 +337,28 @@ struct SettingsView: View {
     private var limitsNote: String? {
         if case .unavailable(let reason) = limits.display { return Format.limitsReason(reason) }
         return nil
+    }
+
+    /// Runs the install command off the main thread, then turns the switch on once it is in.
+    private func installButton(_ command: String) -> some View {
+        Button {
+            installing = true
+            installResult = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = PluginInstall.run(command)
+                DispatchQueue.main.async {
+                    installing = false
+                    installResult = result
+                    guard result == .installed else { return }
+                    settings.answers = true
+                    answers.checkPlugin()
+                }
+            }
+        } label: {
+            Text(verbatim: installing ? Format.installing : Format.installButton).panelButton(filled: true)
+        }
+        .buttonStyle(.plain)
+        .disabled(installing)
     }
 
     /// A command to run in a terminal, in full, with a button that copies it.

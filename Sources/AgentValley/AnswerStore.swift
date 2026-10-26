@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// The requests waiting for the person, and the only place a decision is sent from.
@@ -73,6 +74,9 @@ final class AnswerStore: ObservableObject {
 
     /// The plugin points at an older copy of the app, so Allow and Deny cannot reach this one.
     @Published private(set) var pluginLost = false
+    /// Claude Code has the plugin, whether or not the switch is on. Until it does, a card that
+    /// waits on the person points the way to put it in.
+    @Published private(set) var pluginInstalled = false
 
     init(directory: URL = AnswerServer.defaultDirectory, now: @escaping () -> Date = Date.init) {
         self.directory = directory
@@ -109,11 +113,25 @@ final class AnswerStore: ObservableObject {
         }
     }
 
-    /// Looks again whether the plugin points here. Only while the switch is on: off, nobody
-    /// expects Allow and Deny in the notch.
-    func checkPlugin(registry: URL = PluginPlace.registry, plugin: URL = PluginPlace.here) {
+    /// Looks again whether the plugin is in, and whether it points here. The second only while
+    /// the switch is on: off, nobody expects Allow and Deny in the notch.
+    func checkPlugin(registry: URL = PluginPlace.registry, plugin: URL = PluginPlace.here, installedList: URL = PluginPlace.installedList) {
         let lost = server != nil && PluginPlace.lost(try? Data(contentsOf: registry), plugin: plugin)
         if lost != pluginLost { pluginLost = lost }
+        let installed = PluginPlace.installed(try? Data(contentsOf: installedList))
+        if installed != pluginInstalled { pluginInstalled = installed }
+    }
+
+    /// The switch and the plugin, tied together. The switch opens and shuts the socket. A plugin put
+    /// in since the app started, by Install or by the command run in a terminal, turns the switch on;
+    /// one already in at launch does not: with the switch off, the person switched it off.
+    func follow(_ settings: Settings, installedList: URL = PluginPlace.installedList) -> Set<AnyCancellable> {
+        [settings.$answers.sink { [weak self] on in self?.setEnabled(on); self?.checkPlugin(installedList: installedList) },
+         // A turn of the run loop later. Sent from inside the plugin's own send, the new value is
+         // not stored yet: the switch's sink looked again, found it unchanged, sent again, and so
+         // on until the stack ran out (the test copy, 2026-10-26).
+         $pluginInstalled.dropFirst().filter { $0 }.receive(on: RunLoop.main)
+            .sink { _ in if !settings.answers { settings.answers = true } }]
     }
 
     /// When the buttons last may have moved on screen: a request arrived, left or found its row,

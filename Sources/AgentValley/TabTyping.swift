@@ -162,11 +162,12 @@ enum TabTyping {
 }
 
 extension ScriptRun {
-    /// Runs one program, no shell, nothing on stdin. Waits `timeout` seconds at most, then ends it.
-    static func run(_ executable: URL, _ arguments: [String], timeout: TimeInterval) -> ScriptRun {
+    /// Runs one program, nothing on stdin. Waits `timeout` seconds at most, then ends it.
+    static func run(_ executable: URL, _ arguments: [String], timeout: TimeInterval, environment: [String: String]? = nil) -> ScriptRun {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
+        if let environment { process.environment = environment }
         let out = Pipe(), err = Pipe()
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = out
