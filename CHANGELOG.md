@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9 — 2026-10-27
+
+- When a sub-agent asks for something the notch can't show in full, the prompt now comes up in your terminal at once. Before, the notch told you to answer in the terminal while the terminal showed nothing for up to ten minutes.
+- Hide a sub-agent's request in the notch and the terminal asks right away too.
+
 ## 0.3.8 — 2026-10-26
 
 - Open the envelope of finished sub-agents and they sit inside it now: one step further in, each on a line from the envelope, not from the lead. The lead's line ends at the envelope.

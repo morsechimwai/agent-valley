@@ -19,10 +19,15 @@ final class AnswerStoreTests: XCTestCase {
         try? FileManager.default.removeItem(at: home)
     }
 
-    private func ask(_ command: String = "ls", tool: String = "Bash", session: String = "/r/p/s1") -> Ask {
+    private func ask(_ command: String = "ls", tool: String = "Bash", session: String = "/r/p/s1", agent: String? = nil) -> Ask {
         let input: [String: Any] = tool == "Bash" ? ["command": command] : ["questions": [["question": command, "multiSelect": false, "options": [["label": "Red"], ["label": "Blue"]]]]]
-        return Ask(hookInput: try! JSONSerialization.data(withJSONObject: ["tool_name": tool, "tool_input": input, "transcript_path": session + ".jsonl"] as [String: Any]))!
+        var hook: [String: Any] = ["tool_name": tool, "tool_input": input, "transcript_path": session + ".jsonl"]
+        hook["agent_id"] = agent
+        return Ask(hookInput: try! JSONSerialization.data(withJSONObject: hook))!
     }
+
+    /// A command too long for the panel to show: it can only be agreed to in the terminal.
+    private let nine = Array(repeating: "ls", count: 9).joined(separator: "\n")
 
     @discardableResult
     private func add(_ ask: Ask) -> UUID {
@@ -698,5 +703,57 @@ final class AnswerStoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: home.appendingPathComponent("AV"), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o755])
         store.setEnabled(true)
         XCTAssertEqual(store.state, .failed("its folder is open to other accounts"))
+    }
+
+
+    // MARK: a sub-agent's request
+
+    // Claude Code shows a sub-agent's prompt in the terminal only once every hook is done. One
+    // this panel cannot answer is let go at once, so the terminal asks now, and stays here, put
+    // away, until the transcript shows it answered.
+    func testASubAgentsRequestThePanelCannotAnswerIsLetGoAtOnce() {
+        let id = add(ask(nine, agent: "a1"))
+        XCTAssertEqual(replies.count, 1)
+        XCTAssertNil(replies[0])
+        XCTAssertEqual(store.pending.map(\.hidden), [true])
+        let waiting = card(main: row("/r/p/s1.jsonl", status: .done), agents: [row("/r/p/s1/a1.jsonl", open: [nine])])
+        store.reconcile(with: [waiting])
+        XCTAssertEqual(store.overlay([waiting])[0].agents[0].status, .needsYou)
+        click(id, .deny)
+        XCTAssertEqual(replies.count, 1)
+        store.reconcile(with: [card(main: row("/r/p/s1.jsonl", status: .done), agents: [row("/r/p/s1/a1.jsonl", closed: [(nine, clock)])])])
+        XCTAssertTrue(store.pending.isEmpty)
+        XCTAssertEqual(store.settled.map(\.outcome), [.inTerminal])
+        XCTAssertEqual(replies.count, 1)
+    }
+
+    // One the panel can answer is held: answered here, it never waits in the terminal. Put away,
+    // it is let go, so the terminal asks. A main session's prompt shows while its hook waits, so
+    // its requests are held whatever the panel can do with them.
+    func testASubAgentsRequestIsHeldOnlyWhileThePanelCanAnswerIt() {
+        let main = add(ask(nine))
+        let agent = add(ask("ls", agent: "a1"))
+        XCTAssertTrue(replies.isEmpty)
+        clock += 5
+        XCTAssertTrue(store.hide(agent, clickAt: clock, panelOpenedAt: clock.addingTimeInterval(-5)))
+        XCTAssertEqual(replies.count, 1)
+        XCTAssertNil(replies[0])
+        clock += 5
+        XCTAssertTrue(store.hide(main, clickAt: clock, panelOpenedAt: clock.addingTimeInterval(-5)))
+        XCTAssertEqual(replies.count, 1)
+        XCTAssertEqual(store.pending.map(\.id), [main, agent])
+    }
+
+    // Let go, it has no hook left to end it: it goes when the hook would have given up.
+    func testASubAgentsRequestLetGoEndsWhenItsHookWouldHave() {
+        add(ask(nine, agent: "a1"))
+        clock += AnswerStore.hookLimit - 1
+        store.reconcile(with: [])
+        XCTAssertEqual(store.pending.count, 1)
+        clock += 1
+        store.reconcile(with: [])
+        XCTAssertTrue(store.pending.isEmpty)
+        XCTAssertTrue(store.settled.isEmpty)
+        XCTAssertEqual(replies.count, 1)
     }
 }

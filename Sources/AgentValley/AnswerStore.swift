@@ -15,7 +15,13 @@ final class AnswerStore: ObservableObject {
         /// Put away by the person. It still waits, and its row still says so, but nothing
         /// here answers it any more: that is done in the terminal.
         var hidden = false
+        /// Its hook was let go, so the terminal asks: a sub-agent's request put away, or one the
+        /// panel cannot answer. It stays, put away, until the transcript shows it answered.
+        var released = false
     }
+
+    /// How long the plugin's hook waits for an answer (its timeout in hooks.json).
+    static let hookLimit: TimeInterval = 600
 
     /// How a request ended, when that is known. A hook that goes away without a word was denied
     /// in the terminal, timed out or lost its session, and a call can leave the transcript's
@@ -191,7 +197,18 @@ final class AnswerStore: ObservableObject {
         pending.append(item)
         changedAt = item.receivedAt
         if case .listening = state { state = .listening(lastRequest: item.receivedAt) }
+        if ask.agent != nil, !ask.kind.isAnswerable { release(item.id) }
         return item.id
+    }
+
+    /// Hands a sub-agent's hook no decision, so Claude Code asks in the terminal at once: until
+    /// the hook is done, the terminal shows nothing for it. The request stays, put away.
+    private func release(_ id: UUID) {
+        guard let index = pending.firstIndex(where: { $0.id == id }), let reply = replies[id] else { return }
+        pending[index].hidden = true
+        pending[index].released = true
+        replies[id] = { _ in false }
+        _ = reply(nil)
     }
 
     /// The person's click, with when it was made and when the panel opened. Sends nothing, and
@@ -234,6 +251,7 @@ final class AnswerStore: ObservableObject {
         pending[index].hidden = true
         // Its buttons go, and whatever stood below moves up.
         changedAt = now()
+        if pending[index].ask.agent != nil { release(id) }
         return true
     }
 
@@ -269,6 +287,8 @@ final class AnswerStore: ObservableObject {
     /// Ties each request to the row whose transcript shows the same tool call waiting, and
     /// withdraws a request once that call has its result: it was answered in the terminal.
     func reconcile(with sessions: [SessionCard]) {
+        // Let go, a request has no hook left to end it: it goes when the hook would have given up.
+        for item in pending where item.released && now().timeIntervalSince(item.receivedAt) >= Self.hookLimit { withdraw(item.id) }
         guard !pending.isEmpty else { return }
         var matched = pending
         /// The requests that are over, and whether a result on record proves each was answered.

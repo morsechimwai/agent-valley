@@ -89,6 +89,16 @@ final class AnswerProtocolTests: XCTestCase {
         XCTAssertNil(Ask(hookInput: hook(tool: "Bash", input: bash, transcript: "/r/p/.jsonl")))
     }
 
+    // A sub-agent's request says which agent asks: its prompt waits in the terminal until the hook is done.
+    func testASubAgentsRequestNamesItsAgent() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: hook(tool: "Bash", input: bash)) as? [String: Any])
+        XCTAssertNil(try XCTUnwrap(Ask(hookInput: JSONSerialization.data(withJSONObject: object))).agent)
+        object["agent_id"] = "a1b2"
+        XCTAssertEqual(try XCTUnwrap(Ask(hookInput: JSONSerialization.data(withJSONObject: object))).agent, "a1b2")
+        object["agent_id"] = ""
+        XCTAssertNil(try XCTUnwrap(Ask(hookInput: JSONSerialization.data(withJSONObject: object))).agent)
+    }
+
     func testOtherToolsListEveryFieldByName() {
         XCTAssertEqual(Ask.display(tool: "WebFetch", input: ["url": "https://example.com", "prompt": "summarise", "retries": 2, "follow": true]),
                        shown(nil, [("follow", "true"), ("prompt", "summarise"), ("retries", "2"), ("url", "https://example.com")]))

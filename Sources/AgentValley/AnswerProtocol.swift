@@ -215,6 +215,9 @@ struct Ask: Equatable {
     let digest: String
     /// `tool_input` as received, needed again to answer a question.
     let input: Data
+    /// The sub-agent asking, or nil for the session itself. Claude Code (2.1.310) shows a
+    /// sub-agent's prompt in the terminal only once every hook is done with it.
+    let agent: String?
 
     /// The tool's name when it can be drawn as written, otherwise a plain word in its place.
     var toolTitle: String { Self.isShowable(tool, multiline: false) ? tool : "Tool" }
@@ -238,6 +241,7 @@ struct Ask: Equatable {
         self.tool = tool
         self.input = input
         self.digest = AnswerProtocol.digest(tool: tool, input: toolInput)
+        self.agent = (object["agent_id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         self.kind = Self.kind(tool: tool, input: toolInput)
     }
 
