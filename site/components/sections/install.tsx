@@ -35,7 +35,7 @@ export function Install() {
           <li>The panel opens once to show where it lives. After that, point at the notch to open it.</li>
         </ol>
         <p className="small">
-          Once a day we check for a new version, and we ask before we install it.
+          Once an hour we check for a new version, and we ask before we install it.
         </p>
         <p className="small">
           We moved house in 0.2. On 0.1 from Homebrew? Run <code>brew uninstall --formula <span className="nw">agent-valley</span></code>, then install again as above. Using the plugin? Copy its command from Settings once more, so it finds the new address. Put the crew in your terminal? Run its install command from the Claude Code settings once more too.

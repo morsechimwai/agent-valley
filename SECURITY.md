@@ -10,4 +10,4 @@ We aim to answer within a week.
 
 ## Supported versions
 
-Fixes go into the latest release only. The app looks for it once a day; Check now in Settings looks at once.
+Fixes go into the latest release only. The app looks for it once an hour; Check now in Settings looks at once.

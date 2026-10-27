@@ -66,9 +66,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.12</string>
+	<string>0.3.13</string>
 	<key>CFBundleVersion</key>
-	<string>31</string>
+	<string>32</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
 	<key>LSUIElement</key>
@@ -86,7 +86,7 @@ if [ -n "${SPARKLE_FEED:-}" ]; then
     plutil -insert SUFeedURL -string "$SPARKLE_FEED" "$INFO"
     plutil -insert SUPublicEDKey -string "${SPARKLE_KEY:?SPARKLE_FEED needs SPARKLE_KEY, the public update key}" "$INFO"
     plutil -insert SUEnableAutomaticChecks -bool YES "$INFO"
-    plutil -insert SUScheduledCheckInterval -integer 86400 "$INFO"
+    plutil -insert SUScheduledCheckInterval -integer 3600 "$INFO"
     plutil -insert SUEnableSystemProfiling -bool NO "$INFO"
     plutil -insert SUAutomaticallyUpdate -bool NO "$INFO"
 fi

@@ -41,7 +41,7 @@ brew install --cask morsechimwai/tap/agent-valley
 
 Signed, and Apple checked our papers. Needs macOS 15 or later and Claude Code. Made for MacBooks with a notch.
 
-Once a day we check for a new version, and we ask before we install it.
+Once an hour we check for a new version, and we ask before we install it.
 
 We moved house in 0.2. On 0.1 from Homebrew? Run `brew uninstall --formula agent-valley`, then install again as above. Using the plugin? Copy its command from Settings once more, so it finds the new address. Put the crew in your terminal? Run its install command from the Claude Code settings once more too.
 
@@ -157,7 +157,7 @@ Seven more at [agentvalley.app/comics](https://agentvalley.app/comics/).
 - Reads `~/.claude/projects` and `~/.claude/sessions`, the files Claude Code writes as it works.
 - Looks at Claude Code's processes and each project's `.git` to show which app and branch a session is in.
 - Reads your Claude Code login from the Keychain only when you turn on Plan limits, and sends it only to api.anthropic.com.
-- Asks GitHub once a day whether there's a new version. That's the whole conversation. Turn it off in Settings.
+- Asks GitHub once an hour whether there's a new version. That's the whole conversation. Turn it off in Settings.
 - Besides its own settings and its updates, it writes only in one folder: `~/Library/Application Support/AgentValley`. Nothing in `~/.claude` changes, unless you put the crew in your terminal.
 - You start that yourself, with a command from the app's settings. It sets the status line in `~/.claude/settings.json` and adds our font to `~/Library/Fonts`. With Ghostty, it also adds one line to Ghostty's config. From then on the app keeps the font and that line up to date. The command that takes the crew out undoes all of it.
 - The only hooks are the plugin's two, and only you put it in: Install the plugin runs Claude Code's own `claude plugin` command when you press it, never on its own. One brings Allow and Deny to the notch; the other only waits, at the end of a turn, while you're Away with a phone paired.

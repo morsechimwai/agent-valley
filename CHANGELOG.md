@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.13 — 2026-10-27
+
+- We look on GitHub for a new version once an hour now, not once a day, so the green dot on the gear shows up soon after a release. We still ask before we install anything.
+
 ## 0.3.12 — 2026-10-27
 
 - When a sub-agent asks for permission, only its own row says needs you now, with Allow and Deny under it. The lead's row used to say it too, with a second Go to button, and the bar counted one prompt as two.

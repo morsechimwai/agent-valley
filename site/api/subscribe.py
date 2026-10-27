@@ -185,7 +185,7 @@ def page(said: str, email: str = "", fields: dict | None = None) -> str:
         action = (
             '<div class="stamp" aria-hidden="true">On the list</div>'
             f'<div class="actions"><a class="btn" href="{DMG}">Download for Mac</a><a class="link" href="/">Back to AgentValley</a></div>'
-            '<p class="note">Have the app already? It looks for a new version once a day by itself.</p>'
+            '<p class="note">Have the app already? It looks for a new version once an hour by itself.</p>'
         )
     elif said == "old":
         action = '<div class="actions"><a class="btn" href="/#updates">Get a fresh link</a><a class="link" href="/">Back to AgentValley</a></div>'

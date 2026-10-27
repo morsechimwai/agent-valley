@@ -37,7 +37,7 @@ release)
     [ "$(key SUFeedURL)" = "https://github.com/morsechimwai/agent-valley/releases/latest/download/appcast.xml" ] || no "SUFeedURL is '$(key SUFeedURL)'"
     [ -n "$(key SUPublicEDKey)" ] || no "no SUPublicEDKey"
     [ "$(key SUEnableAutomaticChecks)" = "true" ] || no "SUEnableAutomaticChecks is not true"
-    [ "$(key SUScheduledCheckInterval)" = "86400" ] || no "SUScheduledCheckInterval is not 86400"
+    [ "$(key SUScheduledCheckInterval)" = "3600" ] || no "SUScheduledCheckInterval is not 3600"
     [ "$(key SUEnableSystemProfiling)" = "false" ] || no "SUEnableSystemProfiling is not false"
     [ "$(key SUAutomaticallyUpdate)" = "false" ] || no "SUAutomaticallyUpdate is not false"
     grep -q 'Authority=Developer ID Application' <<<"$details" || no "not signed with a Developer ID"
