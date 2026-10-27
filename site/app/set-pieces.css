@@ -144,15 +144,17 @@ html{scroll-padding-top:80px}
 .p-next{padding:calc(.25em - 1px) calc(.7em - 1px);border:1px solid var(--app-dim);background:none;color:var(--app-fg)}
 /* The red badge beside "needs you": how long it has waited, black on the dot's red (WaitBadge). */
 .p-wait{padding:0 .4em;border-radius:1em;background:var(--red);color:var(--ink);font-weight:600}
-/* The app's pixel lines (CrewTree): a trunk from under the lead's face, a branch across to each
-   sub-agent, who stands one step in. Solid grey, so where they meet nothing is brighter. */
+/* The app's pixel lines (CrewTree.rects), at its sizes: a face is 20 pt there and 2.2em here, so
+   a point is .11em. A 2 pt trunk from 3 pt under the lead's face; at each sub-agent a 2 pt block
+   beside it, then one block lower the line across, stopping 3 pt short of the face. Solid grey. */
 .p-card.team{position:relative}
-.p-card.team::before{content:"";position:absolute;left:1.9em;top:3.3em;bottom:.9em;width:.2em;background:#4d4d4d}
+.p-card.team::before{content:"";position:absolute;left:1.89em;top:3.43em;bottom:.9em;width:.22em;background:#4d4d4d}
 .p-subs{grid-column:1/-1;display:grid;gap:.9em;margin-left:2.64em}
 .p-sub{position:relative;display:grid;grid-template-columns:2.2em minmax(0,1fr);gap:.7em}
-.p-sub::before{content:"";position:absolute;left:-1.64em;top:1em;width:1.37em;height:.2em;background:#4d4d4d}
-/* The trunk stops at the last branch: below it, the card's own colour covers it. */
-.p-sub:last-child::after{content:"";position:absolute;left:-1.7em;top:1.2em;bottom:0;width:.35em;background:var(--app-card)}
+.p-sub::before{content:"";position:absolute;left:-1.43em;top:.77em;width:1.1em;height:.44em;
+  background:linear-gradient(#4d4d4d,#4d4d4d) 0 0/.22em .22em no-repeat,linear-gradient(#4d4d4d,#4d4d4d) 100% 100%/.88em .22em no-repeat}
+/* The trunk stops where the last block starts: below, the card's own colour covers it. */
+.p-sub:last-child::after{content:"";position:absolute;left:-1.7em;top:.77em;bottom:0;width:.27em;background:var(--app-card)}
 .panel .m,.anatomy .m{--s:2.2em}
 
 /* A mascot: the pose, and over it the pose it moves to. Timed as the app's: a tick of 0.4 s. */
