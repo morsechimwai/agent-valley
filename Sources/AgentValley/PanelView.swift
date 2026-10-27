@@ -493,10 +493,12 @@ enum Format {
     /// `updates`: this copy checks for new versions, which a release does from the start.
     static func readOnly(updates: Bool) -> String {
         "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them: Install the plugin runs Claude Code's own command, only when you press it. Answering requests stays off until the plugin is in; checking plan limits online and showing a session's tab, until you turn on their switch. Each switch says what it does."
-            + (updates ? " It asks GitHub once an hour if there's a new version; that switch starts on." : "")
+            + (updates ? " It asks GitHub once an hour if there's a new version, and sends us one anonymous count a day; both switches start on." : "")
     }
     static let updatesTitle = "Check for updates"
     static let updatesCaption = "Once an hour we look on GitHub. Nothing gets installed until you say so."
+    static let dailyCountTitle = "Send a daily count"
+    static let dailyCountCaption = "Once a day: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. It's how we know anyone's out there."
     static let checkNow = "Check now"
     static func updateWaiting(version: String) -> String { "Version \(version) came in." }
     static let updateLook = "Have a look"

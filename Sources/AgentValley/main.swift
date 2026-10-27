@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let answers = AnswerStore()
     private let usage = UsageLedger()
     private var updates: Updates!
+    private lazy var dailyCount = DailyCount(settings: settings)
     // Held for the life of the app: the desk's callbacks and the timers reach them weakly.
     private let desk = StopDesk()
     private var awayWatch: AwayWatch!
@@ -57,6 +58,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Open at login follows the app to a new folder, never to one that goes with the dmg.
         if !misplaced { LoginItem.follow(settings) }
         updates = Updates()
+        // Only a release counts: a build to work on the app has no update feed and sends nothing.
+        if updates.isAvailable {
+            settings.$dailyCount
+                .sink { [dailyCount] on in dailyCount.setEnabled(on) }
+                .store(in: &watches)
+        }
         wireSending()
         store.start()
         notch = NotchWindowController(store: store, settings: settings, limits: limits, answers: answers, sound: SoundPlayer(settings: settings), usage: usage, updates: updates,

@@ -278,6 +278,11 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                 }
             }
+            SettingGroup {
+                SettingRow(title: Format.dailyCountTitle, caption: Format.dailyCountCaption) {
+                    Switch(title: Format.dailyCountTitle, isOn: $settings.dailyCount)
+                }
+            }
         }
         SettingGroup {
             // The crew's tip jar. The browser opens it; the app itself stays offline.
@@ -297,6 +302,17 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint("Opens a new GitHub issue in your browser")
+            Button { NSWorkspace.shared.open(URL(string: "https://agentvalley.app/privacy/")!) } label: {
+                quietLabel("Privacy", symbol: "hand.raised")
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the privacy page in your browser")
+            // Ours and Sparkle's, put in the bundle by build-app.sh; a build run straight from swift has none.
+            if let licenses = Bundle.main.url(forResource: "Licenses", withExtension: "txt") {
+                Button { NSWorkspace.shared.open(licenses) } label: { quietLabel("Licenses", symbol: "doc.text") }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the license text")
+            }
         }
         // Last, quiet and out of the boxes: the rarest action, kept away from anything clicked in passing.
         Button { NSApp.terminate(nil) } label: {

@@ -49,6 +49,8 @@ cp AgentValleyCrew.ttf "$APP/Contents/Resources/"
 cp signs/*.png "$APP/Contents/Resources/"
 # The crew's voices: what each says when someone waits, when work is done, and on the way out and back.
 cp -R sounds/crew "$APP/Contents/Resources/crew"
+# Ours and Sparkle's licenses, which MIT asks to travel with every copy; Settings, About opens it.
+{ cat LICENSE; printf '\n\n---\n\nSparkle (https://sparkle-project.org), bundled for updates:\n\n'; cat .build/artifacts/sparkle/Sparkle/LICENSE; } > "$APP/Contents/Resources/Licenses.txt"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -66,9 +68,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.13</string>
+	<string>0.3.14</string>
 	<key>CFBundleVersion</key>
-	<string>32</string>
+	<string>33</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
 	<key>LSUIElement</key>

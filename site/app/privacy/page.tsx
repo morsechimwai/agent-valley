@@ -5,7 +5,7 @@ import { Nav } from '@/components/sections/nav';
 const PAGE = 'https://agentvalley.app/privacy/';
 const TITLE = 'Privacy · AgentValley';
 const DESCRIPTION =
-  'What AgentValley and agentvalley.app collect: the app sends us nothing, the site counts visits without cookies, and your email is used only for release news.';
+  'What AgentValley and agentvalley.app collect: the app sends one anonymous count a day, the site counts visits without cookies, and your email is used only for release news.';
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -27,7 +27,7 @@ export default function Privacy() {
         <article className="grid max-w-[68ch] gap-12 [&_h2]:mb-4 [&_li]:mt-2 [&_p+p]:mt-4 [&_ul]:list-disc [&_ul]:pl-5">
           <header className="grid gap-4">
             <h1>Privacy</h1>
-            <p className="lead">The app sends us nothing. The website counts visits without cookies, and keeps your email only if you ask for news.</p>
+            <p className="lead">The app sends us one anonymous count a day, and you can turn it off. The website counts visits without cookies, and keeps your email only if you ask for news.</p>
             <p className="font-mono text-sm text-muted-foreground">Last changed October 27, 2026</p>
           </header>
 
@@ -41,12 +41,19 @@ export default function Privacy() {
           <section>
             <h2>The Mac app</h2>
             <p>
-              AgentValley has no account, no analytics and no crash reports. It reads the files Claude Code writes in
-              ~/.claude to show your sessions and count tokens. What it keeps, like your History, stays on your Mac in
-              ~/Library/Application Support/AgentValley.
+              AgentValley has no account and no crash reports, and it doesn&apos;t record what you do in it. It reads the
+              files Claude Code writes in ~/.claude to show your sessions and count tokens. What it keeps, like your
+              History, stays on your Mac in ~/Library/Application Support/AgentValley.
             </p>
-            <p>It talks to the internet in three places, and none of them is us:</p>
+            <p>It talks to the internet in four places:</p>
             <ul>
+              <li>
+                A daily count, so we know how many Macs run the app. Once a day it tells us it ran: the app version, the
+                macOS version, and whether this is the Mac&apos;s first count. Nothing else: no name, no ID that ties one
+                day to the next, nothing about your sessions, projects or code. It goes through agentvalley.app to
+                PostHog, which works out the country from your IP address and then drops the address. You can turn it
+                off in Settings, About.
+              </li>
               <li>
                 Plan limits, only if you turn it on. The app reads your Claude Code login from the Keychain and sends it to
                 api.anthropic.com to ask how much of your plan is left. The login is not stored or sent anywhere else.
@@ -100,7 +107,7 @@ export default function Privacy() {
           <section>
             <h2>Who else handles it</h2>
             <p>
-              Vercel hosts the site, PostHog counts the visits, Resend sends the mail and holds the list, Cloudflare runs the
+              Vercel hosts the site, PostHog counts the visits and the app&apos;s daily count, Resend sends the mail and holds the list, Cloudflare runs the
               domain and forwards mail to Gmail, and GitHub hosts the code, the downloads, bug reports and sponsorships. Each
               of them has its own privacy policy. Nobody else gets anything.
             </p>

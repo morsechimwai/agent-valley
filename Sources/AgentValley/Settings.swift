@@ -178,6 +178,18 @@ final class Settings: ObservableObject {
         didSet { defaults.set(display, forKey: Key.display) }
     }
 
+    /// Whether a release sends its one anonymous count a day (DailyCount). On from the start,
+    /// the owner's pick: a count that waits to be turned on counts almost nobody.
+    @Published var dailyCount: Bool {
+        didSet { defaults.set(dailyCount, forKey: Key.dailyCount) }
+    }
+
+    /// When this Mac's count last went out; nil before the first one.
+    var countedAt: Date? {
+        get { defaults.object(forKey: Key.countedAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.countedAt) }
+    }
+
     private let defaults: UserDefaults
 
     /// True until `markLaunched`: the app has never run on this Mac.
@@ -220,6 +232,7 @@ final class Settings: ObservableObject {
         grouping = Grouping(rawValue: defaults.string(forKey: Key.grouping) ?? "") ?? .projects
         tokenUse = defaults.object(forKey: Key.tokenUse) as? Bool ?? true
         display = defaults.string(forKey: Key.display) ?? DisplayChoice.automatic.id
+        dailyCount = defaults.object(forKey: Key.dailyCount) as? Bool ?? true
     }
 
     /// A stored hour of the day, or the default when it is missing or is not one. Read as an
@@ -251,5 +264,7 @@ final class Settings: ObservableObject {
         static let tokenUse = "tokenUse"
         static let display = "display"
         static let loginItemPath = "loginItemPath"
+        static let dailyCount = "dailyCount"
+        static let countedAt = "countedAt"
     }
 }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.14 — 2026-10-27
+
+- The app now sends us one count a day, so we know how many Macs run it. It says the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions or code. Turn it off with Send a daily count in Settings, About. The details are at agentvalley.app/privacy.
+- About has two new rows: Privacy opens that page, and Licenses opens ours and Sparkle's.
+
 ## 0.3.13 — 2026-10-27
 
 - We look on GitHub for a new version once an hour now, not once a day, so the green dot on the gear shows up soon after a release. We still ask before we install anything.

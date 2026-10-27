@@ -753,7 +753,7 @@ final class FormatTests: XCTestCase {
     func testReadOnlyMentionsUpdatesOnlyWhenOn() {
         let old = "Reads Claude Code's files, and which Superset workspace a session is in. Never writes to them: Install the plugin runs Claude Code's own command, only when you press it. Answering requests stays off until the plugin is in; checking plan limits online and showing a session's tab, until you turn on their switch. Each switch says what it does."
         XCTAssertEqual(Format.readOnly(updates: false), old)
-        XCTAssertEqual(Format.readOnly(updates: true), old + " It asks GitHub once an hour if there's a new version; that switch starts on.")
+        XCTAssertEqual(Format.readOnly(updates: true), old + " It asks GitHub once an hour if there's a new version, and sends us one anonymous count a day; both switches start on.")
     }
 
     func testUpdateLines() {
