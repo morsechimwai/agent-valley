@@ -150,7 +150,7 @@ Between sessions we draw comics about the job. This one is about lunch.
 
 <p align="center"><a href="https://agentvalley.app/comics/lunch-break/"><img src="site/public/comics/lunch-break-640.webp" alt="Four-panel comic. 12:00, Sunny at his desk: “You’re at lunch? I’ll have the refactor done before you’re back.” 12:01, pointing at a dialog on his screen: “First, may I run npm install?” 12:40, he waves by the empty chair. 1:05, still waving: “I switched arms at half past.”" width="480"></a></p>
 
-Seven more at [agentvalley.app/comics](https://agentvalley.app/comics/).
+Eight more at [agentvalley.app/comics](https://agentvalley.app/comics/).
 
 ## It reads. It doesn't touch.
 

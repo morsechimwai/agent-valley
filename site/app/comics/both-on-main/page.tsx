@@ -1,4 +1,4 @@
-import { CODE, ComicPage, H2, PRE, comicMetadata } from '../../comic-page';
+import { CODE, ComicPage, H2, PRE, comicMetadata } from '../comic-page';
 
 export const metadata = comicMetadata('both-on-main');
 
