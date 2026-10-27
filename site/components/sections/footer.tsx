@@ -33,6 +33,10 @@ export function Footer({ hunt = false, still = false }: { hunt?: boolean; still?
         {still && <StillToggle />}
         {/* lib/analytics.ts; the app itself counts nothing. */}
         <p>This page counts visits with PostHog. No cookies.</p>
+        <p className="flex gap-x-4">
+          <a className="inline-flex min-h-11 items-center" href="/privacy/">Privacy</a>
+          <a className="inline-flex min-h-11 items-center" href="https://github.com/morsechimwai/agent-valley/blob/main/LICENSE">MIT License</a>
+        </p>
         <p>Not affiliated with Anthropic.</p>
       </div>
     </footer>

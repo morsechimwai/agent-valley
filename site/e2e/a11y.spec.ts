@@ -37,7 +37,7 @@ test.describe('with the needs-you player loaded', () => {
   });
 });
 
-for (const path of ['/comics/', '/404.html', ...STRIPS.map((s) => `/comics/${s.slug}/`)]) {
+for (const path of ['/comics/', '/privacy/', '/404.html', ...STRIPS.map((s) => `/comics/${s.slug}/`)]) {
   test(`no AAA violations on ${path}`, async ({ page }) => {
     await page.goto(path);
     const { violations } = await check(page);

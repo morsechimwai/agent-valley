@@ -1,7 +1,7 @@
 import { STRIPS } from '../app/comics/strips';
 import { expect, test } from '@playwright/test';
 
-for (const path of ['/', '/comics/', '/404.html', ...STRIPS.map((s) => `/comics/${s.slug}/`)]) {
+for (const path of ['/', '/comics/', '/privacy/', '/404.html', ...STRIPS.map((s) => `/comics/${s.slug}/`)]) {
   for (const width of [320, 390, 768, 900, 1280]) {
     test(`nothing scrolls sideways on ${path} at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });

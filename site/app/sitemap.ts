@@ -12,5 +12,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: 'https://agentvalley.app/', images: ['https://agentvalley.app/og.png', 'https://agentvalley.app/crew-photo.webp'] },
     { url: 'https://agentvalley.app/comics/', lastModified: newest, images: STRIPS.map((s) => pic(s.slug)) },
     ...STRIPS.map((s) => ({ url: `https://agentvalley.app/comics/${s.slug}/`, lastModified: s.date, images: [pic(s.slug)] })),
+    { url: 'https://agentvalley.app/privacy/', lastModified: '2026-10-27' },
   ];
 }
