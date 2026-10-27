@@ -38,7 +38,8 @@ enum CrewCommand {
             }
             let newFont = drawsThingsInHand(home, environment)
             let holding = { (id: String) in newFont ? turn(id).flatMap { Activity(tool: $0.openTools.last?.tool) } : nil }
-            for row in CrewLine.rows(input, now: now, branch: CrewLine.branch(of:), holding: holding, step: { turn($0).map(CrewLine.doing) }) {
+            for row in CrewLine.rows(input, now: now, branch: CrewLine.branch(of:), holding: holding, step: { turn($0).map(CrewLine.doing) },
+                                     newFont: newFont, worktree: AgentStore.isWorktree) {
                 print(row)
             }
             return 0

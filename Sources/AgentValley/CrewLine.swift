@@ -222,15 +222,17 @@ enum CrewLine {
     /// row, and every row from `compactFrom` agents, is the first line alone, its step after the title.
     /// `holding`: what the sub-agent of a task id has in hand while it works. `step`: its last step as
     /// the panel's row says it ("Read login.ts"), read from its transcript; else Claude Code's label.
+    /// `newFont`: the terminal has the font with the panel's marks. `worktree`: a folder is a worktree's.
     static func rows(_ input: [String: Any], now: Date, branch: (String) -> String,
-                     holding: (String) -> Activity? = { _ in nil }, step: (String) -> String? = { _ in nil }) -> [String] {
+                     holding: (String) -> Activity? = { _ in nil }, step: (String) -> String? = { _ in nil },
+                     newFont: Bool = false, worktree: (String) -> Bool = { _ in false }) -> [String] {
         let tasks = input["tasks"] as? [[String: Any]] ?? []
         let columns = number(input["columns"]).map { Int($0) } ?? 80
         let room = columns - 6
         let oneLine = tasks.count >= compactFrom
         // On one line, a model every agent shares says nothing a row needs: it gives its room to the step.
         let sharedModel = oneLine && Set(tasks.map { Format.model(clean($0["model"])) }).count == 1
-        var branches: [String: String] = [:]
+        var places: [String: String] = [:]
         return tasks.compactMap { task in
             guard let id = task["id"] as? String else { return nil }
             let agentType = clean(task["agentType"])
@@ -276,10 +278,16 @@ enum CrewLine {
             if !oneLine, !done {
                 let cwd = clean(task["cwd"])
                 if !cwd.isEmpty {
-                    let folder = (cwd as NSString).lastPathComponent
-                    let name = branches[cwd] ?? clean(branch(cwd))
-                    branches[cwd] = name
-                    let place = "▭ " + folder + (name.isEmpty ? "" : "  ⑂ " + name)
+                    let place = places[cwd] ?? {
+                        let folder = (cwd as NSString).lastPathComponent
+                        let name = clean(branch(cwd))
+                        guard newFont else { return "▭ " + folder + (name.isEmpty ? "" : "  ⑂ " + name) }
+                        // The panel's marks. Each takes two cells with its gap inside, so no space stands by one.
+                        typealias Mark = CrewFont.Mark
+                        return Mark.folder.character + folder + (name.isEmpty ? "" : "  " + Mark.branch.character + name
+                            + (worktree(cwd) ? Mark.worktree.character : ""))
+                    }()
+                    places[cwd] = place
                     lines.append("    " + Style.faint + cut(place, to: room - 4) + Style.reset)
                 }
                 if !doing.isEmpty {

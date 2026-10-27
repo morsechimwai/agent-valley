@@ -8,6 +8,7 @@ import hashlib, json, sys
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import newTable
+from fontTools.ttLib.tables._g_l_y_f import flagOverlapSimple
 from fontTools.ttLib.tables.S_V_G_ import SVGDocument
 
 PX = 100            # font units per picture pixel
@@ -71,6 +72,20 @@ for face in data["faces"]:
     colr[key] = layers
     svg_src[key] = (by_colour, alpha)
 
+# The panel's marks: plain outlines with no colour, so the terminal draws them in the text's
+# colour. Their parts overlap, and the overlap flag tells a renderer to fill the union.
+for mark in data.get("marks", []):
+    key = f"u{mark['codepoint']:X}"
+    pen = TTGlyphPen(None)
+    for c in mark["contours"]:
+        pen.moveTo((c[0], c[1]))
+        for i in range(2, len(c), 2):
+            pen.lineTo((c[i], c[i + 1]))
+        pen.closePath()
+    glyph = pen.glyph()
+    glyph.flags[0] |= flagOverlapSimple
+    order.append(key); glyphs[key] = glyph; cmap[mark["codepoint"]] = key
+
 fb = FontBuilder(1200, isTTF=True)
 fb.setupGlyphOrder(order)
 fb.setupCharacterMap(cmap)
@@ -104,4 +119,4 @@ svg = newTable("SVG "); svg.docList = sorted(docs, key=lambda d: d.startGlyphID)
 fb.font["SVG "] = svg
 
 fb.save(sys.argv[2])
-print(sys.argv[2], len(data["faces"]), "faces", len(order), "glyphs", len(palette), "colours")
+print(sys.argv[2], len(data["faces"]), "faces", len(data.get("marks", [])), "marks", len(order), "glyphs", len(palette), "colours")

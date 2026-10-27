@@ -9,6 +9,20 @@ final class CrewFontTests: XCTestCase {
         // The bar's pictures come after every face.
         XCTAssertEqual(CrewFont.Picture.allCases.map(\.character), ["\u{3F4D7}", "\u{3F4D8}", "\u{3F4D9}"])
         XCTAssertLessThanOrEqual(CrewFont.Picture.van.scalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
+        // The panel's marks come after the pictures.
+        XCTAssertEqual(CrewFont.Mark.allCases.map(\.character), ["\u{3F4DA}", "\u{3F4DB}", "\u{3F4DC}"])
+        XCTAssertLessThanOrEqual(CrewFont.Mark.worktree.scalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
+    }
+
+    /// Each mark stands inside its two cells, from a little under the line to below the top.
+    func testMarksFitTheirCells() {
+        for mark in CrewFont.Mark.allCases {
+            let points = mark.contours.flatMap { $0 }
+            XCTAssertGreaterThan(points.map(\.x).min()!, 0, "\(mark)")
+            XCTAssertLessThan(points.map(\.x).max()!, 1440, "\(mark)")
+            XCTAssertGreaterThan(points.map(\.y).min()!, -200, "\(mark)")
+            XCTAssertLessThan(points.map(\.y).max()!, 1000, "\(mark)")
+        }
     }
 
     func testCodepointsFollowTheFixedOrder() {
@@ -97,7 +111,7 @@ final class CrewFontTests: XCTestCase {
         let font = CTFontCreateWithGraphicsFont(graphics, 1200, nil, nil)
         XCTAssertEqual(CTFontCopyName(font, kCTFontUniqueNameKey) as String?, CrewFont.uniqueName, "Run testing/crew-font.sh")
         XCTAssertEqual(CTFontCopyFamilyName(font) as String, CrewFont.family)
-        for scalar in CrewFont.faces.map(\.scalar) + CrewFont.Picture.allCases.map(\.scalar) {
+        for scalar in CrewFont.faces.map(\.scalar) + CrewFont.Picture.allCases.map(\.scalar) + CrewFont.Mark.allCases.map(\.scalar) {
             let units = Array(String(UnicodeScalar(scalar)!).utf16)
             var glyphs = [CGGlyph](repeating: 0, count: units.count)
             XCTAssertTrue(CTFontGetGlyphsForCharacters(font, units, &glyphs, units.count), "U+\(String(scalar, radix: 16)) has no glyph")

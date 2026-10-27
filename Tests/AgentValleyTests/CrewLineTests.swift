@@ -108,6 +108,22 @@ final class CrewLineTests: XCTestCase {
         XCTAssertEqual((try JSONSerialization.jsonObject(with: Data(line.utf8)) as! [String: Any])["id"] as? String, "a1")
     }
 
+    /// With the font that has them, the folder and branch wear the panel's marks, and a worktree's
+    /// branch the panel's worktree mark after it.
+    func testThePlaceWearsThePanelsMarks() {
+        let (folder, branch, worktree) = (CrewFont.Mark.folder.character, CrewFont.Mark.branch.character, CrewFont.Mark.worktree.character)
+        func place(_ worktreeFolder: Bool, branch name: String = "main") -> String {
+            let line = CrewLine.rows(["tasks": [task()], "columns": 100], now: now, branch: { _ in name },
+                                     newFont: true, worktree: { _ in worktreeFolder })[0]
+            let json = try! JSONSerialization.jsonObject(with: Data(line.utf8)) as! [String: Any]
+            return plain(json["content"] as! String).components(separatedBy: "\n")[1]
+        }
+        XCTAssertEqual(place(false), "    " + folder + "agents-visualizer  " + branch + "main")
+        XCTAssertEqual(place(true), "    " + folder + "agents-visualizer  " + branch + "main" + worktree)
+        // No branch, no branch mark and no worktree mark, as in the panel.
+        XCTAssertEqual(place(true, branch: ""), "    " + folder + "agents-visualizer")
+    }
+
     func testTimeKeepsItsSecondsLikeClaudeCode() {
         XCTAssertEqual(CrewLine.elapsed(45.9), "45s")
         XCTAssertEqual(CrewLine.elapsed(600), "10m 0s")

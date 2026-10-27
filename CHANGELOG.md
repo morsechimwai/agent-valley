@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.11 — 2026-10-27
+
+- The sub-agent rows in Claude Code's terminal wear the notch's own marks now: the same folder before the project and the same branch before the branch name, and a worktree shows the worktree mark, as in the panel. Before, they had a box and a fork that didn't say much.
+- The marks come in a new version of our font. Reopen your terminal once after the update to see them; until then the rows keep the old ones.
+
 ## 0.3.10 — 2026-10-27
 
 - Claude Code's list of sub-agents fits your terminal now. With three or more, each takes one line, and a finished one always does, so none drops off the bottom where you can't scroll to it.
