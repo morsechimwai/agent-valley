@@ -1,4 +1,5 @@
 import { HuntPumpkin } from '@/components/hunt';
+import { Icon } from '@/components/icons';
 import { Mascot, type Person, type Thing } from '@/components/mascot';
 import { Reveal } from '@/components/reveal';
 import { Word } from '@/components/word';
@@ -14,7 +15,7 @@ function Row({ who, holds, task, time, model, step }: { who: Person; holds: Thin
   return (
     <div className="t-row">
       <p><span className="t-dot">○</span><Mascot who={who} pose="still" holds={holds} /><b>{task}</b><span>{time}</span><span className="t-dim">{model}</span></p>
-      <p className="t-dim">▭ shop-web <span>⑂ refunds</span></p>
+      <p className="t-dim"><span><Icon id="folder" />shop-web</span><span><Icon id="branch" />refunds</span></p>
       <p>&gt; {step}</p>
     </div>
   );
@@ -28,7 +29,7 @@ export function Terminal() {
       <div className="stack">
         <h2>The crew shows up in your terminal too.</h2>
         <p className="lead">
-          Claude Code&apos;s <Word id="status-line">status line</Word> gets the face of whoever runs the session, with the model, your plan and your limits. Each sub-agent row under the prompt gets its own face, its model and the step it&apos;s on.
+          Claude Code&apos;s <Word id="status-line">status line</Word> gets the face of whoever runs the session, with the model, your plan and your limits. Each sub-agent row under the prompt gets its own face, its model, the step it&apos;s on, and the notch&apos;s own marks for its folder and branch. Send three or more of us and we each take one line, so nobody drops off the bottom.
         </p>
         <p>In the terminal we hold the same things, but we keep still. Until your first prompt only a coffee waits there, on standby, and when a limit runs out we go fishing, or take the van.</p>
         <p>One command from the app&apos;s settings sets it up. With the app closed your limits still show, and the coffee waits.</p>

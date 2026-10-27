@@ -259,7 +259,7 @@ test.describe('Trick or treat', () => {
     await page.goto('/');
     await openPanel(page);
     const panel = page.locator('.screen .panel');
-    await expect(panel.getByText('Deploy preview build').filter({ visible: true })).toHaveCount(1);
+    await expect(panel.getByText('Deploy preview').filter({ visible: true })).toHaveCount(1);
     await expect(panel.getByText('Go to Terminal').filter({ visible: true })).toHaveCount(1);
     await expect(panel.getByText('Trick or treat').filter({ visible: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Allow once' })).toHaveCount(0);

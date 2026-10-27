@@ -30,7 +30,7 @@ const WORDS: [string, string, string][] = [
   ["open", "open source", "The code is public. Anyone may read it, change it and share it."],
   ["keychain", "Keychain", "Where your Mac keeps passwords and logins, locked."],
   ["hook", "hook", "A small program that Claude Code runs at set moments, such as before it uses a tool."],
-  ["plugin", "plugin", "An add-on for Claude Code that you install yourself."],
+  ["plugin", "plugin", "An add-on for Claude Code. Ours comes with the app and goes in when you press Install the plugin."],
   ["glance", "at a glance", "With one quick look."],
   ["end-up", "end up", "To find in the end that you are doing something."],
   ["check-on", "check on", "To look at how something is going."],

@@ -1,5 +1,6 @@
 import { CopyCommand } from '@/components/copy-command';
 import { HeroScreen } from '@/components/hero-screen';
+import { Clock } from '@/components/clock';
 import { Icon } from '@/components/icons';
 import { Mascot } from '@/components/mascot';
 import { Button } from '@/components/ui/button';
@@ -149,7 +150,7 @@ function ScreenDrawing() {
               <img src="/mascots/afro-working.svg" alt="" />
             </span>
           </span>
-          <span className="p-icons"><Icon id="mute" /><Icon id="pin" /><Icon id="chart" /><Icon id="help" /><Icon id="gear" /></span>
+          <span className="p-icons"><Icon id="speaker" /><Icon id="pin" /><Icon id="chart" /><Icon id="help" /><Icon id="gear" /></span>
         </div>
         <div className="p-head wait-only"><em>1 needs you</em><span className="extra"> · 3 working</span></div>
         <div className="p-head after-only">4 working</div>
@@ -160,32 +161,40 @@ function ScreenDrawing() {
           <Mascot who="guru" pose="wave" dot />
           <div>
             <p className="p-line">
-              <b className="t">Deploy preview build <Icon id="out" /></b>
-              <span><em>needs you</em> <span className="model">Sonnet 5.5</span> <Icon id="eyeoff" className="model" /></span>
+              <b className="t">Deploy preview <Icon id="out" /></b>
+              <span><em>needs you</em> <span className="p-wait"><Clock from={25} /></span> <span className="model">Sonnet 5.5</span> <Icon id="eyeoff" className="model" /></span>
             </p>
             <p className="p-dim"><Icon id="branch" />preview</p>
             <p>&gt; Bash git push origin preview</p>
-            <span className="p-go">Go to Terminal</span>
+            {/* As the app has it until the plugin is in: the second button leads to Install the plugin. */}
+            <span className="p-go">Go to Terminal</span> <span className="p-go p-next">Answer here next time</span>
           </div>
         </div>
         <TrickOrTreat />
         <p className="p-group hw" aria-hidden="true">shop-web · 1 session</p>
-        <div className="p-card" aria-hidden="true">
+        <div className="p-card team" aria-hidden="true">
           <Mascot who="walrus" pose="work" holds="reading" />
           <div>
             <p className="p-line"><b className="t">Refactor checkout flow <Icon id="out" /></b><span><span className="tick">3m 16s</span> <span className="model">Opus 5.5</span></span></p>
             <p className="p-dim"><Icon id="branch" />checkout-refactor</p>
             <p>&gt; Read index.tsx</p>
           </div>
-          <Mascot who="afro" pose="work" holds="searching" />
-          <div>
-            <p className="p-line"><b>Map payment call sites</b><span><span className="tick">2m 56s</span> <span className="model">Haiku 5.5</span></span></p>
-            <p className="p-line p-dim"><span>&gt; Grep PaymentIntent · 1 step</span><span>Explore</span></p>
-          </div>
-          <Mascot who="beatnik" pose="work" holds="typing" />
-          <div>
-            <p className="p-line"><b>Write cart total tests</b><span><span className="tick">1m 08s</span> <span className="model">Sonnet 5.5</span></span></p>
-            <p className="p-dim">&gt; Edit cart.test.ts · 4 steps</p>
+          {/* The sub-agents one step in, on the app's pixel lines from the lead (0.3.5). */}
+          <div className="p-subs">
+            <div className="p-sub">
+              <Mascot who="afro" pose="work" holds="searching" />
+              <div>
+                <p className="p-line"><b>Map payment call sites</b><span><span className="tick">2m 56s</span> <span className="model">Haiku 5.5</span></span></p>
+                <p className="p-line p-dim"><span>&gt; Grep PaymentIntent · 1 step</span><span>Explore</span></p>
+              </div>
+            </div>
+            <div className="p-sub">
+              <Mascot who="beatnik" pose="work" holds="typing" />
+              <div>
+                <p className="p-line"><b>Write cart total tests</b><span><span className="tick">1m 08s</span> <span className="model">Sonnet 5.5</span></span></p>
+                <p className="p-dim">&gt; Edit cart.test.ts · 4 steps</p>
+              </div>
+            </div>
           </div>
         </div>
         <i className="lights hw" aria-hidden="true"><b /><b /></i>

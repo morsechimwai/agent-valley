@@ -2,6 +2,7 @@
 
 import { useContext } from 'react';
 import { announce } from '@/components/announcer';
+import { Clock } from '@/components/clock';
 import { ScreenContext, type Answer } from '@/components/hero-screen';
 import { Icon } from '@/components/icons';
 import { Mascot } from '@/components/mascot';
@@ -31,7 +32,7 @@ export function TrickOrTreat() {
           <div aria-hidden="true">
             <p className="p-line">
               <b className="t">Trick or treat <Icon id="out" /></b>
-              {!answered && <span><em>needs you</em> <span className="model">Sonnet 5.5</span></span>}
+              {!answered && <span><em>needs you</em> <span className="p-wait"><Clock from={14} /></span> <span className="model">Sonnet 5.5</span></span>}
             </p>
             <p className="p-dim"><Icon id="branch" /><span>porch</span></p>
             <p>{answered ? REPLY[answered] : '> Bash eat ./candy/*'}</p>

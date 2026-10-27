@@ -1,14 +1,14 @@
 // The app's own icons, drawn once on the page and used by name.
-export type IconId = 'folder' | 'branch' | 'out' | 'eyeoff' | 'mute' | 'pin' | 'help' | 'left' | 'right' | 'pause' | 'play' | 'back' | 'gear' | 'chart' | 'doc' | 'clear';
+export type IconId = 'folder' | 'branch' | 'out' | 'eyeoff' | 'speaker' | 'pin' | 'help' | 'left' | 'right' | 'pause' | 'play' | 'back' | 'gear' | 'chart' | 'doc' | 'clear';
 
 export function IconSprite() {
   return (
     <svg className="defs" aria-hidden="true">
-      <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z"/></symbol>
-      <symbol id="i-branch" viewBox="0 0 16 16"><path d="M4 2.5v3.5l4 3 4-3V2.5M8 9v4.5"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1zM4 7.6h8"/></symbol>
+      <symbol id="i-branch" viewBox="0 0 16 16"><path d="M8 14.3V9.9C8 7 9 5.4 11.2 3.9M8 9.9C8 7 7 5.4 4.8 3.9"/><path d="M14 1.8l-1.8 4-2.6-3.5zM2 1.8l1.8 4 2.6-3.5z" fill="currentColor" strokeWidth="1"/></symbol>
       <symbol id="i-out" viewBox="0 0 16 16"><path d="M5 11l6-6M6.5 5H11v4.5"/></symbol>
       <symbol id="i-eyeoff" viewBox="0 0 16 16"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/><path d="M2.5 13.5l11-11"/></symbol>
-      <symbol id="i-mute" viewBox="0 0 16 16"><path d="M3 6h2.5L9 3v10L5.5 10H3zM2 2l12 12"/></symbol>
+      <symbol id="i-speaker" viewBox="0 0 16 16"><path d="M2.5 6h2.5L8.5 3v10L5 10H2.5zM11 5.6a3.2 3.2 0 0 1 0 4.8M13 3.7a6 6 0 0 1 0 8.6"/></symbol>
       <symbol id="i-pin" viewBox="0 0 16 16"><path d="M6 2h4l-.5 4 2 2.5h-7l2-2.5zM8 8.5v6"/></symbol>
       <symbol id="i-help" viewBox="0 0 16 16" strokeWidth="2"><path d="M5.6 5.8a2.4 2.4 0 1 1 3.4 2.2c-.7.4-1 .9-1 1.6v.4"/><path d="M8 13v.1"/></symbol>
       <symbol id="i-left" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></symbol>

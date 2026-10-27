@@ -333,10 +333,11 @@ const Folder = () => (
       fill: 'none',
       stroke: 'currentColor',
       strokeWidth: 1.5,
+      strokeLinecap: 'round',
       strokeLinejoin: 'round',
     }}
   >
-    <path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1z" />
+    <path d="M1.5 4.5v8a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H8L6.5 3.5h-4a1 1 0 0 0-1 1zM4 7.6h8" />
   </svg>
 );
 const Branch = () => (
@@ -353,7 +354,8 @@ const Branch = () => (
       strokeLinejoin: 'round',
     }}
   >
-    <path d="M4 2.5v3.5l4 3 4-3V2.5M8 9v4.5" />
+    <path d="M8 14.3V9.9C8 7 9 5.4 11.2 3.9M8 9.9C8 7 7 5.4 4.8 3.9" />
+    <path d="M14 1.8l-1.8 4-2.6-3.5zM2 1.8l1.8 4 2.6-3.5z" fill="currentColor" strokeWidth={1} />
   </svg>
 );
 
@@ -414,7 +416,7 @@ const Card: React.FC<{ l: Layout; f: number; file: File }> = ({ l, f, file }) =>
         <Line>
           <b style={{ fontWeight: 600, ...nowrap }}>{SUNNY.task}</b>
           <span style={{ ...nowrap, marginLeft: 'auto' }}>
-            {done ? 'done' : <span style={{ color: DIM }}>{elapsed(Math.floor(f / FPS))}</span>} <span style={{ color: DIM }}>{SUNNY.model}</span>
+            {done ? 'idle' : <span style={{ color: DIM }}>{elapsed(Math.floor(f / FPS))}</span>} <span style={{ color: DIM }}>{SUNNY.model}</span>
           </span>
         </Line>
         <div style={{ display: 'flex', alignItems: 'center', color: DIM }}>

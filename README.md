@@ -23,7 +23,7 @@ A small valley of programmers in your Mac's notch. Each Claude Code agent, sub-a
 
 Each agent reports in its own terminal, line by line. Run a few sessions at once and you end up switching windows just to check on them. AgentValley puts all of them in one panel under the notch. See who is working, on which model, and who needs you, without leaving your app.
 
-<p align="center"><img src="docs/panel.png" alt="The AgentValley panel open under the notch, sessions grouped by project. In shop-web one session needs you and one works with two sub-agents, each with its own pixel programmer holding what it's on, its model and its latest step. Below, docs-site has gone quiet, and the line at the foot says two more sessions further down need you." width="544"></p>
+<p align="center"><img src="docs/panel.png" alt="The AgentValley panel open under the notch, sessions grouped by project. In shop-web, Deploy preview build needs you: a red badge counts how long it has waited, beside Go to Terminal and Answer here next time. Refactor checkout flow works with its sub-agents one step in, on pixel lines from its programmer, each holding what it's on: two at work, one asking to run npm run test:cart with Allow once and Deny, its line red, and a sealed envelope for the one that's done. The line at the foot says four more sessions further down, two of them need you." width="544"></p>
 
 ## Try it
 
@@ -67,7 +67,7 @@ Sessions get a card, and the sub-agents they start get rows under it. Each row s
 
 ### Know the moment one needs you
 
-When an agent asks a question or waits for permission, a red count appears beside the notch. Open the panel to read the question or the command.
+When an agent asks a question or waits for permission, a red count appears beside the notch. Open the panel to read the question or the command. Each one that waits gets a red badge with how long it has waited, and past a minute the longest wait shows beside the notch too.
 
 <p align="center"><img src="docs/needs-you.gif" alt="The top of a Mac screen. An agent works in a terminal. It asks to run git push origin preview: the terminal waits and a red 1 appears beside the notch. The pointer opens the panel over the terminal and presses Allow once. The panel shuts and the push goes through." width="544"></p>
 
@@ -83,7 +83,7 @@ Open History from the chart button at the top of the panel. Pick a day, a week o
 
 ### The crew in your terminal too
 
-Claude Code's status line gets the face of whoever runs the session, with the model, your plan and your limits. Each sub-agent row under the prompt gets its own face, its model and the step it's on. We hold the same things there as in the notch, but we keep still. Until your first prompt only a coffee waits there, on standby, and when a limit runs out we go fishing, or take the van. One command from the app's Claude Code settings sets it up. With the app closed your limits still show, and the coffee waits. We travel as a font, and we've been seen in Terminal, iTerm2, Ghostty and Cursor.
+Claude Code's status line gets the face of whoever runs the session, with the model, your plan and your limits. Each sub-agent row under the prompt gets its own face, its model, the step it's on, and the notch's own marks for its folder and branch. Send three or more of us and we each take one line, so nobody drops off the bottom. We hold the same things there as in the notch, but we keep still. Until your first prompt only a coffee waits there, on standby, and when a limit runs out we go fishing, or take the van. One command from the app's Claude Code settings sets it up. With the app closed your limits still show, and the coffee waits. We travel as a font, and we've been seen in Terminal, iTerm2, Ghostty and Cursor.
 
 <p align="center"><img src="docs/terminal.png" alt="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and Max 20x, then bars for context, the 5-hour limit and the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step." width="544"></p>
 
