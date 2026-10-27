@@ -7,6 +7,7 @@ import { Footer } from '@/components/sections/footer';
 import { Funnies } from '@/components/sections/funnies';
 import { Hero } from '@/components/sections/hero';
 import { Install } from '@/components/sections/install';
+import { Maker } from '@/components/sections/maker';
 import { Nav } from '@/components/sections/nav';
 import { NeedsYou } from '@/components/sections/needs-you';
 import { Problem } from '@/components/sections/problem';
@@ -23,6 +24,7 @@ export default function Home() {
         <Hero />
         <Problem />
         <Crew />
+        <Maker />
         <Rows />
         <NeedsYou />
         <Costs />

@@ -34,6 +34,8 @@ const WORDS: [string, string, string][] = [
   ["glance", "at a glance", "With one quick look."],
   ["end-up", "end up", "To find in the end that you are doing something."],
   ["check-on", "check on", "To look at how something is going."],
+  ["nerve", "have the nerve to", "To be brave enough to do something."],
+  ["ship", "ship", "To put something out for people to use."],
 ];
 
 export function Words() {
