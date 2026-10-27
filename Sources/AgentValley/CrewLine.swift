@@ -213,22 +213,30 @@ enum CrewLine {
     /// What Claude Code calls a sub-agent that has finished.
     private static let doneStatuses: Set<String> = ["completed", "failed", "killed", "idle"]
 
+    /// Claude Code's foot does not scroll, so rows past the screen are lost: from this many agents,
+    /// finished ones included, each row is one line.
+    static let compactFrom = 3
+
     /// One JSON line per sub-agent, `{"id": ..., "content": ...}`, drawn like the notch panel's row:
-    /// face, title, time and model; then folder and branch; then the current step.
-    /// `holding`: what the sub-agent of a task id has in hand while it works.
-    static func rows(_ input: [String: Any], now: Date, branch: (String) -> String, holding: (String) -> Activity? = { _ in nil }) -> [String] {
+    /// face, title, time and model; then folder and branch; then the current step. A finished agent's
+    /// row, and every row from `compactFrom` agents, is the first line alone, its step after the title.
+    /// `holding`: what the sub-agent of a task id has in hand while it works. `step`: its last step as
+    /// the panel's row says it ("Read login.ts"), read from its transcript; else Claude Code's label.
+    static func rows(_ input: [String: Any], now: Date, branch: (String) -> String,
+                     holding: (String) -> Activity? = { _ in nil }, step: (String) -> String? = { _ in nil }) -> [String] {
         let tasks = input["tasks"] as? [[String: Any]] ?? []
         let columns = number(input["columns"]).map { Int($0) } ?? 80
         let room = columns - 6
-        // Only live agents count, as in the app's panel.
-        let oneLine = Format.oneLineRows(liveAgents: tasks.filter { !doneStatuses.contains($0["status"] as? String ?? "") }.count)
+        let oneLine = tasks.count >= compactFrom
+        // On one line, a model every agent shares says nothing a row needs: it gives its room to the step.
+        let sharedModel = oneLine && Set(tasks.map { Format.model(clean($0["model"])) }).count == 1
         var branches: [String: String] = [:]
         return tasks.compactMap { task in
             guard let id = task["id"] as? String else { return nil }
             let agentType = clean(task["agentType"])
             let description = clean(task["description"])
             let title = [description, agentType, clean(task["agent"])].first { !$0.isEmpty } ?? ""
-            let model = Format.model(clean(task["model"]))
+            let model = sharedModel ? "" : Format.model(clean(task["model"]))
 
             let pose: CrewPose, when: String, whenStyle: String
             let status = task["status"] as? String ?? ""
@@ -242,12 +250,22 @@ enum CrewLine {
                 (pose, when, whenStyle) = (.working, elapsed(min(1e9, max(0, now.timeIntervalSince1970 - start / 1000))), "")
             }
 
+            // What it does now, the part of the row the person reads for. Claude Code's label says the
+            // task until the agent starts, so then there is none.
+            let label = clean(task["label"])
+            let doing = done ? "" : step(id).map(clean).flatMap { $0.isEmpty ? nil : $0 } ?? (label == description ? "" : label)
+
             // The face takes two cells, then two spaces; the title gets what is left.
             let modelPart = model.isEmpty ? 0 : 2 + width(model)
             let titleRoom = room - 4 - 2 - width(when) - modelPart
+            var head = Style.bold + cut(title, to: titleRoom) + Style.reset
+            if oneLine, !doing.isEmpty {
+                // On one line the step rides after the title, which gives it up to half the room.
+                let titleCut = min(width(title), max(titleRoom - 3 - width(doing), titleRoom / 2))
+                head = Style.bold + cut(title, to: titleCut) + Style.reset + " · " + cut(doing, to: max(0, titleRoom - titleCut - 3))
+            }
             var top = CrewFont.character(MascotKind(type: agentType), pose, holding: pose == .working ? holding(id) : nil) + "  "
-                + Style.bold + cut(title, to: titleRoom) + Style.reset
-                + "  " + whenStyle + when + Style.reset
+                + head + "  " + whenStyle + when + Style.reset
             if !model.isEmpty { top += "  " + Style.faint + model + Style.reset }
             // With almost no room even the face and the time overflow, so the whole line is cut.
             if width(top) > room {
@@ -255,7 +273,7 @@ enum CrewLine {
             }
             var lines = [top]
 
-            if !oneLine {
+            if !oneLine, !done {
                 let cwd = clean(task["cwd"])
                 if !cwd.isEmpty {
                     let folder = (cwd as NSString).lastPathComponent
@@ -264,9 +282,8 @@ enum CrewLine {
                     let place = "▭ " + folder + (name.isEmpty ? "" : "  ⑂ " + name)
                     lines.append("    " + Style.faint + cut(place, to: room - 4) + Style.reset)
                 }
-                let step = clean(task["label"])
-                if !step.isEmpty, step != description {
-                    lines.append("    " + cut("> " + step, to: room - 4) + Style.reset)
+                if !doing.isEmpty {
+                    lines.append("    " + cut("> " + doing, to: room - 4) + Style.reset)
                 }
             }
             // Rows of a finished agent are faint all through.
@@ -285,6 +302,13 @@ enum CrewLine {
     /// holds nothing either, and for a file that cannot be read.
     static func activity(transcript url: URL, now: Date) -> Activity? {
         openTurn(transcript: url, now: now).flatMap { Activity(tool: $0.openTools.last?.tool) }
+    }
+
+    /// What a row says its agent is doing this moment: its newest call still open, as the face
+    /// holds it; between calls, "Thinking", as the face then shows.
+    static func doing(_ turn: AgentInfo) -> String {
+        guard let call = turn.openTools.last else { return "Thinking" }
+        return TranscriptReader.stepLabel(tool: call.tool, input: call.input as? [String: Any] ?? [:])
     }
 
     /// What the transcript's last lines say of a turn still going and not gone quiet, or nil.

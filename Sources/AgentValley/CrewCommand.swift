@@ -27,11 +27,20 @@ enum CrewCommand {
         case "agents":
             let input = SafeJSON.object(FileHandle.standardInput.readDataToEndOfFile()) ?? [:]
             let now = Date()
-            let agents = transcript(input).flatMap { url in
-                drawsThingsInHand(home, environment) ? CrewLine.agentTranscripts(session: url) : nil
-            } ?? [:]
-            let holding = { (id: String) in agents[id].flatMap { CrewLine.activity(transcript: $0, now: now) } }
-            for row in CrewLine.rows(input, now: now, branch: CrewLine.branch(of:), holding: holding) { print(row) }
+            let agents = transcript(input).map(CrewLine.agentTranscripts(session:)) ?? [:]
+            // Each agent's open turn, read once: its last step, and what it holds where the font draws it.
+            var turns: [String: AgentInfo?] = [:]
+            let turn = { (id: String) -> AgentInfo? in
+                if let known = turns[id] { return known }
+                let info = agents[id].flatMap { CrewLine.openTurn(transcript: $0, now: now) }
+                turns[id] = info
+                return info
+            }
+            let newFont = drawsThingsInHand(home, environment)
+            let holding = { (id: String) in newFont ? turn(id).flatMap { Activity(tool: $0.openTools.last?.tool) } : nil }
+            for row in CrewLine.rows(input, now: now, branch: CrewLine.branch(of:), holding: holding, step: { turn($0).map(CrewLine.doing) }) {
+                print(row)
+            }
             return 0
         case "install":
             let executable = Format.stablePath(Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0]))

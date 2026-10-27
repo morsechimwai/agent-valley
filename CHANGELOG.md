@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.10 — 2026-10-27
+
+- Claude Code's list of sub-agents fits your terminal now. With three or more, each takes one line, and a finished one always does, so none drops off the bottom where you can't scroll to it.
+- Each line says what that sub-agent is doing right now: Find the login code · Read login.ts, and Thinking between steps. When they all run on the same model, the lines leave the model out to make room.
+
 ## 0.3.9 — 2026-10-27
 
 - When a sub-agent asks for something the notch can't show in full, the prompt now comes up in your terminal at once. Before, the notch told you to answer in the terminal while the terminal showed nothing for up to ten minutes.

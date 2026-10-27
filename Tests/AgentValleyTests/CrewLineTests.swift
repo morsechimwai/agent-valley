@@ -137,12 +137,45 @@ final class CrewLineTests: XCTestCase {
         }
     }
 
-    func testPastEightLiveAgentsEachRowIsOneLine() {
-        XCTAssertTrue(content(Array(repeating: task(), count: 9)).allSatisfy { !$0.contains("\n") })
-        XCTAssertTrue(content(Array(repeating: task(), count: 8)).allSatisfy { $0.contains("\n") })
-        // As in the app, finished agents do not count.
-        let mixed = Array(repeating: task(), count: 7) + Array(repeating: task(["status": "completed"]), count: 2)
-        XCTAssertTrue(content(mixed).allSatisfy { $0.contains("\n") })
+    func testFromThreeAgentsEachRowIsOneLine() {
+        XCTAssertTrue(content(Array(repeating: task(), count: 3)).allSatisfy { !$0.contains("\n") })
+        XCTAssertTrue(content(Array(repeating: task(), count: 2)).allSatisfy { $0.contains("\n") })
+        // Finished agents count too: their rows take room all the same.
+        let mixed = [task(), task(["status": "completed"]), task(["status": "completed"])]
+        XCTAssertTrue(content(mixed).allSatisfy { !$0.contains("\n") })
+    }
+
+    func testOnOneLineTheStepFollowsTheTitle() {
+        let tasks = [task(), task(), task(["status": "completed"])]
+        let rows = CrewLine.rows(["tasks": tasks, "columns": 100], now: now, branch: { _ in "main" }, step: { _ in "Read MascotView.swift" })
+            .map { plain((try! JSONSerialization.jsonObject(with: Data($0.utf8)) as! [String: Any])["content"] as! String) }
+        XCTAssertEqual(rows[0], "\u{3F003}  Find the login code · Read MascotView.swift  4m 32s")
+        // Claude Code's label stands in where the transcript says nothing; a finished row has no step.
+        XCTAssertTrue(plain(content(tasks)[0]).contains("Find the login code · Read login.ts  "))
+        XCTAssertFalse(rows[2].contains("Read"))
+        // Short of room, the title gives up its half first, so the step still shows.
+        let narrow = CrewLine.rows(["tasks": [task(["description": String(repeating: "x", count: 80)]), task(), task()], "columns": 60],
+                                   now: now, branch: { _ in "main" }, step: { _ in "Read MascotView.swift" })[0]
+        XCTAssertTrue(plain((try! JSONSerialization.jsonObject(with: Data(narrow.utf8)) as! [String: Any])["content"] as! String).contains("· Read Mascot"))
+    }
+
+    func testOnOneLineTheModelShowsOnlyWhenTheAgentsDiffer() {
+        XCTAssertTrue(content([task(), task(), task()]).allSatisfy { !plain($0).contains("Opus") })
+        let mixed = content([task(), task(), task(["model": "claude-haiku-5-5"])]).map(plain)
+        XCTAssertTrue(mixed[0].hasSuffix("  Opus 5.5") && mixed[2].hasSuffix("  Haiku 5.5"), "\(mixed)")
+        // With room for more lines, the model stays.
+        XCTAssertTrue(plain(content([task(), task()])[0]).contains("  Opus 5.5"))
+    }
+
+    func testTheStepLineIsTheTranscriptsLastStep() {
+        let row = CrewLine.rows(["tasks": [task()], "columns": 100], now: now, branch: { _ in "main" }, step: { _ in "Grep coffee" })[0]
+        XCTAssertTrue(plain(row).contains("> Grep coffee"))
+    }
+
+    func testAFinishedRowIsOneLine() {
+        let rows = content([task(), task(["status": "completed"])])
+        XCTAssertTrue(rows[0].contains("\n"))
+        XCTAssertFalse(rows[1].contains("\n"))
     }
 
     func testOtherTypesWearAShirtFromThePool() {
@@ -298,6 +331,24 @@ final class CrewLineTests: XCTestCase {
         // A long file is read from its end, a line cut in half at the front left out.
         XCTAssertEqual(try after(String(repeating: "x", count: Int(CrewLine.tail)), call), .reading)
         XCTAssertNil(CrewLine.activity(transcript: file.appendingPathExtension("missing"), now: then))
+    }
+
+    // A row names the call still open, not one already answered; with none open it thinks.
+    func testARowSaysTheCallStillOpen() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("crew-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let at = "2026-10-12T02:00:05.000Z", then = Date(timeIntervalSince1970: 1_791_684_010)
+        let calls = #"{"type":"assistant","timestamp":"\#(at)","message":{"model":"claude-haiku-5-5","content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/a/login.ts"}},{"type":"tool_use","id":"t2","name":"Grep","input":{"pattern":"session"}}]}}"#
+        func result(_ id: String) -> String {
+            #"{"type":"user","timestamp":"\#(at)","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"\#(id)","content":"ok"}]}}"#
+        }
+        func doing(_ lines: String...) throws -> String? {
+            try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
+            return CrewLine.openTurn(transcript: file, now: then).map(CrewLine.doing)
+        }
+        XCTAssertEqual(try doing(calls), "Grep session")
+        XCTAssertEqual(try doing(calls, result("t2")), "Read login.ts")
+        XCTAssertEqual(try doing(calls, result("t2"), result("t1")), "Thinking")
     }
 
     func testSubAgentTranscriptsAreFoundByTheirRowID() throws {
