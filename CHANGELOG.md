@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.12 — 2026-10-27
+
+- When a sub-agent asks for permission, only its own row says needs you now, with Allow and Deny under it. The lead's row used to say it too, with a second Go to button, and the bar counted one prompt as two.
+- This needs the plugin that answers from the notch. Without it the notch can't tell which agent asked, so the lead says needs you as before.
+
 ## 0.3.11 — 2026-10-27
 
 - The sub-agent rows in Claude Code's terminal wear the notch's own marks now: the same folder before the project and the same branch before the branch name, and a worktree shows the worktree mark, as in the panel. Before, they had a box and a fork that didn't say much.

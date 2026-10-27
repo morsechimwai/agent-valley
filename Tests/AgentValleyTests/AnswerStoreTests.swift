@@ -727,6 +727,21 @@ final class AnswerStoreTests: XCTestCase {
         XCTAssertEqual(replies.count, 1)
     }
 
+    // Claude Code's record says only that the session waits, and the main row takes it. With the
+    // request under a sub-agent, the wait is that agent's: one "needs you" on the card, not two.
+    func testASubAgentsRequestTakesTheWaitOffTheMainRow() {
+        add(ask(nine, agent: "a1"))
+        var lead = AgentInfo()
+        lead.lastActivity = clock.addingTimeInterval(-30)
+        let waiting = card(main: AgentRow(id: "/r/p/s1.jsonl", info: lead, status: .needsYou, elapsed: 0, quietFor: 21),
+                           agents: [row("/r/p/s1/a1.jsonl", open: [nine])])
+        store.reconcile(with: [waiting])
+        let shown = store.overlay([waiting])
+        XCTAssertEqual(shown[0].agents[0].status, .needsYou)
+        XCTAssertEqual(shown[0].main?.status, .working)
+        XCTAssertEqual(AgentStore.count(.needsYou, in: shown), 1)
+    }
+
     // One the panel can answer is held: answered here, it never waits in the terminal. Put away,
     // it is let go, so the terminal asks. A main session's prompt shows while its hook waits, so
     // its requests are held whatever the panel can do with them.

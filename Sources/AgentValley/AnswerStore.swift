@@ -390,8 +390,19 @@ final class AnswerStore: ObservableObject {
                 guard let first = requests(forRow: row.id, in: card).map(\.receivedAt).min() else { return row }
                 return AgentRow(id: row.id, info: row.info, status: .needsYou, elapsed: row.elapsed, quietFor: time.timeIntervalSince(first))
             }
+            // Claude Code's record says only that the session waits, and the main row takes it.
+            // With a request under a sub-agent and none under the main row, the wait is that
+            // agent's: the main row reads as its transcript alone says, or the card said it twice.
+            let agentAsks = card.agents.contains { !requests(forRow: $0.id, in: card).isEmpty }
+            func lead(_ row: AgentRow) -> AgentRow {
+                guard agentAsks, row.status == .needsYou, !row.info.asking, requests(forRow: row.id, in: card).isEmpty else { return shown(row) }
+                let last = row.info.lastActivity ?? time
+                let status = TranscriptReader.status(of: row.info, lastActivity: last, now: time)
+                return AgentRow(id: row.id, info: row.info, status: status, elapsed: TranscriptReader.elapsed(of: row.info, lastActivity: last, now: time),
+                                quietFor: status == .done ? 0 : max(0, time.timeIntervalSince(last)))
+            }
             var card = card
-            card.main = card.main.map(shown)
+            card.main = card.main.map(lead)
             card.agents = card.agents.map(shown)
             return card
         }
