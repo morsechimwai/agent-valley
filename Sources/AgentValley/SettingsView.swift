@@ -575,6 +575,11 @@ struct Legend: View {
         caption(Format.ringCaption)
         caption(Format.waitCaption)
         caption(Format.barMascotCaption)
+        // The screen itself before its caption: a sixth mark would run the row off the panel.
+        HStack(alignment: .top, spacing: 6) {
+            JobScreen(size: 14).accessibilityHidden(true)
+            caption(Format.jobsCaption)
+        }
         caption(Format.beatCaption)
         caption(Format.displayCaption)
     }

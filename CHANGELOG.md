@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.17 — 2026-10-28
+
+- The Bar page of the ? legend says what the small green screen beside the coffee means: something an agent left running in the background, like a dev server. It looks like the terminal we hold for a command, so it read as one of us still at work.
+
 ## 0.3.16 — 2026-10-28
 
 - History tells projects apart by where they are, not by their folder's name. Two projects that share a name are two lines now, each with the folder it sits in, like website · work and website · play. Before, they were one line, and one bill in the PDF.
