@@ -69,7 +69,7 @@ final class NotchWindowTests: XCTestCase {
     // about the bar says what the rule above does, and where on that display the bar is.
     func testTheLegendSaysWhichDisplayTheBarIsOn() {
         // One sentence since 2026-10-15, with the same answer, and since issue #1 the way to change it.
-        XCTAssertEqual(Format.displayCaption, "The bar is on the display with a notch, or on your main display when there is none, unless you pick one under Display in the settings.")
+        XCTAssertEqual(Format.displayCaption, "The bar is on the display with a notch, or your main one, unless you pick another under Display in the settings.")
         // A notched display beside a second one: the bar is on the notched one, whichever is the main display.
         XCTAssertEqual(NotchGeometry.screenIndex(notchHeights: [0, 38]), 1)
         XCTAssertEqual(NotchGeometry.screenIndex(notchHeights: [38, 0]), 0)

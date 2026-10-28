@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.19 — 2026-10-28
+
+- The ? legend is shorter, and shows every picture the panel uses: what we hold for each tool (Read, Edit, Bash, Grep, Agent), the envelope, the green screen of a job left running, a Monitor's eye, and the coffee on the bar.
+
 ## 0.3.18 — 2026-10-28
 
 - The Mascots page of the ? legend shows the sealed envelope too: it holds the sub-agents that finished. What one just handed back waits under it, and a click on the envelope lists them all.

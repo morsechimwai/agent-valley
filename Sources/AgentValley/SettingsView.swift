@@ -557,17 +557,28 @@ struct Legend: View {
             item("needs you", flag: .needsYou)
             item("idle or done", status: .done)
         }
-        // At the size of the mascots above, as the green screen on the Bar tab.
-        HStack(alignment: .top, spacing: 6) {
-            DoneEnvelope(size: 14 * 10 / 12).frame(width: 14)
-            caption(Format.envelopeCaption)
+        // What a working one holds, named by the tool as the step line writes it. The terminal
+        // in hand looks like the green screen of a job left running: both are on this page.
+        HStack(spacing: 12) {
+            item("thinking", status: .working, activity: .thinking)
+            item("Read", status: .working, activity: .reading)
+            item("Edit", status: .working, activity: .typing)
+            item("Bash", status: .working, activity: .running)
+            item("Grep", status: .working, activity: .searching)
+            item("Agent", status: .working, activity: .calling)
+        }
+        // The rest a card can show, at the mascots' size.
+        HStack(spacing: 12) {
+            mark("finished, click to list") { DoneEnvelope(size: 14 * 10 / 12).frame(width: 14) }
+            mark("job left running") { JobScreen(size: 14) }
+            mark("Monitor job") { JobEye(size: 14) }
         }
         caption(Format.quietCaption)
         caption(Format.timeCaption)
     }
 
     @ViewBuilder private var bar: some View {
-        // The bar's numbers, drawn as the bar draws them.
+        // The bar's numbers, drawn as the bar draws them: their colours say what they count.
         HStack(spacing: 12) {
             mark("needs you") { BarBadge(count: 1) }
             mark("working") { Text(verbatim: "2").bold() }
@@ -576,15 +587,14 @@ struct Legend: View {
             mark("5h limit") { LimitRingView(ring: LimitRing(limit: PlanLimit(usedPercent: 65, resetsAt: nil), stale: false)).accessibilityHidden(true) }
             mark("longest wait") { Text(verbatim: "12m").bold().foregroundStyle(MascotFlag.red) }
         }
-        caption(Format.barCaption)
+        // With nobody at work, the bar shows these in the mascot's place.
+        HStack(spacing: 12) {
+            mark("nothing running") { Mug(size: 14) }
+            mark("job left running") { JobScreen(size: 14) }
+        }
+        caption(Format.barMascotCaption)
         caption(Format.ringCaption)
         caption(Format.waitCaption)
-        caption(Format.barMascotCaption)
-        // The screen itself before its caption: a sixth mark would run the row off the panel.
-        HStack(alignment: .top, spacing: 6) {
-            JobScreen(size: 14).accessibilityHidden(true)
-            caption(Format.jobsCaption)
-        }
         caption(Format.beatCaption)
         caption(Format.displayCaption)
     }
@@ -614,10 +624,10 @@ struct Legend: View {
         Text(verbatim: text).foregroundStyle(.white.opacity(0.6)).lineLimit(lines).fixedSize(horizontal: false, vertical: true)
     }
 
-    private func item(_ label: String, kinds: [MascotKind] = [.general], status: AgentStatus = .needsYou, flag: MascotFlag? = nil) -> some View {
+    private func item(_ label: String, kinds: [MascotKind] = [.general], status: AgentStatus = .needsYou, flag: MascotFlag? = nil, activity: Activity? = nil) -> some View {
         HStack(spacing: 6) {
             ForEach(Array(kinds.enumerated()), id: \.offset) { _, kind in
-                MascotView(status: status, kind: kind, size: 14, flag: flag)
+                MascotView(status: status, kind: kind, size: 14, flag: flag, activity: activity)
             }
             Text(verbatim: label).foregroundStyle(.white.opacity(0.8)).fixedSize()
         }

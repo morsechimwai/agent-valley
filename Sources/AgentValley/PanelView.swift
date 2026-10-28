@@ -683,20 +683,14 @@ enum Format {
         "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command." + (installed ? "" : " Needs a plugin that comes with this app: install it below.")
     }
     static let barMascotCaption = "The mascot on the bar is the agent to look at first."
-    /// Beside the envelope in the legend: nothing in the app said what it held.
-    static let envelopeCaption = "The sealed envelope holds the sub-agents that finished. What one just handed back waits under it. Click the envelope to list them all."
-    /// Beside the green screen in the legend: nothing said what it was, and it looks like the
-    /// terminal the crew holds while it runs a command, so it read as an agent still at work.
-    static let jobsCaption = "The green screen beside the coffee: something an agent left running, like a dev server. Still and dim after half an hour."
     /// Past this many sub-agents in the list, each takes one line: at two lines each, a dozen
     /// push every other session off the panel.
     static let compactPast = 8
 
     static func oneLineRows(liveAgents: Int) -> Bool { liveAgents > compactPast }
     static let shortcutCaption = "Opens the panel from any app. ↑ ↓ move between sessions, return goes to the session's app, ⌘return and ⌘delete answer a request, esc closes. The ? lists every key."
-    static let barCaption = "The number on the bar: red is how many agents need you, white how many are working, grey how many are quiet."
-    static let waitCaption = "Once an agent has waited a minute for you, the longest wait shows in red where the ring is."
-    static let ringCaption = "The ring shows how much of your 5-hour limit is used. It turns yellow at 80%. It is shown only when Plan limits is on."
+    static let waitCaption = "After a minute of waiting, the longest wait shows in red in the ring's place."
+    static let ringCaption = "The ring is how much of your 5-hour limit is used, yellow from 80%. Only with Plan limits on."
 
     /// The ring on the bar, read out: it has no room for a word of its own.
     static func ringLabel(_ ring: LimitRing) -> String {
@@ -707,11 +701,11 @@ enum Format {
     /// Which display the bar is on. Nothing in the app said: someone who works on a second
     /// display all day could not tell whether the bar would be there. It is not: it stays with
     /// the notch while a display with one is on.
-    static let displayCaption = "The bar is on the display with a notch, or on your main display when there is none, unless you pick one under Display in the settings."
+    static let displayCaption = "The bar is on the display with a notch, or your main one, unless you pick another under Display in the settings."
     static let displayChoiceCaption = "Automatic is the display with a notch, or your main one."
-    static let beatCaption = "While an agent waits for you, the bar glows red every few seconds, until you open the panel."
+    static let beatCaption = "While one waits for you, the bar glows red every few seconds until you open the panel."
     static let keepCaption = "How long a session or an agent stays listed after it stops."
-    static let legendCaption = "The person shows the kind of agent."
+    static let legendCaption = "The person shows the kind of agent, its pose how it is doing, and what it holds the tool it is using."
 
     /// What takes the plugin out again. The names are the plugin's and its marketplace's own.
     static let uninstallCommand = "claude plugin uninstall notch-answers@agent-valley && claude plugin marketplace remove agent-valley"
