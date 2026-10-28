@@ -132,6 +132,63 @@ final class HistoryReportTests: XCTestCase {
         XCTAssertEqual(report.projects.first?.cost ?? 0, 3, accuracy: 1e-9)
     }
 
+    // Two projects of one name are two lines, each saying the folder it is in; a name no other
+    // project has stays as it is.
+    func testTwoProjectsOfOneNameSayWhereEachIs() {
+        let slice = LedgerSlice(answers: [
+            answer("1", "2026-10-12T10:00:00.000Z", folder: "/Users/me/work/website", output: 150_000),   // $3
+            answer("2", "2026-10-12T11:00:00.000Z", folder: "/Users/me/play/website", output: 100_000),   // $2
+            answer("3", "2026-10-12T12:00:00.000Z", folder: "/Users/me/blog", output: 50_000),            // $1
+        ])
+        var pick = HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z"))
+        var report = HistoryReport.make(slice, pick: pick, calendar: utc, home: home)
+        XCTAssertEqual(report.projects.map(\.name), ["website · work", "website · play", "blog"])
+        XCTAssertEqual(report.projects.map(\.id), ["/Users/me/work/website", "/Users/me/play/website", "/Users/me/blog"])
+        pick.project = "/Users/me/play/website"
+        report = HistoryReport.make(slice, pick: pick, calendar: utc, home: home)
+        XCTAssertEqual(report.projectName, "website · play")
+        XCTAssertEqual(report.total, 2, accuracy: 1e-9)
+        XCTAssertEqual(report.sessions.map(\.name), ["website · play · Oct 12"])
+        // A stretch the other spent nothing in: the name alone.
+        let alone = LedgerSlice(answers: [slice.answers[0], answer("4", "2026-11-02T10:00:00.000Z", folder: "/Users/me/play/website", output: 50_000)])
+        XCTAssertEqual(HistoryReport.make(alone, pick: HistoryPick(span: .month, anchor: date("2026-11-15T12:00:00.000Z")), calendar: utc, home: home)
+            .projects.map(\.name), ["website"])
+    }
+
+    // A checkout renamed is one line with its new name, back to before the rename: the address
+    // of its remote is the same. A folder its session went into is the project it began in.
+    func testARenamedCheckoutIsOneLineByItsNewName() {
+        let old = "/Users/me/agents-visualizer", new = "/Users/me/agent-valley"
+        let slice = LedgerSlice(answers: [
+            answer("1", "2026-10-05T10:00:00.000Z", folder: old, session: "a", output: 50_000),
+            answer("2", "2026-10-05T11:00:00.000Z", folder: old + "/site", session: "a", output: 50_000),
+            answer("3", "2026-10-20T10:00:00.000Z", folder: new, session: "b", output: 100_000),
+            // Gone before git was asked, and no remote known: by the folder its session began in.
+            answer("4", "2026-10-06T10:00:00.000Z", folder: "/Users/me/gone", session: "c", output: 50_000),
+            answer("5", "2026-10-06T11:00:00.000Z", folder: "/Users/me/gone/site/public", session: "c", output: 50_000),
+        ], folders: [old, old + "/site", new, "/Users/me/gone", "/Users/me/gone/site/public"],
+           checkouts: [old: old, old + "/site": old, new: new],
+           remotes: [old: "github.com/me/agent-valley", new: "github.com/me/agent-valley"],
+           starts: ["a": old, "b": new, "c": "/Users/me/gone"],
+           lastUsed: [old: date("2026-10-05T10:00:00.000Z"), old + "/site": date("2026-10-05T11:00:00.000Z"), new: date("2026-10-20T10:00:00.000Z"),
+                      "/Users/me/gone": date("2026-10-06T10:00:00.000Z"), "/Users/me/gone/site/public": date("2026-10-06T11:00:00.000Z")])
+        let month = HistoryReport.make(slice, pick: HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z")), calendar: utc, home: home)
+        XCTAssertEqual(month.projects.map(\.name), ["agent-valley", "gone"])
+        XCTAssertEqual(month.projects.map(\.cost), [4, 2])
+        // Renamed with no remote known, but under a session: one line too.
+        var moved = slice
+        moved.remotes = [:]
+        moved.checkouts = [new: new]
+        moved.moves = [old: new]
+        let one = HistoryReport.make(moved, pick: HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z")), calendar: utc, home: home)
+        XCTAssertEqual(one.projects.map(\.name), ["agent-valley", "gone"])
+        XCTAssertEqual(one.projects.map(\.id).first, new)
+        // The week before the rename goes by the new name too.
+        let week = HistoryReport.make(slice, pick: HistoryPick(span: .week, anchor: date("2026-10-05T12:00:00.000Z")), calendar: utc, home: home)
+        XCTAssertEqual(week.projects.first?.name, "agent-valley")
+        XCTAssertEqual(week.projects.first?.cost ?? 0, 2, accuracy: 1e-9)
+    }
+
     func testWhatWasSpentOnWhatAndByWhom() throws {
         let slice = LedgerSlice(answers: [
             answer("1", "2026-10-12T10:00:00.000Z", folder: "/Users/me/.superset/worktrees/api/a", session: "rate", output: 500_000),   // $10
@@ -165,7 +222,7 @@ final class HistoryReportTests: XCTestCase {
         XCTAssertEqual(report.agents.map(\.name), ["main", "general-purpose", "poteto-agent"])
         XCTAssertEqual(report.agents[0].cost, 14, accuracy: 1e-9)
 
-        pick.project = "app"
+        pick.project = "/Users/me/app"
         report = HistoryReport.make(slice, pick: pick, calendar: utc, home: home)
         // In a project everything is the project's: its total, its sessions, its models.
         XCTAssertEqual(report.total, 5, accuracy: 1e-9)
@@ -190,7 +247,7 @@ final class HistoryReportTests: XCTestCase {
     func testEverySessionOfAProjectAndTwoNamedParts() {
         let answers = (1...7).map { answer("\($0)", "2026-10-12T10:00:00.000Z", session: "s\($0)", agent: "type\($0)", output: $0 * 50_000) }
         let report = HistoryReport.make(LedgerSlice(answers: answers),
-                                        pick: HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z"), project: "app"),
+                                        pick: HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z"), project: "/Users/me/app"),
                                         calendar: utc, home: home)
         XCTAssertEqual(report.sessions.map(\.id), ["s7", "s6", "s5", "s4", "s3", "s2", "s1"])
         XCTAssertEqual(report.agents.map(\.name), ["type7", "type6", "others"])
@@ -216,7 +273,7 @@ final class HistoryReportTests: XCTestCase {
             answer("b", "2026-10-12T21:30:00.000Z", folder: "/Users/me/other", output: 150_000),  // other, $3
             answer("c", "2026-10-03T10:00:00.000Z", folder: "/Users/me/other", output: 50_000),   // other, $1
         ])
-        var pick = HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z"), project: "app")
+        var pick = HistoryPick(span: .month, anchor: date("2026-10-15T12:00:00.000Z"), project: "/Users/me/app")
         var report = HistoryReport.make(slice, pick: pick, calendar: utc, home: home)
         XCTAssertEqual(report.total, 2, accuracy: 1e-9)
         XCTAssertEqual(report.bars[11].cost, 2, accuracy: 1e-9)
@@ -232,7 +289,7 @@ final class HistoryReportTests: XCTestCase {
         XCTAssertEqual(report.focusCost, 5, accuracy: 1e-9)
         XCTAssertEqual(report.projects.map(\.name), ["other", "app"])
         // A stretch the project spent nothing in: no sessions, and the page says so.
-        report = HistoryReport.make(slice, pick: HistoryPick(span: .month, anchor: date("2026-09-15T12:00:00.000Z"), project: "app"), calendar: utc, home: home)
+        report = HistoryReport.make(slice, pick: HistoryPick(span: .month, anchor: date("2026-09-15T12:00:00.000Z"), project: "/Users/me/app"), calendar: utc, home: home)
         XCTAssertTrue(report.sessions.isEmpty)
         XCTAssertEqual(report.total, 0)
     }

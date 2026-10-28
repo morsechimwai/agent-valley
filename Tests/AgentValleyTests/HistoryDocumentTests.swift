@@ -57,7 +57,7 @@ final class HistoryDocumentTests: XCTestCase {
     }
 
     func testAProjectReportHoldsNothingOfAnother() throws {
-        let document = try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor, project: "app")))
+        let document = try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor, project: "/Users/me/app")))
         XCTAssertEqual(document.project, "app")
         XCTAssertEqual(document.lines.map(\.name), ["Visualizer", "Second"])
         XCTAssertEqual(document.total, 8, accuracy: 1e-9)
@@ -96,7 +96,7 @@ final class HistoryDocumentTests: XCTestCase {
         let picks: [(HistoryPick, LedgerSlice)] = [
             (HistoryPick(span: .month, anchor: anchor), slice),
             (HistoryPick(span: .month, anchor: anchor, day: empty), slice),
-            (HistoryPick(span: .month, anchor: anchor, day: empty, project: "app"), slice),
+            (HistoryPick(span: .month, anchor: anchor, day: empty, project: "/Users/me/app"), slice),
             (HistoryPick(span: .month, anchor: date("2026-11-15T12:00:00.000Z")), slice),
             (HistoryPick(span: .month, anchor: anchor), LedgerSlice(interval: october)),
             (HistoryPick(span: .month, anchor: anchor, project: "elsewhere"), slice),
@@ -127,7 +127,7 @@ final class HistoryDocumentTests: XCTestCase {
 
     func testAFileNameStaysInItsFolder() throws {
         let odd = LedgerSlice(answers: [answer("1", "2026-10-12T10:00:00.000Z", folder: "/Users/me/a:b", output: 50_000)], interval: october)
-        let project = try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor, project: "a:b"), odd))
+        let project = try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor, project: "/Users/me/a:b"), odd))
         XCTAssertEqual(project.fileName(calendar: utc), "a-b October 2026.pdf")
         var monday = utc
         monday.firstWeekday = 2
@@ -140,7 +140,7 @@ final class HistoryDocumentTests: XCTestCase {
 
     func testReportWords() throws {
         let one = LedgerSlice(answers: [answer("1", "2026-10-12T10:00:00.000Z", output: 50_000)], interval: october)
-        XCTAssertEqual(Format.reportFacts(try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor, project: "app"), one))),
+        XCTAssertEqual(Format.reportFacts(try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor, project: "/Users/me/app"), one))),
                        "1 session · 1 answer · 1 hour with work")
         XCTAssertEqual(Format.reportFacts(try XCTUnwrap(document(HistoryPick(span: .month, anchor: anchor)))),
                        "4 sessions · 6 answers · 5 hours with work · 2 projects")

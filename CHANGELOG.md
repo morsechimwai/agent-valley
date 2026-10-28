@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.16 — 2026-10-28
+
+- History tells projects apart by where they are, not by their folder's name. Two projects that share a name are two lines now, each with the folder it sits in, like website · work and website · play. Before, they were one line, and one bill in the PDF.
+- A project you moved or renamed stays one line, under its new name, back to its first day. History knows it by the project's git remote, such as its GitHub address, or, with no remote, by a Claude Code session that was working in the folder when you renamed it.
+- Folders a session went into, like site or src, count toward the project the session began in, instead of showing up as projects of their own.
+
 ## 0.3.15 — 2026-10-28
 
 - Claude Code knows your crew by the names the notch gives them. The lead hands an Explore job to Faye by name, and Faye reports back to the lead by name, each in their own voice and in the language you write in. The code, commits and files they write stay as they would be without it. It needs the plugin that answers from the notch, and starts with your next Claude Code session. Turn it off with Crew names in Claude Code in Settings, under Answer from the notch.

@@ -10,7 +10,7 @@ export function Trust() {
       <Reveal>
         <ul className="paper" role="list">
           <li>Reads ~/.claude/<wbr />projects and ~/.claude/<wbr />sessions, the files Claude Code writes as it works.</li>
-          <li>Looks at Claude Code&apos;s <Word id="process">processes</Word> and each project&apos;s <Word id="git">.git</Word> to show which app and branch a session is in.</li>
+          <li>Looks at Claude Code&apos;s <Word id="process">processes</Word> and each project&apos;s <Word id="git">.git</Word> to show which app and branch a session is in. From .git it also reads the address of the project&apos;s remote, such as its GitHub page, so History knows a project after you move or rename it. That address stays on your Mac, without any login in it.</li>
           <li>Reads your Claude Code login from the <Word id="keychain">Keychain</Word> only when you turn on <Word id="limits">Plan limits</Word>, and sends it only to api.anthropic.com.</li>
           <li>Asks GitHub once an hour whether there&apos;s a new version. That&apos;s the whole conversation. Turn it off in Settings.</li>
           <li>Sends us one count a day, so we know how many Macs run it: the app version, the macOS version, and whether it&apos;s this Mac&apos;s first day. No name, no ID, nothing about your sessions. Turn it off in Settings.</li>

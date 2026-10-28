@@ -111,7 +111,7 @@ final class ReportMotionAssetsTests: XCTestCase {
         var slice = try ledger.slice(Self.month)
         slice.interval = Self.month
         var totals: [String] = []
-        for (name, project) in [("all", nil), ("shop-web", "shop-web")] as [(String, String?)] {
+        for (name, project) in [("all", nil), ("shop-web", "/Users/demo/shop-web")] as [(String, String?)] {
             let document = try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: project),
                                                               calendar: calendar, home: "/Users/demo", printed: Self.printed))
             try ReportPDF.data(document, calendar: calendar).write(to: URL(fileURLWithPath: "\(out)/report-\(name).pdf"))
@@ -140,7 +140,7 @@ final class ReportMotionAssetsTests: XCTestCase {
         window.contentView = host
         window.orderFrontRegardless()
         defer { window.orderOut(nil) }
-        for (name, project) in [("all", nil), ("shop-web", "shop-web")] as [(String, String?)] {
+        for (name, project) in [("all", nil), ("shop-web", "/Users/demo/shop-web")] as [(String, String?)] {
             state.showingHistory = true
             state.historyPick = HistoryPick(span: .month, anchor: anchor, project: project)
             state.expanded = true
@@ -163,7 +163,7 @@ final class ReportMotionAssetsTests: XCTestCase {
         slice.interval = Self.month
         let all = try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: Self.month.start, project: nil),
                                                      calendar: calendar, home: "/Users/demo", printed: Self.printed))
-        let shop = try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: Self.month.start, project: "shop-web"),
+        let shop = try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: Self.month.start, project: "/Users/demo/shop-web"),
                                                       calendar: calendar, home: "/Users/demo", printed: Self.printed))
         XCTAssert((1_000...2_000).contains(all.total), "\(all.total)")
         XCTAssert(shop.total > 0 && shop.total < all.total)

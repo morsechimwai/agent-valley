@@ -15,7 +15,7 @@ struct HistoryCrewLine: Equatable {
 struct HistoryDocument: Equatable {
     let span: Span
     let interval: DateInterval
-    /// nil for every project.
+    /// The project's name. nil for every project.
     let project: String?
     let printed: Date
     let total: Double
@@ -42,7 +42,7 @@ struct HistoryDocument: Equatable {
         let scope = pick.project.map { project in priced.filter { $0.project == project } } ?? priced
         guard !scope.isEmpty else { return nil }
         let hours = Set(scope.compactMap { calendar.dateInterval(of: .hour, for: $0.answer.at)?.start })
-        return HistoryDocument(span: pick.span, interval: report.interval, project: pick.project, printed: printed,
+        return HistoryDocument(span: pick.span, interval: report.interval, project: report.projectName, printed: printed,
                                total: report.total, unpriced: report.unpriced, answers: scope.count,
                                sessions: Set(scope.map(\.answer.session)).count, projects: report.projects.count,
                                hoursWithWork: hours.count, bars: report.bars, crew: crew(scope), models: report.models,

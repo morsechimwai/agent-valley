@@ -193,6 +193,57 @@ final class LedgerTests: XCTestCase {
         XCTAssertEqual(try again.slice(all).checkouts, [ws: repo, repo: repo, side: repo])
     }
 
+    // A checkout's remote is kept too, read on the first pass for those met before there was a
+    // place to keep it, and without who signs in. Each session says where it began, and each
+    // folder when it was last worked in.
+    func testEachCheckoutsRemoteIsKeptAndWhereEachSessionBegan() throws {
+        let base = try folder()
+        let repo = base.path + "/app", plain = base.path + "/plain"
+        try FileManager.default.createDirectory(atPath: repo + "/.git", withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: plain + "/.git", withIntermediateDirectories: true)
+        try write([line(id: "a", at: "2026-10-13T10:00:00.000Z", output: 1, cwd: repo),
+                   line(id: "b", at: "2026-10-13T10:01:00.000Z", output: 1, cwd: repo + "/site"),
+                   line(id: "c", at: "2026-10-13T10:02:00.000Z", output: 1, session: "s2", cwd: plain)].joined(separator: "\n") + "\n",
+                  to: base.appendingPathComponent("projects/proj/s1.jsonl"))
+        _ = ledger(base).scan(now: now, calendar: utc)
+        // The remote added after the checkout was first met: read on the next first pass.
+        try write("[remote \"origin\"]\n\turl = https://me:ghp_secret@github.com/me/app.git\n", to: URL(fileURLWithPath: repo + "/.git/config"))
+        let again = ledger(base)
+        _ = again.scan(now: now, calendar: utc)
+        let slice = try again.slice(all)
+        XCTAssertEqual(slice.remotes, [repo: "github.com/me/app"])
+        XCTAssertEqual(slice.starts, ["s1": repo, "s2": plain])
+        XCTAssertEqual(slice.lastUsed[repo], TranscriptReader.date(from: "2026-10-13T10:00:00.000Z"))
+        XCTAssertEqual(slice.lastUsed[repo + "/site"], TranscriptReader.date(from: "2026-10-13T10:01:00.000Z"))
+        // A session of another stretch is not said.
+        let later = try again.slice(DateInterval(start: TranscriptReader.date(from: "2026-10-13T10:01:30.000Z")!, duration: 3600))
+        XCTAssertEqual(later.starts, ["s2": plain])
+    }
+
+    // A session that went on from its folder into one new to the history, and never back, saw
+    // the folder renamed. Not one that came back, nor one that went into a folder worked in
+    // before, nor into a scratch folder.
+    func testAFolderRenamedUnderASessionIsSaid() throws {
+        let base = try folder()
+        let lines = [
+            line(id: "a", at: "2026-10-13T10:00:00.000Z", output: 1, session: "s1", cwd: "/Users/me/old"),
+            line(id: "b", at: "2026-10-13T10:01:00.000Z", output: 1, session: "s1", cwd: "/Users/me/old/site"),
+            line(id: "c", at: "2026-10-13T10:02:00.000Z", output: 1, session: "s1", cwd: "/private/tmp/claude-501/-Users-me-old/x/scratchpad"),
+            line(id: "d", at: "2026-10-13T10:03:00.000Z", output: 1, session: "s1", cwd: "/Users/me/new"),
+            // Went into another project for a while, and came back to its own the next day.
+            line(id: "e", at: "2026-10-13T11:00:00.000Z", output: 1, session: "s2", cwd: "/Users/me/keep"),
+            line(id: "f", at: "2026-10-13T11:01:00.000Z", output: 1, session: "s2", cwd: "/Users/me/side"),
+            line(id: "g", at: "2026-10-14T09:00:00.000Z", output: 1, session: "s3", cwd: "/Users/me/keep"),
+            // Went into a folder worked in before.
+            line(id: "h", at: "2026-10-14T10:00:00.000Z", output: 1, session: "s4", cwd: "/Users/me/done"),
+            line(id: "i", at: "2026-10-14T10:01:00.000Z", output: 1, session: "s4", cwd: "/Users/me/keep"),
+        ]
+        try write(lines.joined(separator: "\n") + "\n", to: base.appendingPathComponent("projects/proj/s1.jsonl"))
+        let ledger = ledger(base)
+        _ = ledger.scan(now: now, calendar: utc)
+        XCTAssertEqual(try ledger.slice(all).moves, ["/Users/me/old": "/Users/me/new"])
+    }
+
     func testASliceIsItsStretchOfTime() throws {
         let base = try folder()
         try write(line(id: "a", at: "2026-10-12T23:59:59.000Z", output: 1) + "\n" + line(id: "b", at: "2026-10-13T00:00:00.000Z", output: 1) + "\n"

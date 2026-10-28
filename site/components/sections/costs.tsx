@@ -14,7 +14,7 @@ export function Costs() {
         <div className="stack">
           <p className="lead">Open History from the chart button at the top of the panel. Pick a day, a week or a month, then go back to any earlier one. Choose a day for its hours, or a project for its sessions.</p>
           <p className="text-muted-foreground">
-            At <Word id="api"><abbr title="application programming interface">API</abbr> prices</Word>. Kept on your Mac, even after Claude Code clears its old files.
+            At <Word id="api"><abbr title="application programming interface">API</abbr> prices</Word>. Kept on your Mac, even after Claude Code clears its old files. A project you move or rename keeps its history, and two folders that share a name stay two projects.
           </p>
           <HuntPumpkin n={1} />
         </div>

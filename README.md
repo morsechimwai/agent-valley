@@ -77,7 +77,7 @@ When an agent asks a question or waits for permission, a red count appears besid
 
 ### See what each project cost
 
-Open History from the chart button at the top of the panel. Pick a day, a week or a month, at API prices. It stays on your Mac, even after Claude Code clears its old files. Export PDF writes a statement of work: every project for you, or one project for your team or a client.
+Open History from the chart button at the top of the panel. Pick a day, a week or a month, at API prices. It stays on your Mac, even after Claude Code clears its old files. Export PDF writes a statement of work: every project for you, or one project for your team or a client. A project you move or rename keeps its history, and two folders that share a name stay two projects.
 
 <p align="center"><img src="docs/history.png" alt="The History page in the notch panel: October 2026 comes to $1,712.84 at API prices, with a bar for each day, the split by model and by agent, and four projects. A pen arrow runs from Export PDF to the first page of a statement of work coming out from under the panel: September 2026, all projects, $1,414.66." width="544"></p>
 
@@ -157,7 +157,7 @@ Eight more at [agentvalley.app/comics](https://agentvalley.app/comics/).
 ## It reads. It doesn't touch.
 
 - Reads `~/.claude/projects` and `~/.claude/sessions`, the files Claude Code writes as it works.
-- Looks at Claude Code's processes and each project's `.git` to show which app and branch a session is in.
+- Looks at Claude Code's processes and each project's `.git` to show which app and branch a session is in. From `.git` it also reads the address of the project's remote, such as its GitHub page, so History knows a project after you move or rename it. That address stays on your Mac, without any login in it.
 - Reads your Claude Code login from the Keychain only when you turn on Plan limits, and sends it only to api.anthropic.com.
 - Asks GitHub once an hour whether there's a new version. That's the whole conversation. Turn it off in Settings.
 - Sends us one count a day, so we know how many Macs run it: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. Turn it off in Settings.

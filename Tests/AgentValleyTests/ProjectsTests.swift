@@ -71,6 +71,131 @@ final class ProjectsTests: XCTestCase {
         }
     }
 
+    // Two projects of one name are two, and say the folder each is in, to tell them apart.
+    func testTwoProjectsOfOneNameAreTwo() {
+        let work = Projects.place(of: "/Users/me/work/app", home: home)
+        let play = Projects.place(of: "/Users/me/play/app/", home: home)
+        XCTAssertEqual(work, Projects.Place(key: "/Users/me/work/app", name: "app", parent: "work"))
+        XCTAssertEqual(play, Projects.Place(key: "/Users/me/play/app", name: "app", parent: "play"))
+        XCTAssertEqual(Projects.place(of: "/Users/me/app", home: home).parent, "~")
+        XCTAssertEqual(Projects.place(of: "/private/tmp", home: home), Projects.Place(key: "Temporary folders", name: "Temporary folders", parent: ""))
+    }
+
+    // A checkout moved or renamed is still the project it was: the address of its remote says so.
+    func testACheckoutGoesByItsRemoteWhereItHasOne() {
+        let checkouts = ["/Users/me/old-name": "/Users/me/old-name", "/Users/me/code/new-name/site": "/Users/me/code/new-name",
+                         "/Users/me/local": "/Users/me/local"]
+        let remotes = ["/Users/me/old-name": "github.com/me/app", "/Users/me/code/new-name": "github.com/me/app"]
+        let old = Projects.place(of: "/Users/me/old-name", home: home, checkouts: checkouts, remotes: remotes)
+        let new = Projects.place(of: "/Users/me/code/new-name/site", home: home, checkouts: checkouts, remotes: remotes)
+        XCTAssertEqual(old, Projects.Place(key: "git:github.com/me/app", name: "old-name", parent: "~"))
+        XCTAssertEqual(new, Projects.Place(key: "git:github.com/me/app", name: "new-name", parent: "code"))
+        // No remote: the checkout's folder.
+        XCTAssertEqual(Projects.place(of: "/Users/me/local", home: home, checkouts: checkouts, remotes: remotes).key, "/Users/me/local")
+        // A checkout reached by its path, not by what git said of the folder, goes by its remote too.
+        XCTAssertEqual(Projects.place(of: "/Users/me/gone/site", start: "/Users/me/old-name", home: home, remotes: remotes).key, "/Users/me/gone/site")
+        XCTAssertEqual(Projects.place(of: "/Users/me/old-name/site", start: "/Users/me/old-name", home: home, remotes: remotes).key, "git:github.com/me/app")
+    }
+
+    // A folder renamed while a session worked in it is the new folder's project, and so is all
+    // under it; a Superset worktree that moved takes its project's other worktrees with it.
+    func testARenamedFolderIsTheNewOnesProject() {
+        let moves = ["/Users/me/old": "/Users/me/new",
+                     "/Users/me/.superset/worktrees/first-name/ws": "/Users/me/.superset/worktrees/second-name/ws",
+                     "/Users/me/away": "/Users/me"]
+        let checkouts = ["/Users/me/new": "/Users/me/new", "/Users/me/.superset/worktrees/second-name/ws": "/Users/me/.superset/projects/second-name"]
+        let remotes = ["/Users/me/new": "github.com/me/app"]
+        func key(_ folder: String) -> String {
+            Projects.place(of: folder, home: home, known: Projects.known(["/Users/me/old"]), checkouts: checkouts, remotes: remotes, moves: moves).key
+        }
+        XCTAssertEqual(key("/Users/me/old"), "git:github.com/me/app")
+        XCTAssertEqual(key("/Users/me/old/site/src"), "git:github.com/me/app")
+        XCTAssertEqual(key("/Users/me/old/.claude/worktrees/fix"), "git:github.com/me/app")
+        XCTAssertEqual(key("/private/tmp/claude-501/-Users-me-old/0b15/scratchpad"), "git:github.com/me/app")
+        XCTAssertEqual(key("/Users/me/older"), "/Users/me/older")
+        XCTAssertEqual(key("/Users/me/.superset/worktrees/first-name/other-ws"), "/Users/me/.superset/projects/second-name")
+        // Never onto the home folder.
+        XCTAssertEqual(key("/Users/me/away"), "/Users/me/away")
+    }
+
+    // A Superset worktree gone before git was asked, with none of its project's asked either,
+    // is the checkout of its name's, as it was named before.
+    func testAGoneSupersetWorktreeIsTheCheckoutOfItsName() {
+        let main = "/Users/me/.superset/projects/shop"
+        let checkouts = [main: main, "/Users/me/elsewhere/shopkit": "/Users/me/elsewhere/shopkit"]
+        let place = Projects.place(of: "/Users/me/.superset/worktrees/shop/calm-otter/site", home: home,
+                                   checkouts: checkouts, remotes: [main: "github.com/me/shop"])
+        XCTAssertEqual(place, Projects.Place(key: "git:github.com/me/shop", name: "shop", parent: "projects"))
+        XCTAssertEqual(Projects.place(of: "/Users/me/.superset/worktrees/shop/calm-otter", home: home, checkouts: checkouts).key, main)
+        // Its checkout gone before git was asked too: the folder of its name that was worked in.
+        let known = Projects.known(["/Users/me/.superset/projects/blog", "/Users/me/.superset/worktrees/blog/quiet-lark", "/Users/me/blog-old"])
+        XCTAssertEqual(Projects.place(of: "/Users/me/.superset/worktrees/blog/quiet-lark", home: home, known: known).key,
+                       "/Users/me/.superset/projects/blog")
+        // Two checkouts of its name, neither Superset's own: no guess.
+        let two = ["/Users/me/a/web": "/Users/me/a/web", "/Users/me/b/web": "/Users/me/b/web"]
+        XCTAssertEqual(Projects.place(of: "/Users/me/.superset/worktrees/web/ws", home: home, checkouts: two).key, "/Users/me/.superset/worktrees/web")
+        let withOwn = two.merging(["/Users/me/.superset/projects/web": "/Users/me/.superset/projects/web"]) { first, _ in first }
+        XCTAssertEqual(Projects.place(of: "/Users/me/.superset/worktrees/web/ws", home: home, checkouts: withOwn).key, "/Users/me/.superset/projects/web")
+        // A folder of its name inside another project is not it.
+        let inside = Projects.known(["/Users/me/.superset/projects/big/video", "/Users/me/.superset/worktrees/video/ws"])
+        XCTAssertEqual(Projects.place(of: "/Users/me/.superset/worktrees/video/ws", home: home, known: inside,
+                                      checkouts: ["/Users/me/.superset/projects/big/video": "/Users/me/.superset/projects/big"]).key,
+                       "/Users/me/.superset/worktrees/video")
+    }
+
+    // A folder inside the one its session began in is that one's project, git or no git:
+    // a session begins in its project and goes into the folders under it.
+    func testAFolderGoesByTheFolderItsSessionBeganIn() {
+        let checkouts = ["/Users/me/repo": "/Users/me/repo"]
+        let cases: [(folder: String, start: String?, key: String)] = [
+            ("/Users/me/gone/site", "/Users/me/gone", "/Users/me/gone"),
+            ("/Users/me/gone/site/public", "/Users/me/gone", "/Users/me/gone"),
+            ("/Users/me/repo/docs/out", "/Users/me/repo", "/Users/me/repo"),
+            ("/Users/me/gone/.claude/worktrees/x/site", "/Users/me/gone", "/Users/me/gone"),
+            // Not inside it: its own.
+            ("/Users/me/other", "/Users/me/gone", "/Users/me/other"),
+            ("/Users/me/gone-too", "/Users/me/gone", "/Users/me/gone-too"),
+            // Begun in the home folder or a temporary one, which are no project.
+            ("/Users/me/code/app", "/Users/me", "/Users/me/code/app"),
+            ("/private/tmp/x/y", "/private/tmp/x", "Temporary folders"),
+            ("/Users/me/code/app", nil, "/Users/me/code/app"),
+        ]
+        for item in cases {
+            XCTAssertEqual(Projects.place(of: item.folder, start: item.start, home: home, checkouts: checkouts).key, item.key, item.folder)
+        }
+    }
+
+    // One remote spelled the ways git takes it is one project; who signs in is never kept.
+    func testARemoteSpelledAnyWayIsOne() {
+        for url in ["git@GitHub.com:me/app.git", "https://github.com/me/app", "https://me:ghp_secret@github.com/me/app.git/",
+                    "ssh://git@github.com/me/app.git", " https://github.com/me/app.git ", "https://me:pa/ss@github.com/me/app"] {
+            XCTAssertEqual(Projects.normalized(remote: url), "github.com/me/app", url)
+        }
+        // The path as written: some hosts tell these two apart.
+        XCTAssertEqual(Projects.normalized(remote: "https://git.example.com/Team/App.git"), "git.example.com/Team/App")
+        XCTAssertEqual(Projects.normalized(remote: "/srv/git/app.git"), "/srv/git/app")
+        // Said from where the repository stands: no address of its own.
+        XCTAssertNil(Projects.normalized(remote: "../app.git"))
+        XCTAssertNil(Projects.normalized(remote: ""))
+    }
+
+    func testTheRemoteOfAConfigIsOriginsElseTheFirst() {
+        let config = """
+            [core]
+            \turl = not-this
+            [remote "upstream"]
+            \turl = https://github.com/them/app.git
+            [remote "origin"]
+            \turl = git@github.com:me/app.git
+            \tfetch = +refs/heads/*:refs/remotes/origin/*
+            [branch "main"]
+            \tremote = origin
+            """
+        XCTAssertEqual(Projects.remote(inConfig: config), "github.com/me/app")
+        XCTAssertEqual(Projects.remote(inConfig: "[remote \"upstream\"]\n  url=https://github.com/them/app\n"), "github.com/them/app")
+        XCTAssertNil(Projects.remote(inConfig: "[core]\n\tbare = false\n"))
+    }
+
     func testAFolderEncodedAsClaudeCodeSpellsIt() {
         XCTAssertEqual(Projects.encoded("/Users/me/.superset/projects/agents-visualizer"), "-Users-me--superset-projects-agents-visualizer")
         XCTAssertEqual(Projects.encoded("/a/b_c.d e"), "-a-b-c-d-e")

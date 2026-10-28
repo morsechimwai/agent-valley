@@ -22,7 +22,7 @@ final class ReportPDFTests: XCTestCase {
         }
         let slice = LedgerSlice(answers: answers, titles: Dictionary(uniqueKeysWithValues: titles.indices.map { ("s\($0)", titles[$0]) }),
                                 interval: HistoryReport.interval(of: .month, around: anchor, calendar: utc))
-        return try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: "app"), calendar: utc,
+        return try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: "/Users/me/app"), calendar: utc,
                                                   home: "/Users/me", printed: date("2026-10-17T08:00:00.000Z")))
     }
 
@@ -34,7 +34,7 @@ final class ReportPDFTests: XCTestCase {
                          folder: "/Users/me/\(project)", session: "s0", agent: answers[index].agent, model: answers[index].model, output: 50_000)
         }
         let slice = LedgerSlice(answers: list, titles: ["s0": "One"], interval: HistoryReport.interval(of: .month, around: anchor, calendar: utc))
-        return try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: project), calendar: utc,
+        return try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: "/Users/me/\(project)"), calendar: utc,
                                                   home: "/Users/me", printed: date("2026-10-17T08:00:00.000Z")))
     }
 
@@ -103,7 +103,7 @@ final class ReportPDFTests: XCTestCase {
         answers.append(LedgerAnswer(id: "u", at: start, folder: "/Users/me/app", session: "s0", model: "claude-made-up-1", output: 10))
         let slice = LedgerSlice(answers: answers, titles: Dictionary(uniqueKeysWithValues: (0..<count).map { ("s\($0)", String(format: "Task %03d", $0 + 1)) }),
                                 interval: HistoryReport.interval(of: .month, around: anchor, calendar: utc))
-        return try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: "app"), calendar: utc,
+        return try XCTUnwrap(HistoryDocument.make(slice, pick: HistoryPick(span: .month, anchor: anchor, project: "/Users/me/app"), calendar: utc,
                                                   home: "/Users/me", printed: date("2026-10-17T08:00:00.000Z")))
     }
 

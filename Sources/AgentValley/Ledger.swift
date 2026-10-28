@@ -25,6 +25,15 @@ struct LedgerSlice: Equatable {
     var folders: [String] = []
     /// Folders to the checkouts git said they were in, for those it was asked about while they were there.
     var checkouts: [String: String] = [:]
+    /// Checkouts to the address of their remote, read while they were there.
+    var remotes: [String: String] = [:]
+    /// The sessions of the stretch to the folder each began in.
+    var starts: [String: String] = [:]
+    /// Every folder in the history to when it was last worked in.
+    var lastUsed: [String: Date] = [:]
+    /// Folders a session went on from into a folder new to the history, and never came back to:
+    /// a folder renamed while Claude Code worked in it. Old to new.
+    var moves: [String: String] = [:]
     /// When the first answer in the history was given.
     var since: Date?
     /// The stretch it was read for. None until one has been read.
@@ -51,6 +60,7 @@ final class UsageLedger: ObservableObject {
         CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, bytes INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS checkouts (folder TEXT PRIMARY KEY, checkout TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS remotes (checkout TEXT PRIMARY KEY, remote TEXT NOT NULL);
         PRAGMA user_version = 1;
         """
 
@@ -92,6 +102,8 @@ final class UsageLedger: ObservableObject {
     private var asked: Set<String>?
     /// The folders of the answers read in this pass.
     private var fresh: Set<String> = []
+    /// What `moves` found, kept until a pass adds answers: it reads every answer there is.
+    private var moved: [String: String]?
 
     init(root: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects"),
          database: URL = UsageLedger.defaultDatabase, piece: Int = 1 << 20) {
@@ -178,6 +190,7 @@ final class UsageLedger: ObservableObject {
             fresh = []
             return LedgerPass(summary: (try? lastDay(db, now: now, calendar: calendar)) ?? UsageSummary(), problem: Self.cannotSave(error))
         }
+        if added { moved = nil }
         return LedgerPass(summary: (try? lastDay(db, now: now, calendar: calendar)) ?? UsageSummary(), added: added, problem: putAside)
     }
 
@@ -196,13 +209,26 @@ final class UsageLedger: ObservableObject {
                                         write5m: $0[9].int, write1h: $0[10].int, read: $0[11].int, output: $0[12].int, searches: $0[13].int))
         }
         let titles = try db.rows("SELECT id, title FROM sessions WHERE id IN (SELECT session FROM answers WHERE at >= ? AND at < ?)", span)
-        let folders = try db.rows("SELECT DISTINCT folder FROM answers ORDER BY folder").map { $0[0].text }
+        let folders = try db.rows("SELECT folder, max(at) FROM answers GROUP BY folder ORDER BY folder")
         let checkouts = try db.rows("SELECT folder, checkout FROM checkouts")
+        let remotes = try db.rows("SELECT checkout, remote FROM remotes")
+        // The folder of each session's first answer, whenever that was: SQLite takes the other
+        // columns from the row min() picks.
+        let starts = try db.rows("""
+            SELECT session, folder, min(at) FROM answers
+            WHERE session != '' AND session IN (SELECT session FROM answers WHERE at >= ? AND at < ?) GROUP BY session
+            """, span)
+        let moves = try moved ?? Self.moves(db)
+        moved = moves
         let first = try db.rows("SELECT min(at) FROM answers").first?.first ?? .null
         return LedgerSlice(answers: answers,
                            titles: Dictionary(titles.map { ($0[0].text, $0[1].text) }, uniquingKeysWith: { first, _ in first }),
-                           folders: folders,
+                           folders: folders.map { $0[0].text },
                            checkouts: Dictionary(checkouts.map { ($0[0].text, $0[1].text) }, uniquingKeysWith: { first, _ in first }),
+                           remotes: Dictionary(remotes.map { ($0[0].text, $0[1].text) }, uniquingKeysWith: { first, _ in first }),
+                           starts: Dictionary(starts.map { ($0[0].text, $0[1].text) }, uniquingKeysWith: { first, _ in first }),
+                           lastUsed: Dictionary(folders.map { ($0[0].text, Date(timeIntervalSince1970: $0[1].real)) }, uniquingKeysWith: { first, _ in first }),
+                           moves: moves,
                            since: first == .null ? nil : Date(timeIntervalSince1970: first.real))
     }
 
@@ -216,6 +242,29 @@ final class UsageLedger: ObservableObject {
     }
 
     // MARK: - Inside
+
+    /// Folders renamed while a session worked in them, old to new.
+    private static func moves(_ db: SQLite) throws -> [String: String] {
+        // A session goes into folders under the one it began in, and no further: one that goes on
+        // into a folder no answer was ever given in before, and never comes back, saw it renamed.
+        // Scratch and temporary folders come and go, and say nothing.
+        let rows = try db.rows("""
+            WITH firsts AS (SELECT session, folder, min(at) AS at FROM answers WHERE session != '' GROUP BY session, folder),
+              starts AS (SELECT session, folder, min(at) AS at FROM answers WHERE session != '' GROUP BY session),
+              began AS (SELECT folder, min(at) AS at FROM answers GROUP BY folder)
+            SELECT s.folder, f.folder FROM starts s
+            JOIN firsts f ON f.session = s.session AND f.folder != s.folder
+            JOIN began b ON b.folder = f.folder AND b.at = f.at
+            WHERE f.folder != '/' AND f.folder NOT LIKE '/tmp/%' AND f.folder NOT LIKE '/private/%' AND f.folder NOT LIKE '/var/%'
+              AND s.folder NOT LIKE '/tmp/%' AND s.folder NOT LIKE '/private/%' AND s.folder NOT LIKE '/var/%'
+              AND substr(f.folder, 1, length(s.folder) + 1) != s.folder || '/'
+              AND substr(s.folder, 1, length(f.folder) + 1) != f.folder || '/'
+              AND NOT EXISTS (SELECT 1 FROM answers x WHERE x.at >= f.at
+                              AND (x.folder = s.folder OR substr(x.folder, 1, length(s.folder) + 1) = s.folder || '/'))
+            ORDER BY f.at
+            """)
+        return Dictionary(rows.map { ($0[0].text, $0[1].text) }, uniquingKeysWith: { first, _ in first })
+    }
 
     /// The database, opened or made at first need. One that cannot be read is put aside under
     /// another name, never deleted, and a new one is begun from the transcripts still there.
@@ -234,6 +283,7 @@ final class UsageLedger: ObservableObject {
             made = try Self.prepare(database.path)
         }
         asked = nil
+        moved = nil
         bytes = try Dictionary(made.rows("SELECT path, bytes FROM files").map { ($0[0].text, UInt64(max(0, $0[1].int))) },
                                uniquingKeysWith: { first, _ in first })
         db = made
@@ -278,16 +328,25 @@ final class UsageLedger: ObservableObject {
     /// Asks git which checkout each folder not asked about yet is in: on the first pass every
     /// folder in the history, then those of the answers just read. Most folders are gone by the
     /// time History names them, and a Superset worktree's folder need not say whose it is.
+    /// Then reads the remote of each checkout met, and on the first pass of every one without
+    /// one yet: a checkout moved or renamed is told by it.
     private func learnCheckouts(_ db: SQLite) throws {
         var folders = fresh
+        var checkouts: Set<String> = []
         fresh = []
         if asked == nil {
             asked = Set(try db.rows("SELECT folder FROM checkouts").map { $0[0].text })
             folders = Set(try db.rows("SELECT DISTINCT folder FROM answers").map { $0[0].text })
+            checkouts = Set(try db.rows("SELECT DISTINCT checkout FROM checkouts WHERE checkout NOT IN (SELECT checkout FROM remotes)").map { $0[0].text })
         }
         for folder in folders where asked?.insert(folder).inserted == true {
             guard let place = AgentStore.gitPlace(of: folder) else { continue }
             try db.rows("INSERT INTO checkouts VALUES (?, ?) ON CONFLICT(folder) DO NOTHING", [.text(folder), .text(place.checkout)])
+            checkouts.insert(place.checkout)
+        }
+        for checkout in checkouts {
+            guard let remote = Projects.remote(of: checkout) else { continue }
+            try db.rows("INSERT INTO remotes VALUES (?, ?) ON CONFLICT(checkout) DO NOTHING", [.text(checkout), .text(remote)])
         }
     }
 

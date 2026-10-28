@@ -25,6 +25,7 @@ struct HistoryPick: Equatable {
     var day: Date?
     /// The start of an hour picked.
     var hour: Date?
+    /// The key of the project picked: `Projects.Place.key`.
     var project: String?
 }
 
@@ -66,7 +67,10 @@ struct HistoryReport: Equatable {
     /// What is picked: the hour, else the day, else the whole stretch.
     var focus = DateInterval()
     var focusCost = 0.0
+    /// Each line's id is the project's key.
     var projects: [CostLine] = []
+    /// The name of the project picked, as its line says it.
+    var projectName: String?
     /// With a project picked, every one of its sessions. None on the level of every project.
     var sessions: [CostLine] = []
     var models: [CostLine] = []
@@ -78,7 +82,9 @@ struct HistoryReport: Equatable {
     struct Priced {
         let answer: LedgerAnswer
         let cost: Double?
+        /// The project's key.
         let project: String
+        let name: String
     }
 
     /// The calendar History counts by: the common era's years, as its English words and the
@@ -112,7 +118,8 @@ struct HistoryReport: Equatable {
         let stretch = interval(of: pick.span, around: pick.anchor, calendar: calendar)
         report.interval = stretch
         report.ready = slice.interval == stretch
-        let priced = priced(slice, in: stretch, home: home)
+        let (priced, names) = placed(slice, in: stretch, home: home)
+        report.projectName = pick.project.map { names[$0] ?? ($0 as NSString).lastPathComponent }
         // In a project its own answers make the totals and the bars. The list of projects stays
         // the whole stretch's, for the level above.
         let scope = pick.project.map { project in priced.filter { $0.project == project } } ?? priced
@@ -141,7 +148,7 @@ struct HistoryReport: Equatable {
         let inFocus = { (item: Priced) in focus.start <= item.answer.at && item.answer.at < focus.end }
         let focused = scope.filter(inFocus)
         report.focusCost = sum(focused)
-        report.projects = lines(priced.filter(inFocus), by: \.project)
+        report.projects = lines(priced.filter(inFocus), by: \.project, name: { _, group in group[0].name })
         if pick.project != nil {
             report.sessions = lines(focused, by: \.answer.session, name: { id, group in
                 slice.titles[id] ?? untitled(group, calendar: calendar)
@@ -152,15 +159,47 @@ struct HistoryReport: Equatable {
         return report
     }
 
-    /// The answers given in `stretch`, each priced once, and each folder named once.
+    /// The answers given in `stretch`, each priced once, and each folder placed once.
     static func priced(_ slice: LedgerSlice, in stretch: DateInterval, home: String) -> [Priced] {
+        placed(slice, in: stretch, home: home).priced
+    }
+
+    /// `priced`, and the name of every project in the history by its key. A project goes by the
+    /// name of the folder last worked in, so a checkout renamed goes by its new name back to its
+    /// first day. Two in the stretch of one name say the folder each is in: "app · work".
+    static func placed(_ slice: LedgerSlice, in stretch: DateInterval, home: String) -> (priced: [Priced], names: [String: String]) {
         let known = Projects.known(slice.folders)
-        var names: [String: String] = [:]
-        return slice.answers.filter { stretch.start <= $0.at && $0.at < stretch.end }.map { answer -> Priced in
-            let project = names[answer.folder] ?? Projects.name(of: answer.folder, home: home, known: known, checkouts: slice.checkouts)
-            names[answer.folder] = project
-            return Priced(answer: answer, cost: Pricing.cost(of: answer), project: project)
+        func place(_ folder: String, start: String?) -> Projects.Place {
+            Projects.place(of: folder, start: start, home: home, known: known, checkouts: slice.checkouts, remotes: slice.remotes,
+                           moves: slice.moves)
         }
+        var newest: [String: (at: Date, place: Projects.Place)] = [:]
+        for folder in slice.folders {
+            let place = place(folder, start: nil)
+            let at = slice.lastUsed[folder] ?? .distantPast
+            if newest[place.key].map({ at > $0.at }) ?? true { newest[place.key] = (at, place) }
+        }
+        var places: [String: Projects.Place] = [:]
+        var items: [(answer: LedgerAnswer, place: Projects.Place)] = []
+        for answer in slice.answers where stretch.start <= answer.at && answer.at < stretch.end {
+            let start = slice.starts[answer.session]
+            let id = answer.folder + "\u{0}" + (start ?? "")
+            let found = places[id] ?? place(answer.folder, start: start)
+            places[id] = found
+            items.append((answer, found))
+        }
+        var named = newest.mapValues(\.place)
+        for item in items where named[item.place.key] == nil { named[item.place.key] = item.place }
+        var names = named.mapValues(\.name)
+        // ponytail: two of one name in one parent's name stay alike; the parent's parent would tell them apart.
+        let alike = Dictionary(grouping: Set(items.map(\.place.key)), by: { named[$0]?.name ?? "" })
+        for (_, keys) in alike where keys.count > 1 {
+            for key in keys {
+                if let place = named[key], !place.parent.isEmpty { names[key] = place.name + " · " + place.parent }
+            }
+        }
+        let priced = items.map { Priced(answer: $0.answer, cost: Pricing.cost(of: $0.answer), project: $0.place.key, name: names[$0.place.key] ?? $0.place.name) }
+        return (priced, names)
     }
 
     /// The rest of the parts past the first `named` put together as "others", when that is more than one part.
@@ -204,7 +243,7 @@ struct HistoryReport: Equatable {
     /// A session Claude Code gave no name: its project, and the day of its first answer here.
     static func untitled(_ group: [Priced], calendar: Calendar) -> String {
         let first = group.map(\.answer.at).min() ?? Date()
-        return "\(group[0].project) · \(Format.pickTitle(DateInterval(start: first, duration: 0), hourly: false, calendar: calendar))"
+        return "\(group[0].name) · \(Format.pickTitle(DateInterval(start: first, duration: 0), hourly: false, calendar: calendar))"
     }
 }
 

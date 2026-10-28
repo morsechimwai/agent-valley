@@ -54,7 +54,7 @@ struct HistoryPage: View {
                 Text(verbatim: Format.readingHistory(reading)).foregroundStyle(.white.opacity(0.6))
             } else {
                 stretch
-                if let project = pick.project {
+                if let project = report.projectName {
                     Text(verbatim: project).bold().lineLimit(1)
                 }
                 if report.ready {
