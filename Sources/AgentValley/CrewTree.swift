@@ -153,7 +153,7 @@ struct CrewAnchors: PreferenceKey {
 /// Draws a card's branches over it. Decoration only: it takes no clicks and VoiceOver skips it.
 struct CrewTreeView: View {
     let anchors: [String: Anchor<CGRect>]
-    /// What the trunk runs down from: the lead, or the envelope its finished sub-agents hang off.
+    /// What the trunk runs down from: the lead, or the book its finished sub-agents hang off.
     var root = "lead"
     /// The rows with a branch, top to bottom.
     let order: [String]

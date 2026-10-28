@@ -290,7 +290,7 @@ final class NotchState: ObservableObject {
     /// The last key the list has to act on itself, because only it knows what is on screen:
     /// an answer, hiding the chosen session, unfolding its finished agents.
     @Published var keyed: Keyed?
-    /// Whether each session's done lines are listed under its envelope, as the person last set
+    /// Whether each session's done lines are listed under its book, as the person last set
     /// it. None: listed, unless the list folds them to fit. Remembered while the app runs.
     @Published var doneShown: [String: Bool] = [:]
     /// The finished sub-agents whose hand-back box shows all of it, by row id. For this opening

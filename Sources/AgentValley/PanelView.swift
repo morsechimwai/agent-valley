@@ -128,6 +128,114 @@ enum Format {
         "\(crewName(type: type)) handed back"
     }
 
+    /// Who handed a document back and how long ago, beside its name.
+    static func docBy(type: String, age: TimeInterval) -> String {
+        "\(crewName(type: type)) · \(handedBackAge(age))"
+    }
+
+    /// What a document in the book is called: its task as a Markdown file's name, in lower-case
+    /// words joined by dashes and cut on a word to fit the box's first line beside who wrote it.
+    static func docName(task: String, type: String) -> String {
+        var words: [String] = [], word = ""
+        for c in rowTitle(task: task, type: type).lowercased() {
+            if c.isLetter || c.isNumber { word.append(c) } else if !word.isEmpty { words.append(word); word = "" }
+        }
+        if !word.isEmpty { words.append(word) }
+        var name = ""
+        for w in words {
+            let next = name.isEmpty ? w : name + "-" + w
+            if next.count > 30 {
+                if name.isEmpty { name = String(w.prefix(30)) }
+                break
+            }
+            name = next
+        }
+        return (name.isEmpty ? "handed-back" : name) + ".md"
+    }
+
+    /// What a sub-agent was asked or handed back, read as the Markdown it mostly is, with every
+    /// character kept: the marks stay, faint, so `src/**/*.ts` or `__init__` reads as written and
+    /// copies whole. Headings and bold are bold, italics italic, code shaded. Bold and italics
+    /// only on a word's edge, underscores never. No link: a click must not open what a model wrote.
+    static func markdown(_ text: String) -> AttributedString {
+        var out = AttributedString()
+        var fenced = false
+        // Split on "\n" as written, not as a Character: "\r\n" is one Character and would never split.
+        for (n, line) in text.components(separatedBy: "\n").enumerated() {
+            if n > 0 { out.append(AttributedString("\n")) }
+            let indent = String(line.prefix { $0 == " " })
+            var rest = String(line.dropFirst(indent.count))
+            if rest.hasPrefix("```") { fenced.toggle(); out.append(faint(line)); continue }
+            if fenced { out.append(code(line)); continue }
+            out.append(AttributedString(indent))
+            let hashes = rest.prefix { $0 == "#" }
+            let heading = hashes.count <= 6 && !hashes.isEmpty && rest.dropFirst(hashes.count).first == " "
+            if heading {
+                out.append(faint(hashes + " "))
+                rest = String(rest.dropFirst(hashes.count + 1))
+            } else if ["- ", "* ", "+ "].contains(where: rest.hasPrefix) {
+                out.append(faint(String(rest.prefix(2))))
+                rest = String(rest.dropFirst(2))
+            }
+            var words = marked(rest)
+            if heading {
+                for run in words.runs { words[run.range].inlinePresentationIntent = (run.inlinePresentationIntent ?? []).union(.stronglyEmphasized) }
+            }
+            out.append(words)
+        }
+        return out
+    }
+
+    /// Code, a link, bold, italics: bold and italics open after a space or "(" and close before a
+    /// space or punctuation, so a glob, a regex or `a*b*c` is left as it is.
+    // ponytail: each span is capped at a few hundred characters, and link words hold no "[", so 8 KB
+    // of marks that never close costs about 25 ms a draw, not a second. A longer span stays plain.
+    private static let marks = try! NSRegularExpression(pattern: "`[^`]{1,300}`|\\[[^\\[\\]]{1,300}\\]\\([^)\\s]{1,500}\\)"
+        + "|(?<![^\\s(])\\*\\*(?=\\S).{1,300}?(?<=\\S)\\*\\*(?![^\\s.,;:!?)])"
+        + "|(?<![^\\s(])\\*(?=[^\\s*]).{1,300}?(?<=[^\\s*])\\*(?![^\\s.,;:!?)])")
+
+    private static func marked(_ line: String) -> AttributedString {
+        var out = AttributedString()
+        var at = line.startIndex
+        for match in marks.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
+            guard let range = Range(match.range, in: line) else { continue }
+            out.append(AttributedString(String(line[at..<range.lowerBound])))
+            let mark = String(line[range])
+            if mark.hasPrefix("`") {
+                out.append(faint("`")); out.append(code(String(mark.dropFirst().dropLast()))); out.append(faint("`"))
+            } else if mark.hasPrefix("["), let cut = mark.range(of: "](") {
+                out.append(faint("[")); out.append(AttributedString(String(mark[mark.index(after: mark.startIndex)..<cut.lowerBound])))
+                out.append(faint(String(mark[cut.lowerBound...])))
+            } else {
+                let stars = mark.hasPrefix("**") ? 2 : 1
+                var words = AttributedString(String(mark.dropFirst(stars).dropLast(stars)))
+                words.inlinePresentationIntent = stars == 2 ? .stronglyEmphasized : .emphasized
+                out.append(faint(String(mark.prefix(stars)))); out.append(words); out.append(faint(String(mark.suffix(stars))))
+            }
+            at = range.upperBound
+        }
+        out.append(AttributedString(String(line[at...])))
+        return out
+    }
+
+    private static func faint<S: StringProtocol>(_ text: S) -> AttributedString {
+        var out = AttributedString(String(text))
+        out.foregroundColor = Color.white.opacity(0.3)
+        return out
+    }
+
+    private static func code(_ text: String) -> AttributedString {
+        var out = AttributedString(text)
+        out.inlinePresentationIntent = .code
+        out.backgroundColor = Color.white.opacity(0.1)
+        return out
+    }
+
+    /// Beside "N done" on the book: how many of its documents nobody has looked at yet.
+    static func newDocs(_ count: Int) -> String {
+        "\(count) new"
+    }
+
     /// What the sub-agent handed back, in one line; a plain line when it handed in no words.
     static func handBackLine(_ info: AgentInfo) -> String {
         let line = firstLine(info.handedBack)
@@ -210,7 +318,7 @@ enum Format {
         ("↑ ↓", "move between sessions"), ("return", "go to its app"),
         ("⌘↩", "allow once"), ("⌘⌫", "deny (skip a question)"),
         ("⌘1–⌘4", "pick an answer"), ("h", "hide the session"),
-        ("u", "show hidden ones"), ("d", "expand done agents"),
+        ("u", "show hidden ones"), ("d", "open or close the book"),
         ("i", "expand idle sessions"), ("p", "pin the panel"),
         (",", "settings"), ("?", "this list of keys"),
         ("t", "open History"), ("esc", "close"),
@@ -457,6 +565,8 @@ enum Format {
         String(format: "%02d:00", hour)
     }
 
+    /// A volume, 0 to 1, as the slider shows it.
+    static func volume(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
     static let soundsCaption = "A sound when an agent needs you and when a session finishes. Silent while the screen is locked."
     static let finishedCaption = "Only when the session had been working for \(Int(Sound.shortTurn)) seconds or more."
     static let remindCaption = "Repeats while an agent still waits and you have not opened the panel."
@@ -1121,9 +1231,27 @@ struct PanelView: View {
                                                                   inView: WaitWatch.inView(showingList: !state.showingPage, pastEdge: !past.isEmpty, grouping: settings.grouping, atTop: atTop)))
     }
 
+    /// The new documents in open books in sight now, and still there after `delay` in the same
+    /// opening, are seen: no longer new. Only those of now: a book opened or a document come back
+    /// in the meantime has its own look to wait out.
+    private func lookAtDocuments(after delay: TimeInterval) {
+        guard state.expanded, !state.showingPage, let opened = state.openedAt else { return }
+        let looking = HandBack.awaiting(inOpenBooks())
+        guard !looking.isEmpty else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard state.expanded, !state.showingPage, state.openedAt == opened else { return }
+            store.saw(looking.intersection(HandBack.awaiting(inOpenBooks())), at: Date())
+        }
+    }
+
+    /// The cards in sight whose book is open: their documents can be read.
+    private func inOpenBooks() -> [SessionCard] {
+        inSight().filter(bookOpen)
+    }
+
     /// The cards the list draws where the person can see them: none wholly past its bottom edge or above its top.
-    /// ponytail: a card that starts above the bottom edge counts whole, though its hand-back box may lie past
-    /// it; track box positions as `belowRows` does rows to tell.
+    /// ponytail: a card that starts above the bottom edge counts whole, though a document in its book may lie past
+    /// it; track document positions as `belowRows` does rows to tell.
     private func inSight() -> [SessionCard] {
         AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).cards.filter { !below.contains($0.id) && !above.contains($0.id) }
     }
@@ -1426,20 +1554,20 @@ struct PanelView: View {
         }
         // A look: what the open panel draws has been seen. Folded, put-away and paged-over cards have
         // not, nor cards past the list's bottom edge or scrolled above its top.
-        .onChange(of: state.looks) {
-            guard state.expanded, !state.showingPage, let opened = state.openedAt else { return }
-            // Never earlier than the opening: a box seen before it began would drop to a line under the eyes.
-            let now = max(Date(), opened)
-            store.saw(HandBack.awaiting(inSight()), at: now)
-        }
+        .onChange(of: state.looks) { lookAtDocuments(after: HandBack.lookLonger) }
+        // A book just opened is a look at what it holds, as long a one.
+        .onChange(of: state.doneShown) { lookAtDocuments(after: EntryWatch.look + HandBack.lookLonger) }
         .onChange(of: HandBack.awaiting(sessions)) { old, new in
-            // A turn later: the card has to be laid out before it is known to lie past an edge.
-            DispatchQueue.main.async {
+            let opened = state.openedAt
+            // A look long enough for a hand-back, in the opening it came back in. The card has to
+            // be laid out by then too, before it is known to lie past an edge.
+            DispatchQueue.main.asyncAfter(deadline: .now() + EntryWatch.look + HandBack.lookLonger) {
+                guard state.openedAt == opened else { return }
                 // Past an edge is left to `inSight`, card by card: no edge stops the whole look.
                 let looking = state.expanded && state.openedAt != nil && WaitWatch.looking(
                     openFor: state.openedAt.map { Date().timeIntervalSince($0) }, pinned: state.pinned,
                     inView: WaitWatch.inView(showingList: !state.showingPage, pastEdge: false, grouping: settings.grouping, atTop: atTop))
-                let mark = HandBack.toMark(old: old, new: new, lookingNow: looking).intersection(HandBack.awaiting(inSight()))
+                let mark = HandBack.toMark(old: old, new: new, lookingNow: looking).intersection(HandBack.awaiting(inOpenBooks()))
                 if !mark.isEmpty { store.saw(mark, at: Date()) }
             }
         }
@@ -1492,6 +1620,10 @@ struct PanelView: View {
         }
         // A new way for the crew to sound: the person hears it at once.
         .onChange(of: settings.soundStyle) { _, _ in
+            if settings.sounds { sound.sample(sessions) }
+        }
+        // A new volume: a line at it, so the person hears how loud that is.
+        .onChange(of: settings.soundVolume) { _, _ in
             if settings.sounds { sound.sample(sessions) }
         }
     }
@@ -1638,9 +1770,8 @@ struct PanelView: View {
             state.keyboard,
         ].filter { $0 }.count)
         // Sessions drawn as one line, so the list fits the panel without a scroll.
-        let (folded, doneFolded) = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
-        // A card's done lines: as the person last set them, or listed unless the list folds them to fit.
-        let showsDone = { (card: SessionCard) in state.doneShown[card.id] ?? !doneFolded }
+        let folded = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
+        let showsDone = bookOpen
         let crew = CrewTree.snapshot(list.cards)
         let leftOut = folded.union(below).union(above)
         // A change in this very frame is already a packet on its way, before `.onChange` below
@@ -1749,7 +1880,7 @@ struct PanelView: View {
                             }, reserveHide: anyHide, showingDone: showsDone(card),
                             toggleDone: { state.doneShown[card.id] = !showsDone(card) },
                             askedOpen: state.askedOpen, toggleAsked: { state.askedOpen.formSymmetricDifference([$0]) },
-                            openedAt: state.openedAt, reading: state.readingAll, toggleReading: { toggleReading($0) },
+                            reading: state.readingAll, toggleReading: { toggleReading($0) },
                             pulses: (pulses + fresh).filter { $0.card == card.id })
                     }
                 }
@@ -1791,7 +1922,7 @@ struct PanelView: View {
                                 SessionCardView(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), showsApp: list.showsApps, compact: compact,
                                                 showingDone: showsDone(card), toggleDone: { state.doneShown[card.id] = !showsDone(card) },
                                                 askedOpen: state.askedOpen, toggleAsked: { state.askedOpen.formSymmetricDifference([$0]) },
-                                                openedAt: state.openedAt, reading: state.readingAll, toggleReading: { toggleReading($0) })
+                                                reading: state.readingAll, toggleReading: { toggleReading($0) })
                             } else {
                                 CompactSessionRow(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), reserveHide: anyHide)
                             }
@@ -1930,37 +2061,37 @@ struct PanelView: View {
         .onAppear { answers.noteLayoutChange() }
     }
 
-    /// The sessions to draw as one line: as few as it takes for the list to fit the panel. Before
-    /// any, the done lines the person did not open fold into their envelopes: `doneFolded`.
-    private func foldedRows(_ list: SessionList, headers: [String: String], oneLineAgents: Bool, under: CGFloat) -> (Set<String>, doneFolded: Bool) {
+    /// The sessions to draw as one line: as few as it takes for the list to fit the panel.
+    private func foldedRows(_ list: SessionList, headers: [String: String], oneLineAgents: Bool, under: CGFloat) -> Set<String> {
         // Less the list's padding and the lines under it.
         let room = NotchGeometry.listRoom(screen: state.screenFrame, barHeight: state.barHeight) - ListFit.padding - under
         // Once a pass: worked out per card, it read every card for each.
         let keeping = self.keeping
-        func entries(doneFolded: Bool) -> [ListFit.Entry] {
-            list.cards.map { card in
-                let session = AnswerStore.sessionID(of: card)
-                let boxes = HandBack.boxes(card, openedAt: state.openedAt, reading: state.readingAll)
-                return ListFit.Entry(
-                    id: card.id,
-                    full: ListFit.fullHeight(card, header: headers[card.id] != nil,
-                                             requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
-                                             settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
-                                             showingDone: state.doneShown[card.id] ?? !doneFolded, oneLineAgents: oneLineAgents,
-                                             asked: state.askedOpen, boxes: boxes, reading: state.readingAll),
-                    row: ListFit.rowHeight(header: headers[card.id] != nil),
-                    // Asks something of the person, or has just been answered and shows how, or the
-                    // person has just opened its done lines, or it has a hand-back box.
-                    keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || keeping.contains(session)
-                        || state.doneShown[card.id] == true || !boxes.isEmpty || card.liveAgents().contains { state.askedOpen.contains($0.id) },
-                    quiet: card.group == .quiet || card.group == .idle,
-                    header: headers[card.id] != nil,
-                    crew: !card.liveAgents().isEmpty)
-            }
+        let entries = list.cards.map { card in
+            let session = AnswerStore.sessionID(of: card)
+            let open = bookOpen(card)
+            return ListFit.Entry(
+                id: card.id,
+                full: ListFit.fullHeight(card, header: headers[card.id] != nil,
+                                         requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
+                                         settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
+                                         showingDone: open, oneLineAgents: oneLineAgents,
+                                         asked: state.askedOpen, boxes: HandBack.boxes(card, open: open), reading: state.readingAll),
+                row: ListFit.rowHeight(header: headers[card.id] != nil),
+                // Asks something of the person, or has just been answered and shows how, or has a
+                // new document or one seen in this opening, or the person has opened its book.
+                keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || keeping.contains(session)
+                    || open || card.liveAgents().contains { state.askedOpen.contains($0.id) },
+                quiet: card.group == .quiet || card.group == .idle,
+                header: headers[card.id] != nil,
+                crew: !card.liveAgents().isEmpty)
         }
-        let shown = entries(doneFolded: false)
-        let doneFolded = ListFit.foldsDone(shown, room: room)
-        return (ListFit.compact(doneFolded ? entries(doneFolded: true) : shown, room: room), doneFolded)
+        return ListFit.compact(entries, room: room)
+    }
+
+    /// Whether a card's book is open: shut until the person opens it, and as they last left it.
+    private func bookOpen(_ card: SessionCard) -> Bool {
+        state.doneShown[card.id] ?? false
     }
 
     /// Where the arrow keys are. A ring and no more: it moves nothing. To a screen reader it is
@@ -2658,9 +2789,7 @@ struct SessionCardView: View {
     /// The sub-agents whose Asked box is open, and how a click on one's triangle opens or shuts it.
     var askedOpen: Set<String> = []
     var toggleAsked: (String) -> Void = { _ in }
-    /// When the panel opened: a hand-back seen in this opening stays a box until it shuts.
-    var openedAt: Date?
-    /// The finished sub-agents whose box shows all of it, and how a click opens or closes one.
+    /// The finished sub-agents whose document shows all of it, and how a click opens or closes one.
     var reading: Set<String> = []
     var toggleReading: (String) -> Void = { _ in }
     /// The packets running along this card's branches.
@@ -2787,12 +2916,12 @@ struct SessionCardView: View {
         let flash = pulses.contains { $0.up && $0.arrived }
         let live = card.liveAgents(holding: holding)
         let finished = card.doneAgents(holding: holding)
-        // Under the envelope: the hand-back boxes, then the rest a line each while its lines show.
-        let boxIDs = HandBack.boxes(card, openedAt: openedAt, reading: reading)
+        // Under the book: the hand-back boxes, then the rest a line each while its lines show.
+        let boxIDs = HandBack.boxes(card, open: showingDone)
         let boxes = boxIDs.compactMap { id in finished.first { $0.id == id } }
         let lines = showingDone ? finished.filter { !boxIDs.contains($0.id) } : []
         // The rows a line runs to from the lead, top to bottom, and the ones that wait on the person.
-        // The finished ones hang off the envelope, not the lead: they are what it holds.
+        // The finished ones hang off the book, not the lead: they are what it holds.
         let branches = live.map(\.id) + (finished.isEmpty ? [] : ["done"])
         let hot = Set(live.filter { CrewTree.hot($0, requests: asking?.requests($0.id).count ?? 0) }.map(\.id))
         // A new one shows once the packet running down reaches it; the lead lights up as one gets back.
@@ -2872,7 +3001,7 @@ struct SessionCardView: View {
             }
             if !finished.isEmpty {
                 VStack(alignment: .leading, spacing: CardStyle.block) {
-                    DoneRow(agents: finished, expanded: showingDone) {
+                    DoneRow(agents: finished, new: HandBack.newCount(card), expanded: showingDone) {
                         toggleDone()
                         // The lines that unfold push down the cards below, and their answer buttons with them.
                         moved?()
@@ -2885,7 +3014,7 @@ struct SessionCardView: View {
                         .padding(.leading, CrewTree.indent).transition(.opacity)
                     }
                     ForEach(lines) { row in
-                        DoneLine(row: row) { toggleReading(row.id); moved?() }
+                        DoneLine(row: row)
                             .padding(.leading, CrewTree.indent).transition(.opacity)
                     }
                 }
@@ -3044,20 +3173,25 @@ struct JobList: View {
     }
 }
 
-/// A card's finished subagents in one line. Click to list them, a line each, or fold them back.
+/// A card's finished subagents behind their book, in one line. A click opens the book to their
+/// documents, or shuts it again.
 struct DoneRow: View {
     let agents: [AgentRow]
+    /// Documents in the book nobody has looked at yet.
+    var new = 0
     let expanded: Bool
     let toggle: () -> Void
 
     var body: some View {
         Button(action: toggle) {
             HStack(spacing: 8) {
-                // The anchor on the envelope itself, so the line ends just short of it.
-                DoneEnvelope()
+                // Open while its lines are listed. The anchor on the book itself, so the line ends just short of it.
+                DoneBook(open: expanded)
                     .anchorPreference(key: CrewAnchors.self, value: .bounds) { ["done": $0] }
                     .frame(width: 20)
                 Text(verbatim: Format.done(agents.count)).foregroundStyle(.white.opacity(0.8))
+                // Green, the colour of done: what came back waits in the book, not on the person.
+                if new > 0 { Text(verbatim: Format.newDocs(new)).foregroundStyle(rgb(0x3CB55E)) }
                 // Folded, the task names: listed, the lines under it name them.
                 // verbatim: task names come from transcripts and must never be read as Markdown.
                 if !expanded {
@@ -3075,8 +3209,8 @@ struct DoneRow: View {
             .hoverFill()
         }
         .buttonStyle(.plain)
-        .help(expanded ? "Hide done agents" : "Show done agents")
-        .accessibilityValue(Text(verbatim: expanded ? "Shown" : "Hidden"))
+        .help(expanded ? "Close the book" : "Open the book")
+        .accessibilityValue(Text(verbatim: expanded ? "Open" : "Shut"))
     }
 }
 

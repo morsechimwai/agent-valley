@@ -127,6 +127,10 @@ struct SettingsView: View {
             SettingRow(title: "Sounds", caption: Format.soundsCaption) {
                 Switch(title: "Sounds", isOn: $settings.sounds)
             }
+            SettingRow(title: "Volume") {
+                VolumeSlider(title: "Volume", value: $settings.soundVolume)
+            }
+            .dimmed(!settings.sounds)
         }
         SettingGroup {
             SettingRow(title: "Voice") {
@@ -567,9 +571,13 @@ struct Legend: View {
             item("Grep", status: .working, activity: .searching)
             item("Agent", status: .working, activity: .calling)
         }
-        // The rest a card can show, at the mascots' size.
+        // The rest a card can show, at the mascots' size. The book's two looks on a row of their own: with more it ran past the page.
         HStack(spacing: 12) {
-            mark("finished, click to list") { DoneEnvelope(size: 14 * 10 / 12).frame(width: 14) }
+            mark("finished, click to open") { DoneBook(size: 14 * 10 / 12).frame(width: 14) }
+            mark("open, click to close") { DoneBook(open: true, size: 14 * 10 / 12).frame(width: 14) }
+        }
+        HStack(spacing: 12) {
+            mark("what one handed back") { DocIcon().frame(width: 14) }
             mark("job left running") { JobScreen(size: 14) }
             mark("Monitor job") { JobEye(size: 14) }
         }
@@ -805,6 +813,50 @@ struct ChoiceBar<Value: Hashable>: View {
         .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(verbatim: title))
+    }
+}
+
+/// How loud the app's sounds are: a knob dragged along a line, landing on a mark when near one.
+/// A drag, not a system slider: the panel never becomes the key window. The setting, and the
+/// line it sets off, change only when the knob is let go.
+private struct VolumeSlider: View {
+    let title: String
+    @Binding var value: Double
+    /// Where the knob is while it is held.
+    @State private var held: Double?
+    private let width: CGFloat = 150
+
+    /// Where along the line a volume sits, from its start.
+    private func x(_ volume: Double) -> CGFloat { width * volume / Sound.loudest }
+    /// The volume under a point of the control, which starts the knob's half before the line.
+    private func volume(at x: CGFloat) -> Double { Sound.volume(dragged: (x - 7) / width * Sound.loudest) }
+
+    var body: some View {
+        let shown = held ?? value
+        HStack(spacing: 8) {
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.2)).frame(width: width, height: 4)
+                Capsule().fill(Color.white.opacity(0.8)).frame(width: x(shown), height: 4)
+                ForEach(Sound.volumeMarks, id: \.self) { mark in
+                    RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.35))
+                        .frame(width: 2, height: 10).offset(x: x(mark) - 1)
+                }
+                Circle().fill(Color.white).frame(width: 14, height: 14).offset(x: x(shown) - 7)
+            }
+            .frame(width: width, height: 20, alignment: .leading)
+            // Room for the knob's half past either end, which takes the drag too.
+            .padding(.horizontal, 7)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { held = volume(at: $0.location.x) }
+                .onEnded { value = volume(at: $0.location.x); held = nil })
+            Text(verbatim: Format.volume(shown)).settingCaption().monospacedDigit().frame(width: 34, alignment: .trailing)
+        }
+        // A slider to a screen reader, moved mark to mark: on its own it was an unknown element.
+        .accessibilityRepresentation {
+            Slider(value: $value, in: 0...Sound.loudest, step: 0.25) { Text(verbatim: title) }
+                .accessibilityValue(Text(verbatim: Format.volume(value)))
+        }
     }
 }
 

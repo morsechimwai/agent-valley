@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 
 /// What decides whether a sound plays. No clock and no speaker here: everything is handed in.
 enum Sound {
@@ -23,6 +24,30 @@ enum Sound {
     /// An hour of the day moved by `step` hours, round the clock.
     static func hour(_ hour: Int, movedBy step: Int) -> Int {
         ((hour + step) % 24 + 24) % 24
+    }
+
+    /// The top of the volume slider. Past 1 the crew is louder than its clips: for someone who
+    /// must hear them over everything else.
+    static let loudest = 1.25
+
+    /// The marks on the volume slider. A drag that ends near one lands on it.
+    static let volumeMarks: [Double] = [0, 0.25, 0.5, 0.75, 1, 1.25]
+
+    /// The volume a drag across the slider lands on, from the volume under the pointer (past
+    /// either end too): a mark within 5 points of it, else the whole percent.
+    static func volume(dragged at: Double) -> Double {
+        let at = min(max(at, 0), loudest)
+        if let mark = volumeMarks.first(where: { abs($0 - at) <= 0.05 }) { return mark }
+        return (at * 100).rounded() / 100
+    }
+
+    /// How many times louder than its file a clip plays at a volume past 1: up to 10 dB at the
+    /// top, and only as far as `peak`, its loudest sample, stays under -1 dB: past that it
+    /// breaks up. Never quieter than the file.
+    static func boost(volume: Double, peak: Float) -> Float {
+        guard volume > 1, peak > 0 else { return 1 }
+        let wanted = Float(pow(10, (volume - 1) / (loudest - 1) * 10 / 20))
+        return max(1, min(wanted, 0.89 / peak))
     }
 
     /// Whether a sound may play. In the order the reasons against are checked.
@@ -390,14 +415,46 @@ final class SoundPlayer: NSObject, NSSoundDelegate {
         if let sink { return sink(bark.name) { [weak self] in self?.ended() } }
         // A clip that cannot be opened or played is no sound, and over at once: the next one
         // must not wait on it.
-        let system = Self.systemChimes[bark.name].flatMap { NSSound(named: $0)?.copy() as? NSSound }
-        guard let sound = system ?? NSSound(contentsOf: sounds.url(bark.name), byReference: true) else { return ended() }
+        let system = Self.systemChimes[bark.name]
+        let url = system.map { URL(fileURLWithPath: "/System/Library/Sounds/\($0).aiff") } ?? sounds.url(bark.name)
+        let volume = settings.soundVolume
+        let plain = { system.flatMap { NSSound(named: $0)?.copy() as? NSSound } ?? NSSound(contentsOf: url, byReference: true) }
+        guard let sound = (volume > 1 ? Self.louder(url, volume: volume) : nil) ?? plain() else { return ended() }
         sound.delegate = self
+        sound.volume = Float(min(volume, 1))
         playing = sound
         if !sound.play() {
             playing = nil
             ended()
         }
+    }
+
+    /// The clip at `url` made louder for a volume past 1, by `Sound.boost`. Through a file of
+    /// its own, read in whole and gone at once: NSSound plays no louder than its file. nil
+    /// when the clip cannot be read or written: it then plays as it is.
+    static func louder(_ url: URL, volume: Double) -> NSSound? {
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("agent-valley-\(UUID().uuidString).caf")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        guard boost(url, volume: volume, into: copy) else { return nil }
+        return NSSound(contentsOf: copy, byReference: false)
+    }
+
+    /// Writes the clip at `url` to `copy`, turned up by `Sound.boost` for its loudest sample.
+    static func boost(_ url: URL, volume: Double, into copy: URL) -> Bool {
+        guard let file = try? AVAudioFile(forReading: url),
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: buffer)) != nil, let channels = buffer.floatChannelData else { return false }
+        let frames = Int(buffer.frameLength), count = Int(buffer.format.channelCount)
+        var peak: Float = 0
+        for c in 0..<count { for i in 0..<frames { peak = max(peak, abs(channels[c][i])) } }
+        let gain = Sound.boost(volume: volume, peak: peak)
+        for c in 0..<count { for i in 0..<frames { channels[c][i] *= gain } }
+        do {
+            let out = try AVAudioFile(forWriting: copy, settings: file.processingFormat.settings)
+            try out.write(from: buffer)
+            out.close()
+        } catch { return false }
+        return true
     }
 
     func sound(_ sound: NSSound, didFinishPlaying flag: Bool) {

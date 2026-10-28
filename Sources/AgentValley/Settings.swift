@@ -128,6 +128,12 @@ final class Settings: ObservableObject {
         didSet { defaults.set(soundStyle.rawValue, forKey: Key.soundStyle) }
     }
 
+    /// How loud every sound of the app is, 0 to `Sound.loudest`, against the Mac's own volume:
+    /// the crew turned down under a film, or up past its clips. 1 until the person moves it.
+    @Published var soundVolume: Double {
+        didSet { defaults.set(soundVolume, forKey: Key.soundVolume) }
+    }
+
     /// The crew's scene when a plan limit runs out and when it is back.
     @Published var soundScenes: Bool {
         didSet { defaults.set(soundScenes, forKey: Key.soundScenes) }
@@ -223,6 +229,8 @@ final class Settings: ObservableObject {
         soundFinished = defaults.object(forKey: Key.soundFinished) as? Bool ?? true
         soundScenes = defaults.object(forKey: Key.soundScenes) as? Bool ?? true
         soundStyle = SoundStyle(rawValue: defaults.string(forKey: Key.soundStyle) ?? "") ?? .crew
+        let volume = defaults.object(forKey: Key.soundVolume) as? Double ?? 1
+        soundVolume = (0...Sound.loudest).contains(volume) ? volume : 1
         let remind = defaults.object(forKey: Key.remindMinutes) as? Int ?? 0
         remindMinutes = Self.remindChoices.contains(remind) ? remind : 0
         quietHours = defaults.object(forKey: Key.quietHours) as? Bool ?? false
@@ -263,6 +271,7 @@ final class Settings: ObservableObject {
         static let soundFinished = "soundFinished"
         static let soundStyle = "soundStyle"
         static let soundScenes = "soundScenes"
+        static let soundVolume = "soundVolume"
         static let remindMinutes = "remindMinutes"
         static let quietHours = "quietHours"
         static let quietFrom = "quietFrom"

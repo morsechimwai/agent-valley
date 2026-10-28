@@ -41,16 +41,16 @@ enum ListFit {
     private static let outcomeLine: CGFloat = 26
     private static let wayToAnswer: CGFloat = 34
     private static let agentRow: CGFloat = 43
-    /// A sub-agent on one line, and a done line under the envelope.
+    /// A sub-agent on one line, and a done line under the book.
     static let agentLine: CGFloat = 24
-    /// The envelope's own line, "N done".
+    /// The book's own line, "N done".
     private static let doneLine: CGFloat = 32
     /// The Asked box: its padding, its label line and the text up to `AskedBox.maxHeight`. An
     /// estimate from the box's layout: the picture check calibrates it.
     // ponytail: always the capped 120 pt of text: exact for the usual long prompt, a short one only folds
     // other cards a little early. Estimate the text's line count when short prompts matter.
     static let askedBox: CGFloat = 8 * 2 + 14 + CardStyle.line + AskedBox.maxHeight + CardStyle.block
-    /// A hand-back box under the envelope: its padding, the header line, two lines of what came
+    /// A hand-back box under the book: its padding, the header line, two lines of what came
     /// back and the Read all line. An estimate from the box's layout, as `askedBox` is.
     // ponytail: always two lines of text: a one-line hand-back only folds other cards a little early.
     static let handBackBox: CGFloat = 8 * 2 + textLine + CardStyle.line + 2 * textLine + CardStyle.line + textLine + CardStyle.block
@@ -77,11 +77,6 @@ enum ListFit {
             if height(entries, folded: folded) <= room { break }
         }
         return folded
-    }
-
-    /// The list is too tall with every card's done lines shown: they fold into "N done" first.
-    static func foldsDone(_ entries: [Entry], room: CGFloat) -> Bool {
-        height(entries, folded: []) > room
     }
 
     /// The list's height with these folded: a folded row with another right under it, no
@@ -131,11 +126,11 @@ enum ListFit {
         }
         h += CGFloat(card.liveAgents().count) * (oneLineAgents ? agentLine : agentRow)
         h += CGFloat(card.liveAgents().filter { asked.contains($0.id) }.count) * askedBox
-        // Under the envelope a box stays whether or not the lines show; the rest are a line each.
+        // In an open book a document each, and a line each for those that handed nothing back. Shut, nothing.
         let done = card.doneAgents()
         if !done.isEmpty { h += doneLine }
-        for row in done {
-            if boxes.contains(row.id) { h += reading.contains(row.id) ? readAllBox : handBackBox } else if showingDone { h += agentLine }
+        for row in done where showingDone {
+            h += boxes.contains(row.id) ? (reading.contains(row.id) ? readAllBox : handBackBox) : agentLine
         }
         return hasHeader ? h + header : h
     }

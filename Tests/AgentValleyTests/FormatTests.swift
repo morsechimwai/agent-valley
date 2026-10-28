@@ -699,7 +699,7 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(Format.keysCaption, "Keys that work after the shortcut has opened the panel:")
         // "unfold", "this", and "deny, or skip" with no word on which of the two.
         let keys = Dictionary(uniqueKeysWithValues: Format.keys.map { ($0.key, $0.does) })
-        XCTAssertEqual(keys["d"], "expand done agents")
+        XCTAssertEqual(keys["d"], "open or close the book")
         XCTAssertEqual(keys["i"], "expand idle sessions")
         XCTAssertEqual(keys["?"], "this list of keys")
         XCTAssertEqual(keys["⌘⌫"], "deny (skip a question)")
@@ -984,5 +984,69 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(Format.handedBackAge(30), "just now")
         XCTAssertEqual(Format.handedBackAge(240), "4m ago")
         XCTAssertEqual(Format.handedBackAge(7300), "2h ago")
+    }
+
+    // A document in the book is named like a Markdown file, after its task.
+    func testADocumentIsNamedAfterItsTask() {
+        XCTAssertEqual(Format.docName(task: "Review Task 4", type: "general-purpose"), "review-task-4.md")
+        XCTAssertEqual(Format.docName(task: "Audit Mark.tsx", type: "general-purpose"), "audit-mark-tsx.md")
+        XCTAssertEqual(Format.docName(task: "  Fix: the *bold* bug!! ", type: "general-purpose"), "fix-the-bold-bug.md")
+        XCTAssertEqual(Format.docName(task: "", type: "Explore"), "explore.md")
+        XCTAssertEqual(Format.docName(task: "", type: ""), "handed-back.md")
+        XCTAssertEqual(Format.docName(task: "แก้บั๊ก Read all", type: "general-purpose"), "แก้บั๊ก-read-all.md")
+        // Long tasks are cut on a word, never mid-word or on a dash.
+        XCTAssertEqual(Format.docName(task: "Implement the frame that draws the whole look of the reel", type: "general-purpose"),
+                       "implement-the-frame-that-draws.md")
+        XCTAssertEqual(Format.docName(task: "https://example.com/averyveryverylongpathname/withmore", type: "general-purpose"),
+                       "https-example-com.md")
+        XCTAssertEqual(Format.docName(task: "Supercalifragilisticexpialidociousandthensome", type: "general-purpose"),
+                       "supercalifragilisticexpialidoc.md")
+        XCTAssertEqual(Format.newDocs(1), "1 new")
+    }
+
+    // What came back reads as the Markdown it mostly is, but never as a link.
+    // Every character stays, so what was written reads and copies whole: the marks go faint,
+    // they never go. A glob, a dunder name or a regex is not mistaken for emphasis.
+    func testMarkdownKeepsEveryCharacterAndFadesItsMarks() {
+        func plain(_ s: AttributedString) -> String { String(s.characters) }
+        func runs(_ s: AttributedString, _ text: String) -> [AttributedString.Runs.Run] {
+            s.runs.filter { String(s[$0.range].characters) == text }
+        }
+        func strong(_ s: AttributedString, _ text: String) -> Bool {
+            runs(s, text).contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }
+        }
+        func faint(_ s: AttributedString, _ text: String) -> Bool { runs(s, text).contains { $0.foregroundColor != nil } }
+        let samples = ["**Overall verdict:** ship it, with *one* fix.", "## Findings\n- one\n* two\n3. three",
+                       "See [the site](https://example.com) and <https://evil.example>.", "Run:\n```sh\nmake **all**\n```\nDone `now`.",
+                       "Search src/**/*.ts, read __init__ and a*b*c.", "a\n\nb"]
+        // Odd ones: a combining accent or a Thai vowel right after a mark, an emoji, Windows line
+        // ends, stacked or empty marks, double backticks, and a long line of openers that never close.
+        let odd = ["`a`\u{301}b", "**ตัวหนา**ที่ `ก`ี่ ข้อ", "`x`\u{2764}\u{FE0F} **ok** \u{1F469}\u{200D}\u{1F4BB}",
+                   "## Head\r\n- item\r\n```\r\ncode\r\n```", "***x***", "** and *", "``code``",
+                   String(repeating: " **a [b `c", count: 800)]
+        for sample in samples + odd {
+            XCTAssertEqual(Array(plain(Format.markdown(sample)).unicodeScalars), Array(sample.unicodeScalars), sample)
+        }
+        XCTAssertTrue(strong(Format.markdown("a\r\n## Next"), "Next"))
+
+        let verdict = Format.markdown(samples[0])
+        XCTAssertTrue(strong(verdict, "Overall verdict:"))
+        XCTAssertTrue(faint(verdict, "**"))
+        XCTAssertTrue(runs(verdict, "one").contains { $0.inlinePresentationIntent?.contains(.emphasized) == true })
+        let heading = Format.markdown(samples[1])
+        XCTAssertTrue(strong(heading, "Findings"))
+        XCTAssertTrue(faint(heading, "## "))
+        XCTAssertTrue(faint(heading, "- "))
+        XCTAssertTrue(faint(heading, "* "))
+        let link = Format.markdown(samples[2])
+        XCTAssertFalse(link.runs.contains { $0.link != nil })
+        XCTAssertTrue(faint(link, "](https://example.com)"))
+        XCTAssertFalse(faint(link, "the site"))
+        let code = Format.markdown(samples[3])
+        XCTAssertTrue(faint(code, "```sh"))
+        XCTAssertTrue(runs(code, "make **all**").contains { $0.inlinePresentationIntent?.contains(.code) == true })
+        XCTAssertTrue(runs(code, "now").contains { $0.backgroundColor != nil })
+        let names = Format.markdown(samples[4])
+        XCTAssertFalse(names.runs.contains { $0.inlinePresentationIntent != nil || $0.foregroundColor != nil })
     }
 }

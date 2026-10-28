@@ -2,7 +2,9 @@ import XCTest
 @testable import AgentValley
 
 final class HandBackTests: XCTestCase {
-    func testTwoBoxesAtMostTheNewestFirst() {
+    // The book holds a document for every sub-agent that handed something back, newest first.
+    // Shut, it shows none: the shut book folds everything.
+    func testAnOpenBookShowsEveryDocumentNewestFirst() {
         let now = Date()
         func done(_ id: String, back: TimeInterval?, seen: TimeInterval? = nil) -> AgentRow {
             var info = AgentInfo()
@@ -12,17 +14,11 @@ final class HandBackTests: XCTestCase {
             return row
         }
         let card = SessionCard(id: "/r/p/s1", project: "p", branch: "", main: nil,
-                               agents: [done("a", back: -30), done("b", back: -20), done("c", back: -10), done("d", back: nil)], startedAt: now)
-        XCTAssertEqual(HandBack.boxes(card, openedAt: nil), ["c", "b"])
-        // Seen in an earlier opening: a line now. Seen in this one: still a box until the panel shuts.
-        var seen = card
-        seen.agents[2].handBackSeenAt = now.addingTimeInterval(-5)
-        XCTAssertEqual(HandBack.boxes(seen, openedAt: now), ["b", "a"])
-        XCTAssertEqual(HandBack.boxes(seen, openedAt: now.addingTimeInterval(-60)), ["c", "b"])
-        // A line the person opened to read is a box too, past the cap, in its place by time.
-        XCTAssertEqual(HandBack.boxes(seen, openedAt: now, reading: ["c"]), ["c", "b", "a"])
-        // Only a finished row's: an id of anything else is no box.
-        XCTAssertEqual(HandBack.boxes(seen, openedAt: now, reading: ["x"]), ["b", "a"])
+                               agents: [done("a", back: -30, seen: -25), done("b", back: -20), done("c", back: -10), done("d", back: nil)], startedAt: now)
+        XCTAssertEqual(HandBack.boxes(card, open: true), ["c", "b", "a"])
+        XCTAssertEqual(HandBack.boxes(card, open: false), [])
+        // New: not yet looked at in an open book. "d" handed nothing back.
+        XCTAssertEqual(HandBack.newCount(card), 2)
     }
 
     // Read whole in one opening, a line at the next: what is read goes as the panel shuts.

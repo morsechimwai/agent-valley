@@ -71,12 +71,6 @@ final class ListFitTests: XCTestCase {
         XCTAssertEqual(open - shut, ListFit.askedBox)
     }
 
-    func testDoneLinesFoldFirstWhenTheListRunsOutOfRoom() {
-        let fits = [ListFit.Entry(id: "a", full: 300, row: 40, keepsFull: false, quiet: false, header: false, crew: true)]
-        XCTAssertFalse(ListFit.foldsDone(fits, room: 300))
-        XCTAssertTrue(ListFit.foldsDone(fits, room: 299))
-    }
-
     func testHandBackBoxesStayAndDoneLinesFold() {
         let c = card(main: .working, agents: [.done, .done, .done])
         let first = c.agents[0].id
@@ -86,8 +80,8 @@ final class ListFitTests: XCTestCase {
         let envelope = h(false, [], [])
         XCTAssertEqual(h(true, [first], []) - envelope, ListFit.handBackBox + 2 * ListFit.agentLine)
         XCTAssertEqual(h(true, [first], [first]) - envelope, ListFit.readAllBox + 2 * ListFit.agentLine)
-        // Folded, the lines go into "3 done"; the box stays.
-        XCTAssertEqual(h(false, [first], []) - envelope, ListFit.handBackBox)
+        // Shut, the book holds them all.
+        XCTAssertEqual(h(false, [first], []) - envelope, 0)
         XCTAssertEqual(h(true, [], []) - envelope, 3 * ListFit.agentLine)
         // Read whole, it is one scroll of what it was asked and what came back, not two.
         XCTAssertLessThan(ListFit.readAllBox, HandBackBox.maxHeight + AskedBox.maxHeight)

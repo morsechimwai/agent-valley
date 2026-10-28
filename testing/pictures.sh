@@ -7,7 +7,7 @@
 #   testing/pictures.sh [scene ...]   Every scene when none is named. Results in build/pictures.
 #     list      the list as it opens
 #     roomy     few sessions: full cards and their crew lines
-#     handback  finished sub-agents in boxes: Plan's unseen, an Asked box, Read all, then shut and opened again; both pages
+#     handback  the book: shut with 1 new, opened to Plan's document, an Asked box, Read all, then shut and opened again; both pages
 #     crew      a sub-agent waits: its line red, the rest folded to fit
 #     status    the same, grouped by status
 #     keys      the ring on each session in turn, in both orders

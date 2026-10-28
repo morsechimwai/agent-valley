@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import XCTest
 @testable import AgentValley
 
@@ -166,6 +167,58 @@ final class SoundTests: XCTestCase {
     }
 
     // MARK: - What decides
+
+    // Near a quarter the knob lands on it; elsewhere on the whole percent under it.
+    func testTheVolumeSnapsToQuartersNearThem() {
+        XCTAssertEqual(Sound.volume(dragged: 0.53), 0.5)
+        XCTAssertEqual(Sound.volume(dragged: 0.47), 0.5)
+        XCTAssertEqual(Sound.volume(dragged: 0.97), 1)
+        XCTAssertEqual(Sound.volume(dragged: 0.04), 0)
+        XCTAssertEqual(Sound.volume(dragged: 0.63), 0.63, accuracy: 0.0001)
+        XCTAssertEqual(Sound.volume(dragged: 0.384), 0.38, accuracy: 0.0001)
+        XCTAssertEqual(Sound.volume(dragged: 1.08), 1.08, accuracy: 0.0001)
+        XCTAssertEqual(Sound.volume(dragged: 1.22), 1.25)
+        XCTAssertEqual(Sound.volume(dragged: -0.2), 0)
+        XCTAssertEqual(Sound.volume(dragged: 1.4), 1.25)
+    }
+
+    // Past 100% a clip is made louder, up to 10 dB at the top, but never past what its loudest
+    // point allows: it would break up. Never quieter than its file.
+    func testAboveFullTheClipIsBoostedAsFarAsItsPeakAllows() {
+        XCTAssertEqual(Sound.boost(volume: 1, peak: 0.1), 1)
+        XCTAssertEqual(Sound.boost(volume: 0.5, peak: 0.1), 1)
+        XCTAssertEqual(Sound.boost(volume: 1.25, peak: 0.1), 3.162, accuracy: 0.001)
+        XCTAssertEqual(Sound.boost(volume: 1.125, peak: 0.1), 1.778, accuracy: 0.001)
+        XCTAssertEqual(Sound.boost(volume: 1.25, peak: 0.5), 1.78, accuracy: 0.01)
+        XCTAssertEqual(Sound.boost(volume: 1.25, peak: 0.95), 1)
+        XCTAssertEqual(Sound.boost(volume: 1.25, peak: 0), 1)
+    }
+
+    // The louder copy is the same clip, as long, with its loudest point turned up by the boost
+    // for it. Fast enough to make on the main thread as a bark comes in.
+    func testALouderCopyOfARealClipIsTurnedUpByItsBoost() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../sounds/crew/sunny-done-long-2.m4a").standardized
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("louder-test-\(UUID().uuidString).caf")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let started = Date()
+        XCTAssertTrue(SoundPlayer.boost(url, volume: 1.25, into: copy))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 0.3)
+        func read(_ url: URL) throws -> (peak: Float, frames: AVAudioFramePosition) {
+            let file = try AVAudioFile(forReading: url)
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)))
+            try file.read(into: buffer)
+            let channels = try XCTUnwrap(buffer.floatChannelData)
+            var peak: Float = 0
+            for c in 0..<Int(buffer.format.channelCount) { for i in 0..<Int(buffer.frameLength) { peak = max(peak, abs(channels[c][i])) } }
+            return (peak, file.length)
+        }
+        let plain = try read(url), louder = try read(copy)
+        XCTAssertEqual(louder.frames, plain.frames)
+        XCTAssertGreaterThan(Sound.boost(volume: 1.25, peak: plain.peak), 1.5)
+        XCTAssertEqual(louder.peak / plain.peak, Sound.boost(volume: 1.25, peak: plain.peak), accuracy: 0.01)
+        XCTAssertNotNil(SoundPlayer.louder(URL(fileURLWithPath: "/System/Library/Sounds/Glass.aiff"), volume: 1.25))
+    }
 
     func testQuietHoursInsideOneDay() {
         XCTAssertFalse(Sound.isQuiet(hour: 11, from: 12, until: 14))

@@ -137,6 +137,19 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(Settings(defaults: defaults).soundScenes)
     }
 
+    // Full volume until the person turns it down: an update changes nothing they hear.
+    func testSoundVolumeStartsFullAndPersists() {
+        XCTAssertEqual(Settings(defaults: defaults).soundVolume, 1)
+        Settings(defaults: defaults).soundVolume = 0.6
+        XCTAssertEqual(Settings(defaults: defaults).soundVolume, 0.6)
+        Settings(defaults: defaults).soundVolume = 1.25
+        XCTAssertEqual(Settings(defaults: defaults).soundVolume, 1.25)
+        defaults.set(1.5, forKey: "soundVolume")
+        XCTAssertEqual(Settings(defaults: defaults).soundVolume, 1)
+        defaults.set("loud", forKey: "soundVolume")
+        XCTAssertEqual(Settings(defaults: defaults).soundVolume, 1)
+    }
+
     // The crew talks unless the person picks otherwise; anything else stored reads as talking.
     func testSoundStyleDefaultsToCrewAndPersists() {
         XCTAssertEqual(Settings(defaults: defaults).soundStyle, .crew)

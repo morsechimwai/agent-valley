@@ -203,7 +203,7 @@ struct Person: Equatable {
         "cccccccccccc",
     ], skin: 0xC98D5E, skinShade: 0xA8703F, hair: 0x5A4636, shirt: 0x3FB3A8, underEyes: "s")
 
-    /// Explore: an afro, sideburns, big round glasses.
+    /// Explore: an afro that stops at her ears, big round glasses.
     static let afro = Person(rows: [
         "...hhhhhh...",
         ".hhhhhhhhhh.",
@@ -212,8 +212,8 @@ struct Person: Equatable {
         "hKlolKKlolKh",
         "hKlllKKlllKh",
         ".hKKKssKKKh.",
-        ".hsssmmsssh.",
-        "..hssssssh..",
+        "..sssmmsss..",
+        "...ssssss...",
         "..cccSSccc..",
         ".cCccwwccCc.",
         "ccCcCccCcCcc",
@@ -653,34 +653,76 @@ struct Flipbook: View {
     }
 }
 
-/// Before "N done": the finished work in a sealed manila envelope, ready to go back to the lead.
-/// The seal is green, the colour of done: red is for what waits on the person.
-struct DoneEnvelope: View {
+/// A finished sub-agent's work in the book, before its name: a page with its corner turned down,
+/// as a Markdown file is drawn.
+struct DocIcon: View {
+    /// Cells as big as a 14-point mascot's.
+    var size: CGFloat = 8 * 14 / 12
+
+    static let cells: [String] = [
+        "pppppF..",
+        "pppppFF.",
+        "pppppFFF",
+        "pppppppp",
+        "pttttttp",
+        "pppppppp",
+        "pttttttp",
+        "pppppppp",
+        "ptttttpp",
+        "pppppppp",
+    ]
+
+    var body: some View {
+        Pixels(cells: Self.cells.map(Array.init), size: size, colour: { ($0 == "F" ? 0xC9BFA5 : DoneBook.hex($0)).map(rgb) })
+            .accessibilityHidden(true)
+    }
+}
+
+/// Before "N done": the finished work filed in a green ledger, shut until the person opens it to
+/// the documents inside. Green is the colour of done: red is for what waits on the person.
+struct DoneBook: View {
+    /// Whether it is open to its documents.
+    var open = false
     /// Cells as big as a 20-point mascot's.
     var size: CGFloat = 20 * 10 / 12
 
-    static let cells: [String] = [
-        "mmmmmmmmmm",
-        "mMmmmmmmMm",
-        "mmMmmmmMmm",
-        "mmmMGGMmmm",
-        "mmmmGGmmmm",
-        "mmmmmmmmmm",
-        "mmmmmmmmmm",
+    static let shut: [String] = [
+        "SCCCCCCCC.",
+        "SCCCCCCCCp",
+        "SCLLLLLCCp",
+        "SCCCCCCCCp",
+        "SCCCCCCCCp",
+        "SCCCCCCCCp",
+        ".ppppppLpp",
+        ".......L..",
+    ]
+
+    static let opened: [String] = [
+        ".ppp..ppp.",
+        "ppppggpppp",
+        "pttpggpttp",
+        "ppppggpppp",
+        "pttpggpttp",
+        "ppppggpppp",
+        "CCCCLLCCCC",
+        "....LL....",
     ]
 
     static func hex(_ cell: Character) -> UInt32? {
         switch cell {
-        case "m": 0xDDBA72  // manila
-        case "M": 0xA9853F  // the flap's edges
-        case "G": 0x3CB55E  // the seal
+        case "C": 0x2F7D4A  // the green cloth cover
+        case "S": 0x1F5A34  // its spine
+        case "L": 0xD9B44A  // the gold label and ribbon
+        case "p": 0xEFE6CF  // paper
+        case "g": 0xD8CDAF  // the fold between the pages
+        case "t": 0x9A8F78  // writing
         default: nil
         }
     }
 
     var body: some View {
-        // "1 done" says it in words.
-        Pixels(cells: Self.cells.map(Array.init), size: size, colour: { Self.hex($0).map(rgb) })
+        // "1 done" says it in words, and the line's value says whether its lines show.
+        Pixels(cells: (open ? Self.opened : Self.shut).map(Array.init), size: size, colour: { Self.hex($0).map(rgb) })
             .accessibilityHidden(true)
     }
 }

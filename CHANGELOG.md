@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.21 — 2026-10-28
+
+- The envelope is a green book now. When a sub-agent finishes, the book on its lead's row says how many are new, like "2 done 1 new". Click the book to open it: each sub-agent that handed something back is a document named after its task, like fix-tax-rounding.md, with who wrote it, how long ago and its first two lines. Read all shows what it was asked and everything it handed back. Shut the book and they all fold away.
+- Documents and the Asked box show Markdown as it was written, every character kept. Headings and bold read bold, code is shaded, and the marks themselves (##, **, backticks) stay where they are, drawn faint. Nothing in them is a link.
+- A document counts as seen after about five seconds in sight, not the moment the panel opens, so a pointer passing over the notch no longer marks it read. While you read, nothing folds away under you.
+- A volume slider in Settings › Sounds, for the crew's voices and the chimes, from 0 to 125%. Above 100% a clip is turned up as far as it goes without breaking up.
+- Faye's afro stops at her ears: no more hair along her jaw.
+
 ## 0.3.20 — 2026-10-28
 
 - While an agent thinks between steps, its row says where it is headed instead of a bare "Thinking": the last line it wrote or thought, like "Next I read MascotView.swift to see how a look becomes a drawn character." Before it has written anything, the row names the step it just finished: "Thinking · after Read PanelView.swift". Same in the notch and in Claude Code's agent list.

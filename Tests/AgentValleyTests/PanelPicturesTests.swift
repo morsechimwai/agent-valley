@@ -343,27 +343,23 @@ final class PanelPicturesTests: XCTestCase {
                 state.keyboard,
             ].filter { $0 }.count)
             let room = NotchGeometry.listRoom(screen: state.screenFrame, barHeight: state.barHeight)
-            func entries(doneFolded: Bool) -> [ListFit.Entry] {
-                list.cards.map { card in
-                    let session = AnswerStore.sessionID(of: card)
-                    let boxes = HandBack.boxes(card, openedAt: state.openedAt, reading: state.readingAll)
-                    return ListFit.Entry(
-                        id: card.id,
-                        full: ListFit.fullHeight(card, header: headers.contains(card.id),
-                                                 requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
-                                                 settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
-                                                 showingDone: state.doneShown[card.id] ?? !doneFolded, oneLineAgents: compact,
-                                                 asked: state.askedOpen, boxes: boxes, reading: state.readingAll),
-                        row: ListFit.rowHeight(header: headers.contains(card.id)),
-                        keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || keeping.contains(session)
-                            || state.doneShown[card.id] == true || !boxes.isEmpty || card.liveAgents().contains { state.askedOpen.contains($0.id) },
-                        quiet: card.group == .quiet || card.group == .idle,
-                        header: headers.contains(card.id),
-                        crew: !card.liveAgents().isEmpty)
-                }
+            let fitted = list.cards.map { card in
+                let session = AnswerStore.sessionID(of: card)
+                let open = state.doneShown[card.id] ?? false
+                return ListFit.Entry(
+                    id: card.id,
+                    full: ListFit.fullHeight(card, header: headers.contains(card.id),
+                                             requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
+                                             settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
+                                             showingDone: open, oneLineAgents: compact,
+                                             asked: state.askedOpen, boxes: HandBack.boxes(card, open: open), reading: state.readingAll),
+                    row: ListFit.rowHeight(header: headers.contains(card.id)),
+                    keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || keeping.contains(session)
+                        || open || card.liveAgents().contains { state.askedOpen.contains($0.id) },
+                    quiet: card.group == .quiet || card.group == .idle,
+                    header: headers.contains(card.id),
+                    crew: !card.liveAgents().isEmpty)
             }
-            let shown = entries(doneFolded: false)
-            let fitted = ListFit.foldsDone(shown, room: room - ListFit.padding - under) ? entries(doneFolded: true) : shown
             let folded = ListFit.compact(fitted, room: room - ListFit.padding - under)
             let estimate = ListFit.padding + ListFit.height(fitted, folded: folded) + under
             print("estimate \(estimate) measured \(state.contentHeight) room \(room)")
@@ -384,17 +380,19 @@ final class PanelPicturesTests: XCTestCase {
             open()
             picture("open")
             checkHeight()
-            // Its finished sub-agents listed, as they are unless the list runs out of room: under
-            // the envelope, a line from it to each. Then folded back into the envelope by a click.
-            picture("done-open")
+            // Its book opened by a click: its finished sub-agents in it, a line from it to each.
+            // Then shut again, which folds them all.
             if let checkout = store.sessions.first(where: { $0.name == "Refactor checkout flow" }) {
+                state.doneShown[checkout.id] = true
+                picture("done-open")
                 state.doneShown[checkout.id] = false
                 picture("done-folded")
             }
         case "handback":
-            // The checkout alone, as roomy. Plan's finished answer is a box under the envelope, then
-            // the Asked box of a sub-agent at work, Plan's answer read whole, and the panel shut and
-            // opened again: Plan is a line by then. Then the same on the STATUS page.
+            // The checkout alone, as roomy. Plan's finished answer comes back to a shut book, "1 new"
+            // beside it; the book opened, Plan's document in it; the Asked box of a sub-agent at work;
+            // Plan's document read whole; and the panel shut and opened again after a look: the book
+            // as the person left it, Plan no longer new. Then the same on the STATUS page.
             for card in store.sessions where card.name != "Refactor checkout flow" {
                 state.hidden[card.id] = Date()
             }
@@ -408,7 +406,8 @@ final class PanelPicturesTests: XCTestCase {
             let iso = ISO8601DateFormatter()
             iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             func answers() throws {
-                let answer = "Round once at the total, not per line.\nPer-line rounding adds up to a cent or two on a cart of twelve cheap items.\nThe payment provider rounds the grand total once, so that is the number to match.\nFiles to change: src/cart/tax.ts and src/cart/tax.test.ts.\nReceipt totals in src/receipt/format.ts need no change."
+                // Markdown, as a sub-agent writes it: the document draws it with its marks faint.
+                let answer = "**Round once at the total**, not per line.\n\n## Why\n- Per-line rounding adds up to a cent or two on a cart of twelve cheap items.\n- The payment provider rounds the grand total once, so that is the number to match.\n\n## Files\n- `src/cart/tax.ts` and `src/cart/tax.test.ts`\n- `src/receipt/format.ts` needs no change, see [the receipt notes](https://example.com/receipt)."
                 let line: [String: Any] = ["type": "assistant", "timestamp": iso.string(from: Date()),
                     "message": ["role": "assistant", "model": "claude-sonnet-5-5", "stop_reason": "end_turn",
                                 "usage": ["input_tokens": 900, "cache_read_input_tokens": 30_000, "output_tokens": 210],
@@ -425,11 +424,16 @@ final class PanelPicturesTests: XCTestCase {
                 let page = grouping == .projects ? "all" : "status"
                 state.askedOpen = []
                 state.readingAll = []
+                let checkout = try XCTUnwrap(store.sessions.first { $0.name == "Refactor checkout flow" }).id
+                state.doneShown[checkout] = nil
                 // Shut while it comes in: an open panel would see it at once and call it seen.
                 state.expanded = false
                 try answers()
                 open()
                 picture("\(page)-open")
+                checkHeight()
+                state.doneShown[checkout] = true
+                picture("\(page)-book")
                 checkHeight()
                 state.askedOpen = [map]
                 picture("\(page)-asked")
