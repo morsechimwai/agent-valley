@@ -86,7 +86,7 @@ export function Rows() {
         </p>
         <p>Every session in one list, whichever terminal it runs in, grouped by project. <Word id="worktree">Worktrees</Word> count as their project. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds.</p>
         <p>
-          Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent&apos;s row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a sealed envelope under its session, and what it handed back waits there until you&apos;ve seen it: who, how long ago, the first two lines, and Read all for the rest. Click the envelope to list everyone who&apos;s done.
+          Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent&apos;s row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a green book on its session&apos;s row, which says how many are new. Click the book to open it: each sub-agent that handed something back is a document named like a .md file after its task, with who wrote it, how long ago and its first two lines. Read all shows what it was asked and everything it handed back, Markdown as written with its marks drawn faint. Shut the book and they all fold away.
         </p>
         <p className="text-muted-foreground">No guessed progress bars. If an agent goes <Word id="quiet">quiet</Word>, AgentValley says so.</p>
       </div>

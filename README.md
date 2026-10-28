@@ -23,7 +23,7 @@ A small valley of programmers in your Mac's notch. Each Claude Code agent, sub-a
 
 Each agent reports in its own terminal, line by line. Run a few sessions at once and you end up switching windows just to check on them. AgentValley puts all of them in one panel under the notch. See who is working, on which model, and who needs you, without leaving your app.
 
-<p align="center"><img src="docs/panel.png" alt="The AgentValley panel open under the notch, sessions grouped by project. In shop-web, Deploy preview build needs you: a red badge counts how long it has waited, beside Go to Terminal and Answer here next time. Refactor checkout flow works with its sub-agents one step in, on pixel lines from its programmer, each holding what it's on: two at work, one asking to run npm run test:cart with Allow once and Deny, its line red, and a sealed envelope for the one that's done. The line at the foot says four more sessions further down, two of them need you." width="544"></p>
+<p align="center"><img src="docs/panel.png" alt="The AgentValley panel open under the notch, sessions grouped by project. In shop-web, Deploy preview build needs you: a red badge counts how long it has waited, beside Go to Paradev and Answer here next time. Refactor checkout flow works with its sub-agents one step in, on pixel lines from its programmer, each holding what it's on: two at work, one asking to run npm run test:cart with Allow once and Deny, its line red, and a green book holding the one that's done. The line at the foot says four more sessions further down, two of them need you." width="544"></p>
 
 ## Try it
 
@@ -63,7 +63,7 @@ Then quit the app and move it from Applications to the Bin, or run `brew uninsta
 
 Sessions get a card, and the sub-agents they start get rows under it. Each row shows the task, the model and the latest step, and sub-agent rows count their steps too. Every session sits in one list, whichever terminal it runs in, grouped by project. Worktrees count as their project. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds. No guessed progress bars: if an agent goes quiet, AgentValley says so.
 
-Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent's row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a sealed envelope under its session, and what it handed back waits there until you've seen it: who, how long ago, the first two lines, and Read all for the rest. Click the envelope to list everyone who's done.
+Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent's row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a green book on its session's row, which says how many are new. Click the book to open it: each sub-agent that handed something back is a document named like a .md file after its task, with who wrote it, how long ago and its first two lines. Read all shows what it was asked and everything it handed back, Markdown as written with its marks drawn faint. Shut the book and they all fold away.
 
 <p align="center"><img src="docs/row-notes.png" alt="One sub-agent row, enlarged, with arrows drawn in pen to each part: the task, the time and model, the latest step with the step count, and the agent's type." width="544"></p>
 
