@@ -683,6 +683,8 @@ enum Format {
         "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command." + (installed ? "" : " Needs a plugin that comes with this app: install it below.")
     }
     static let barMascotCaption = "The mascot on the bar is the agent to look at first."
+    /// Beside the envelope in the legend: nothing in the app said what it held.
+    static let envelopeCaption = "The sealed envelope holds the sub-agents that finished. What one just handed back waits under it. Click the envelope to list them all."
     /// Beside the green screen in the legend: nothing said what it was, and it looks like the
     /// terminal the crew holds while it runs a command, so it read as an agent still at work.
     static let jobsCaption = "The green screen beside the coffee: something an agent left running, like a dev server. Still and dim after half an hour."

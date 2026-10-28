@@ -708,7 +708,8 @@ final class FormatTests: XCTestCase {
         // One sentence each since 2026-10-15: the order of the mascot's choice and when each
         // colour takes over were more than a reader needs.
         XCTAssertEqual(Format.barMascotCaption, "The mascot on the bar is the agent to look at first.")
-        XCTAssertEqual(Format.jobsCaption, "The green screen beside the coffee: something an agent left running, like a dev server. Still and dim after half an hour.")
+        XCTAssertEqual(Format.envelopeCaption, "The sealed envelope holds the sub-agents that finished. What one just handed back waits under it. Click the envelope to list them all.")
+        XCTAssertEqual(Format.jobsCaption,"The green screen beside the coffee: something an agent left running, like a dev server. Still and dim after half an hour.")
         XCTAssertEqual(Format.barCaption, "The number on the bar: red is how many agents need you, white how many are working, grey how many are quiet.")
         XCTAssertEqual(Format.waitCaption, "Once an agent has waited a minute for you, the longest wait shows in red where the ring is.")
         XCTAssertEqual(Format.ringCaption, "The ring shows how much of your 5-hour limit is used. It turns yellow at 80%. It is shown only when Plan limits is on.")

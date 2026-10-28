@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.18 — 2026-10-28
+
+- The Mascots page of the ? legend shows the sealed envelope too: it holds the sub-agents that finished. What one just handed back waits under it, and a click on the envelope lists them all.
+
 ## 0.3.17 — 2026-10-28
 
 - The Bar page of the ? legend says what the small green screen beside the coffee means: something an agent left running in the background, like a dev server. It looks like the terminal we hold for a command, so it read as one of us still at work.

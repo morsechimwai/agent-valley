@@ -557,6 +557,11 @@ struct Legend: View {
             item("needs you", flag: .needsYou)
             item("idle or done", status: .done)
         }
+        // At the size of the mascots above, as the green screen on the Bar tab.
+        HStack(alignment: .top, spacing: 6) {
+            DoneEnvelope(size: 14 * 10 / 12).frame(width: 14)
+            caption(Format.envelopeCaption)
+        }
         caption(Format.quietCaption)
         caption(Format.timeCaption)
     }
