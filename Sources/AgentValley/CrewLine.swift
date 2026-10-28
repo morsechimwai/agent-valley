@@ -313,9 +313,9 @@ enum CrewLine {
     }
 
     /// What a row says its agent is doing this moment: its newest call still open, as the face
-    /// holds it; between calls, "Thinking", as the face then shows.
+    /// holds it; between calls, where it is headed, as the notch's row says it.
     static func doing(_ turn: AgentInfo) -> String {
-        guard let call = turn.openTools.last else { return "Thinking" }
+        guard let call = turn.openTools.last else { return turn.betweenCalls }
         return TranscriptReader.stepLabel(tool: call.tool, input: call.input as? [String: Any] ?? [:])
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.20 — 2026-10-28
+
+- While an agent thinks between steps, its row says where it is headed instead of a bare "Thinking": the last line it wrote or thought, like "Next I read MascotView.swift to see how a look becomes a drawn character." Before it has written anything, the row names the step it just finished: "Thinking · after Read PanelView.swift". Same in the notch and in Claude Code's agent list.
+
 ## 0.3.19 — 2026-10-28
 
 - The ? legend is shorter, and shows every picture the panel uses: what we hold for each tool (Read, Edit, Bash, Grep, Agent), the envelope, the green screen of a job left running, a Monitor's eye, and the coffee on the bar.

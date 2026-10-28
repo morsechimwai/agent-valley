@@ -1808,6 +1808,7 @@ final class AgentStoreTests: XCTestCase {
         var woken = waitingFiles()
         woken[subPath]!.info.turnEnded = false
         woken[subPath]!.info.lastStep = "Read cart.ts"
+        woken[subPath]!.info.openTools = [OpenTool(id: "t", tool: "Read", input: [:])]
         woken[subPath]!.info.lastActivity = now.addingTimeInterval(-30)
         // The lead's record says idle, which would call a row silent ten seconds done.
         let idle = ["s1": SessionState(activity: .idle)]

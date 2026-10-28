@@ -43,6 +43,14 @@ struct AgentInfo: Equatable {
     var turnStartedAt: Date?
     var steps = 0
     var lastStep = ""
+    /// The first line of what it last thought or wrote in the turn under way: a thought Claude Code
+    /// kept, or words of its own. Where it is headed while no call is open. Empty as a turn begins.
+    var thought = ""
+    /// What a row says while no call is open: where it is headed, else the step it just finished.
+    var betweenCalls: String {
+        if !thought.isEmpty { return thought }
+        return lastStep.isEmpty ? "Thinking" : "Thinking · after " + lastStep
+    }
     /// The same step by what it runs, where that is not what it is called: a Bash call's
     /// command, in place of the model's description of it. For a row that waits on the person.
     var lastStepAsRun = ""
@@ -186,6 +194,7 @@ enum TranscriptReader {
                 info.returned = false
                 info.handedBack = ""
                 info.handedBackAt = nil
+                info.thought = ""
                 if let date { info.turnStartedAt = date }
                 if info.asked.isEmpty { info.asked = HandBack.kept(text(of: object["message"] as? [String: Any]), limit: HandBack.askedLimit) }
             }
@@ -229,6 +238,10 @@ enum TranscriptReader {
             case "text":
                 hasText = true
                 if let text = block["text"] as? String { words.append(text) }
+                if let line = firstLine(block["text"]) { info.thought = line }
+            case "thinking":
+                // Claude Code keeps the words of only some thoughts; the rest come empty.
+                if let line = firstLine(block["thinking"]) { info.thought = line }
             default:
                 break
             }
@@ -292,6 +305,16 @@ enum TranscriptReader {
     /// to before it can be allowed, except that this is cut out and the rest is shown: a row
     /// says what a session is doing and allows nothing. Letters of right-to-left scripts stay,
     /// as a title in Arabic or Hebrew is one; only the marks that steer direction go.
+    /// A text's first line that has words, as a row shows it: without markdown's bold and code
+    /// marks or the heading, list or quote mark it begins with, cut to a step's length. nil when there is none.
+    static func firstLine(_ value: Any?) -> String? {
+        guard let text = value as? String else { return nil }
+        return text.split(whereSeparator: \.isNewline).lazy
+            .map { $0.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "") }
+            .map { clipped(String($0.drop { "#-*> \t".contains($0) })).trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
+    }
+
     static func clipped(_ text: String, limit: Int = stepDetailLimit) -> String {
         var scalars = String.UnicodeScalarView()
         var kept = 0

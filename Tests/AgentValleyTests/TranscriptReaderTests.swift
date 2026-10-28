@@ -51,6 +51,42 @@ final class TranscriptReaderTests: XCTestCase {
         XCTAssertEqual(TranscriptReader.elapsed(of: info, lastActivity: date("2026-10-12T03:00:00.000Z"), now: now, session: .busy), 120)
     }
 
+    // "> Thinking" told the person nothing. Between calls a row says where the agent is headed:
+    // the first line of what it last thought or wrote this turn, else the step it just finished.
+    func testBetweenCallsARowSaysWhereItIsHeaded() {
+        func thinking(_ text: String) -> String {
+            #"{"type":"assistant","message":{"id":"m","content":[{"type":"thinking","thinking":"\#(text)","signature":"s"}]}}"#
+        }
+        func text(_ text: String) -> String {
+            #"{"type":"assistant","message":{"id":"m","content":[{"type":"text","text":"\#(text)"}]}}"#
+        }
+        XCTAssertEqual(read(prompt).betweenCalls, "Thinking")
+        XCTAssertEqual(read(prompt, toolUse, toolResult).betweenCalls, "Thinking · after Read login.ts")
+        // Most thoughts come with their words left out: those say nothing.
+        XCTAssertEqual(read(prompt, toolUse, toolResult, thinking("")).betweenCalls, "Thinking · after Read login.ts")
+        XCTAssertEqual(read(prompt, thinking(#"The door swings in.\n\n"#), toolUse, toolResult).betweenCalls, "The door swings in.")
+        // The newest wins, thought or words, by its first line, without markdown's marks.
+        XCTAssertEqual(read(prompt, thinking("Old."), text(#"\n**Next**, check `login.ts`.\nMore."#)).thought, "Next, check login.ts.")
+        XCTAssertEqual(read(prompt, text("Old."), thinking("กำลังเช็กราคา")).thought, "กำลังเช็กราคา")
+        // An answer that opens on a list or a heading reads from its words, not its marks.
+        XCTAssertEqual(read(prompt, text(#"- Data in: stdin JSON\n- Out: rows"#)).thought, "Data in: stdin JSON")
+        XCTAssertEqual(read(prompt, text("## Findings")).thought, "Findings")
+        XCTAssertEqual(read(prompt, text(#"---\nReal line."#)).thought, "Real line.")
+        XCTAssertEqual(read(prompt, text(String(repeating: "x", count: 200))).thought.count, TranscriptReader.stepDetailLimit)
+        // A new prompt starts the turn over: the last turn's thought is not where this one is headed.
+        XCTAssertEqual(read(prompt, text("Old."), answer, prompt).thought, "")
+
+        func row(_ status: AgentStatus, _ info: AgentInfo) -> AgentRow { AgentRow(id: "r", info: info, status: status, elapsed: 0) }
+        let headed = read(prompt, text("Checking the door."), toolUse)
+        // A call open: the row names it, as before.
+        XCTAssertEqual(row(.working, headed).step, "Read login.ts")
+        let between = read(prompt, text("Checking the door."), toolUse, toolResult)
+        XCTAssertEqual(row(.working, between).step, "Checking the door.")
+        XCTAssertEqual(row(.quiet, between).step, "Read login.ts")
+        // Before its first step a row has no step line, as before.
+        XCTAssertEqual(row(.working, read(prompt)).step, "")
+    }
+
     func testReadsModelStepsAndLastStep() {
         let info = read(prompt, toolUse)
         XCTAssertEqual(info.model, "Haiku 5.5")

@@ -928,6 +928,7 @@ final class FormatTests: XCTestCase {
         func row(_ id: String, _ status: AgentStatus, _ step: String, _ at: Date?) -> AgentRow {
             var info = AgentInfo()
             info.lastStep = step
+            info.openTools = [OpenTool(id: "t", tool: "Edit", input: [:])]
             info.lastActivity = at
             return AgentRow(id: id, info: info, status: status, elapsed: 0)
         }

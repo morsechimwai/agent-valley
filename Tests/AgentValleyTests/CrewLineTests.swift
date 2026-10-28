@@ -349,7 +349,7 @@ final class CrewLineTests: XCTestCase {
         XCTAssertNil(CrewLine.activity(transcript: file.appendingPathExtension("missing"), now: then))
     }
 
-    // A row names the call still open, not one already answered; with none open it thinks.
+    // A row names the call still open, not one already answered; with none open, where it is headed.
     func testARowSaysTheCallStillOpen() throws {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("crew-\(UUID().uuidString).jsonl")
         defer { try? FileManager.default.removeItem(at: file) }
@@ -364,7 +364,9 @@ final class CrewLineTests: XCTestCase {
         }
         XCTAssertEqual(try doing(calls), "Grep session")
         XCTAssertEqual(try doing(calls, result("t2")), "Read login.ts")
-        XCTAssertEqual(try doing(calls, result("t2"), result("t1")), "Thinking")
+        XCTAssertEqual(try doing(calls, result("t2"), result("t1")), "Thinking · after Grep session")
+        let thought = #"{"type":"assistant","timestamp":"\#(at)","message":{"content":[{"type":"thinking","thinking":"Login looks fine, so the bug is in the session.","signature":"s"}]}}"#
+        XCTAssertEqual(try doing(calls, result("t2"), result("t1"), thought), "Login looks fine, so the bug is in the session.")
     }
 
     func testSubAgentTranscriptsAreFoundByTheirRowID() throws {

@@ -45,10 +45,13 @@ struct AgentRow: Identifiable, Equatable {
 
     /// The step as the row shows it. While the row waits on the person with no words of its
     /// own, as when Claude Code asks leave to run a command, the step by what it runs: the
-    /// person came to see what is asked. At any other time, by what it is called.
+    /// person came to see what is asked. While it works with no call open, where it is headed.
+    /// At any other time, by what it is called.
     var step: String {
         if let waitingOn { return waitingOn }
-        return status == .needsYou && !info.asking && !info.lastStepAsRun.isEmpty ? info.lastStepAsRun : info.lastStep
+        if status == .needsYou, !info.asking, !info.lastStepAsRun.isEmpty { return info.lastStepAsRun }
+        if status == .working, info.openTools.isEmpty, !info.thought.isEmpty || !info.lastStep.isEmpty { return info.betweenCalls }
+        return info.lastStep
     }
 
     /// Waiting on a question it wrote down, which the row can show. A wait Claude Code only
