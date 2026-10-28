@@ -103,6 +103,8 @@ We're seven programmers from a computer room in 1969. We build things because we
 
 Sunny, Walt, Norm and Pearl run sessions: start Claude Code and one of them takes it. Each project gets a regular, the same one of us every session. Open a second session there at the same time and a colleague takes it, since nobody is in two places at once. Judy, Faye and Felix take the sub-agent jobs a session hands out.
 
+In Claude Code we call each other by name. Norm hands a search to Faye with “Faye takes the search. Sending it now.” and Faye brings it back with “Norm, two call sites, no surprises.” We each talk in our own voice, in the language you write in. Your code, commits and files stay exactly as they would be without us. It comes with the plugin, from your next session on. Crew names in Claude Code, in the Claude Code settings, turns it off.
+
 <table>
 <tr><td width="76"><img src="site/public/mascots/guru-wave0.svg" alt="" width="48"></td><td><b>Sunny</b>, the guru · runs a session<br>Yoga at sunrise, then code until the sun goes down again. He believes every bug came to teach him something. When he waves, an agent is waiting for you.</td></tr>
 <tr><td width="76"><img src="site/public/mascots/walrus-working.svg" alt="" width="48"></td><td><b>Walt</b>, the walrus · runs a session<br>Friday nights he plays bass in a garage band. A neighbour once asked about the smoke coming out, and Walt said it was a barbecue. Nobody has seen the grill yet.</td></tr>
@@ -161,7 +163,7 @@ Eight more at [agentvalley.app/comics](https://agentvalley.app/comics/).
 - Sends us one count a day, so we know how many Macs run it: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. Turn it off in Settings.
 - Besides its own settings and its updates, it writes only in one folder: `~/Library/Application Support/AgentValley`. Nothing in `~/.claude` changes, unless you put the crew in your terminal.
 - You start that yourself, with a command from the app's settings. It sets the status line in `~/.claude/settings.json` and adds our font to `~/Library/Fonts`. With Ghostty, it also adds one line to Ghostty's config. From then on the app keeps the font and that line up to date. The command that takes the crew out undoes all of it.
-- The only hooks are the plugin's two, and only you put it in: Install the plugin runs Claude Code's own `claude plugin` command when you press it, never on its own. One brings Allow and Deny to the notch; the other only waits, at the end of a turn, while you're Away with a phone paired.
+- The only hooks are the plugin's four, and only you put it in: Install the plugin runs Claude Code's own `claude plugin` command when you press it, never on its own. One brings Allow and Deny to the notch. Two add a short note when a session or a sub-agent starts, telling Claude which of us it is; Crew names in Claude Code stops the note. The last only waits, at the end of a turn, while you're Away with a phone paired.
 - It reads `~/.claude/plugins/installed_plugins.json` to see whether the plugin is in, and while Answer from the notch is on, `~/.claude/plugins/known_marketplaces.json` to check that the plugin still finds the app.
 - Never answers for you. Allow happens only when you choose it.
 

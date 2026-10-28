@@ -10,6 +10,9 @@ export function Crew() {
       <p className="mt-[18px] max-w-[34em] text-[1.1875rem] leading-[1.55]">
         Every agent is a programmer from the early days of computing. One of us runs your session and phones the others for help. Each project gets a <Word id="regular">regular</Word>: the same one of us, every session.
       </p>
+      <p className="mt-4 max-w-[34em] text-[1.1875rem] leading-[1.55]">
+        In Claude Code we call each other by name. Norm hands a search to Faye with “Faye takes the search. Sending it now.” and Faye brings it back with “Norm, two call sites, no surprises.” We each talk in our own voice, in the language you write in. Your code, commits and files stay exactly as they would be without us. It comes with the plugin, from your next session on. Crew names in Claude Code, in the Claude Code settings, turns it off.
+      </p>
       <figure
         className="c-figure mt-10"
         role="img"
