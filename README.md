@@ -15,7 +15,7 @@ A small valley of programmers in your Mac's notch. Each Claude Code agent, sub-a
 
 **[agentvalley.app](https://agentvalley.app)** · [Comics](https://agentvalley.app/comics/) · [Sponsor the crew](https://github.com/sponsors/morsechimwai)
 
-<sub>Only for Claude Code, on Mac · Free · Open source · macOS 15 or later · For MacBooks with a notch</sub>
+<sub>Only for Claude Code, on Mac · Free · Open source · macOS 15 or later · With or without a notch</sub>
 
 </div>
 
@@ -39,9 +39,9 @@ brew install --cask morsechimwai/tap/agent-valley
 
 **3. Point at the notch.** The panel opens with a row for every agent. When one needs you, a red count appears beside the notch and its programmer waves. Click a row to jump to that agent's app. From any app, ⌃⌥⌘A opens the panel too: arrows to pick, Return to jump.
 
-Signed, and Apple checked our papers. Needs macOS 15 or later and Claude Code. Made for MacBooks with a notch.
+Signed, and Apple checked our papers. Needs macOS 15 or later and Claude Code. Made for the MacBook notch. No notch? We sit at the top of your main display.
 
-Once an hour we check for a new version, and we ask before we install it.
+Once an hour we check for a new version, and we ask before we install it. A green dot on the gear means one is waiting.
 
 We moved house in 0.2. On 0.1 from Homebrew? Run `brew uninstall --formula agent-valley`, then install again as above. Using the plugin? Copy its command from Settings once more, so it finds the new address. Put the crew in your terminal? Run its install command from the Claude Code settings once more too.
 
@@ -61,19 +61,21 @@ Then quit the app and move it from Applications to the Bin, or run `brew uninsta
 
 ### Every agent gets a row
 
-Sessions get a card, and the sub-agents they start get rows under it. Each row shows the task, the model and the latest step, and sub-agent rows count their steps too. Every session sits in one list, whichever terminal it runs in, grouped by project. Worktrees count as their project. No guessed progress bars: if an agent goes quiet, AgentValley says so.
+Sessions get a card, and the sub-agents they start get rows under it. Each row shows the task, the model and the latest step, and sub-agent rows count their steps too. Every session sits in one list, whichever terminal it runs in, grouped by project. Worktrees count as their project. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds. No guessed progress bars: if an agent goes quiet, AgentValley says so.
+
+Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent's row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a sealed envelope under its session, and what it handed back waits there until you've seen it: who, how long ago, the first two lines, and Read all for the rest. Click the envelope to list everyone who's done.
 
 <p align="center"><img src="docs/row-notes.png" alt="One sub-agent row, enlarged, with arrows drawn in pen to each part: the task, the time and model, the latest step with the step count, and the agent's type." width="544"></p>
 
 ### Know the moment one needs you
 
-When an agent asks a question or waits for permission, a red count appears beside the notch. Open the panel to read the question or the command. Each one that waits gets a red badge with how long it has waited, and past a minute the longest wait shows beside the notch too.
+When an agent asks a question or waits for permission, a red count appears beside the notch. Open the panel to read the question or the command. Each one that waits gets a red badge with how long it has waited, and past a minute the longest wait shows beside the notch too. On the STATUS tab the longest wait comes first. If a question you can answer sits further down the list, the line at the bottom says so: 1 to answer here.
 
 <p align="center"><img src="docs/needs-you.gif" alt="The top of a Mac screen. An agent works in a terminal. It asks to run git push origin preview: the terminal waits and a red 1 appears beside the notch. The pointer opens the panel over the terminal and presses Allow once. The panel shuts and the push goes through." width="544"></p>
 
 - **Jump to its app in one click.** Turn on Go to the session's tab in the Shortcuts settings, and Terminal and iTerm2 open the exact tab. Ghostty does too, unless two sessions run in the same folder.
 - **Answer from the notch.** Allow once or Deny, using a plugin that comes with the app: press Install the plugin in the Claude Code settings (or run the command it shows in a terminal), then start Claude Code again. Until it's in, every session that waits on you has a button that takes you there.
-- **We talk.** With sounds on, whoever runs the session plays a few notes on their own instrument and says what it needs: a command, an edit, a question, a plan. Rather have a plain chime? Settings has one. Sounds are on from the start, and one switch in Settings turns them off.
+- **We talk.** With sounds on, whoever runs the session plays a few notes on their own instrument and says what it needs: a command, an edit, a question, a plan. When the work is done you hear that too, with a different line after a long session, late at night, or for the first one of the morning. Rather have the instruments alone, or a plain chime? Settings has both. Sounds are on from the start, and the speaker button at the top of the panel turns them off, mid-word. We go quiet while your screen is locked.
 
 ### See what each project cost
 
@@ -91,6 +93,7 @@ Claude Code's status line gets the face of whoever runs the session, with the mo
 
 - **Plan limits.** Your Claude 5-hour and weekly limits, with time left until reset. Off until you turn it on. When one runs out we go fishing, or take the van for the weekly one, and a sign says when we're back.
 - **Token use.** Tokens for the last 5 hours and today, with a 12-hour chart.
+- **Jobs left running.** When an agent leaves something running in the background, like a dev server, a green screen sits beside the coffee on the bar until it ends. The session's card lists each one and how long it has run: a screen for a shell, an eye for a Monitor. After half an hour the screen stops and dims.
 - **Another display.** MacBook off to the side, big screen in front? Settings › General › Display moves us to the top of the big one, on any display plugged into your Mac. Unplug it and we go back to the notch. Asked for in [issue #1](https://github.com/morsechimwai/agent-valley/issues/1).
 
 <p align="center"><img src="docs/display.gif" alt="A big display with a MacBook in front of it. The notch, with one of us in it, lifts off the MacBook, glides to the top of the big display and settles there, then glides back." width="360"></p>

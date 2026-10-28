@@ -24,7 +24,7 @@ export function Install() {
               <Terms needs={false} />
             </GetIt>
           </div>
-          <p className="small mx-auto">Needs macOS 15 or later and Claude Code. Made for MacBooks with a notch.</p>
+          <p className="small mx-auto">Needs macOS 15 or later and Claude Code. Made for the MacBook notch. No notch? We sit at the top of your main display.</p>
         </div>
       </div>
       <div className="next mx-auto mt-14 max-w-[540px] text-left">
@@ -35,7 +35,7 @@ export function Install() {
           <li>The panel opens once to show where it lives. After that, point at the notch to open it.</li>
         </ol>
         <p className="small">
-          Once an hour we check for a new version, and we ask before we install it.
+          Once an hour we check for a new version, and we ask before we install it. A green dot on the gear means one is waiting.
         </p>
         <p className="small">
           We moved house in 0.2. On 0.1 from Homebrew? Run <code>brew uninstall --formula <span className="nw">agent-valley</span></code>, then install again as above. Using the plugin? Copy its command from Settings once more, so it finds the new address. Put the crew in your terminal? Run its install command from the Claude Code settings once more too.
@@ -44,7 +44,7 @@ export function Install() {
           To remove: first take out what you added yourself. For the plugin, run <code>claude plugin uninstall <span className="nw">notch-answers@agent-valley</span> &amp;&amp; claude plugin marketplace remove <span className="nw">agent-valley</span></code>. For the crew in your terminal, run the command under How to take it out in the app&apos;s Claude Code settings. Then quit the app and move it from Applications to the Bin, or run <code>brew uninstall --cask <span className="nw">agent-valley</span></code>. Your <Word id="history">History</Word> stays in ~/Library/<wbr />Application Support/<wbr />AgentValley until you delete that folder.
         </p>
         <p className="small">
-          Stuck? <a href="https://github.com/morsechimwai/agent-valley/issues">Ask on GitHub</a>.
+          Stuck? <a href="https://github.com/morsechimwai/agent-valley/issues">Ask on GitHub</a>, or press Report a bug in the app&apos;s settings.
         </p>
         <OnPhone />
       </div>

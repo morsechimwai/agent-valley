@@ -25,6 +25,7 @@ export function Also() {
         items={[
           { term: 'Plan limits', text: "Your Claude 5-hour and weekly limits, with time left until reset. Off until you turn it on. When one runs out we go fishing, or take the van for the weekly one, and a sign says when we're back." },
           { term: 'Token use', text: <><Word id="tokens">Tokens</Word> for the last 5 hours and today, with a 12-hour chart.</> },
+          { term: 'Jobs left running', text: "When an agent leaves something running in the background, like a dev server, a green screen sits beside the coffee on the bar until it ends. The session's card lists each one and how long it has run: a screen for a shell, an eye for a Monitor. After half an hour the screen stops and dims." },
           { term: 'Keyboard', text: <>Press <abbr title="Control-Option-Command-A">⌃⌥⌘A</abbr> from any app. Arrows to pick, Return to jump.</> },
           {
             term: 'Another display',

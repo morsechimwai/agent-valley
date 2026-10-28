@@ -84,7 +84,10 @@ export function Rows() {
         <p className="lead">
           Sessions get a <Word id="panel">card</Word>. <Word id="sub-agent">Sub-agents</Word> get rows under it. Each row shows the task, the <Word id="model">model</Word> and the latest <Word id="step">step</Word>. Sub-agent rows count their steps too.
         </p>
-        <p>Every session in one list, whichever terminal it runs in, grouped by project. <Word id="worktree">Worktrees</Word> count as their project.</p>
+        <p>Every session in one list, whichever terminal it runs in, grouped by project. <Word id="worktree">Worktrees</Word> count as their project. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds.</p>
+        <p>
+          Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent&apos;s row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a sealed envelope under its session, and what it handed back waits there until you&apos;ve seen it: who, how long ago, the first two lines, and Read all for the rest. Click the envelope to list everyone who&apos;s done.
+        </p>
         <p className="text-muted-foreground">No guessed progress bars. If an agent goes <Word id="quiet">quiet</Word>, AgentValley says so.</p>
       </div>
       {/* One row, taken out of the panel and marked up part by part in pen. */}

@@ -59,10 +59,10 @@ test("the printout's lines sit on its 24px rows", async ({ page }) => {
   )) expect(Math.round(off) % 24).toBe(0);
 });
 
-test('the hero keeps "For MacBooks with a notch" on one line', async ({ page }) => {
+test('the hero keeps "With or without a notch" on one line', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
-  const part = page.locator('.hero .nw', { hasText: 'For MacBooks with a notch' });
+  const part = page.locator('.hero .nw', { hasText: 'With or without a notch' });
   expect(await part.evaluate((el) => el.getClientRects().length)).toBe(1);
 });
 

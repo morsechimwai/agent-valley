@@ -84,7 +84,7 @@ export function Terms({ needs = true }: { needs?: boolean }) {
       <p className="mt-4 font-mono text-[.9375rem]">
         <strong className="font-semibold text-accent-text">Free</strong> · <a href="https://github.com/morsechimwai/agent-valley">Open source</a>
         {/* Beside the picture the column is too narrow for one line: what it needs goes on its own. */}
-        {needs && <><span className="min-[900px]:hidden"> · </span><span className="min-[900px]:block">macOS 15 or later · <span className="nw">For MacBooks with a notch</span></span></>}
+        {needs && <><span className="min-[900px]:hidden"> · </span><span className="min-[900px]:block">macOS 15 or later · <span className="nw">With or without a notch</span></span></>}
       </p>
       <p className="small">Signed, and Apple checked our papers.</p>
     </>
@@ -95,7 +95,7 @@ export function Terms({ needs = true }: { needs?: boolean }) {
 export function OnPhone() {
   return (
     <p className="mt-4 hidden font-mono text-[.9375rem] font-semibold text-accent-text [@media(hover:none)_and_(pointer:coarse)]:block">
-      Reading this on a phone? We only fit in a MacBook&apos;s notch. Open this page on your Mac, or <a href="#updates">get updates</a> for later.
+      Reading this on a phone? We only live on a Mac. Open this page on your Mac, or <a href="#updates">get updates</a> for later.
     </p>
   );
 }

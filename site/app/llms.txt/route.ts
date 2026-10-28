@@ -9,7 +9,7 @@ export function GET() {
 
 > A free, open-source Mac app that shows every Claude Code agent, sub-agents too, in your Mac's notch: who is working, on which model, and who needs you.
 
-AgentValley is for Claude Code on macOS 15 or later, on a MacBook with a notch. Download AgentValley.dmg from the latest GitHub release (signed with a Developer ID and notarized by Apple), or install it with Homebrew: \`brew install --cask morsechimwai/tap/agent-valley\`. The source is on GitHub under the MIT license. It is not affiliated with Anthropic.
+AgentValley is for Claude Code on macOS 15 or later. It sits in a MacBook's notch, or at the top of the main display on a Mac without one. Download AgentValley.dmg from the latest GitHub release (signed with a Developer ID and notarized by Apple), or install it with Homebrew: \`brew install --cask morsechimwai/tap/agent-valley\`. The source is on GitHub under the MIT license. It is not affiliated with Anthropic.
 
 ## Pages
 
