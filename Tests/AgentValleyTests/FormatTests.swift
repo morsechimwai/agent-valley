@@ -625,7 +625,9 @@ final class FormatTests: XCTestCase {
     // Nine of thirteen testers stopped at the bare command. Before it now stands what the plugin
     // does, a button that runs it when pressed, and the one step left after.
     func testTheInstallCommandComesWithWhatItDoesAndWhatToDo() {
-        XCTAssertEqual(Format.pluginWhat, "The plugin is inside this app, and installing it points Claude Code at it. It adds two hooks to Claude Code: each permission prompt and question is handed to this app, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before.")
+        XCTAssertEqual(Format.pluginWhat, "The plugin is inside this app, and installing it points Claude Code at it. It adds hooks to Claude Code: each permission prompt and question is handed to this app, each new session and sub-agent learns which of us it is, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before.")
+        // Crew names ride on the same socket, and only a new session hears them.
+        XCTAssertEqual(Format.crewNamesCaption, "Your sessions hand work to Judy, Faye and Felix by name and get it back the same way. Needs Answer from the notch. Starts with the next session you open.")
         XCTAssertEqual(Format.installButton, "Install the plugin")
         XCTAssertEqual(Format.installSteps.run, "Install runs this command for you. Or copy it and run it in a terminal yourself: the Terminal app, or wherever you start Claude Code.")
         XCTAssertEqual(Format.installSteps.restart, "Then start Claude Code again. Sessions that were already open do not have the plugin.")
@@ -655,10 +657,10 @@ final class FormatTests: XCTestCase {
     func testWhatIsSaidOfThePluginIsWhatItDoes() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("plugin/notch-answers")
         let hooks = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent("hooks/hooks.json"))) as? [String: Any])
-        // Two hooks, on permission requests and on Stop, and each runs its one script.
+        // Permission requests, Stop, and the two starts that ask for names, each with its one script.
         let events = try XCTUnwrap(hooks["hooks"] as? [String: Any])
-        XCTAssertEqual(Set(events.keys), ["PermissionRequest", "Stop"])
-        for name in ["ask.sh", "stop.sh"] {
+        XCTAssertEqual(Set(events.keys), ["PermissionRequest", "Stop", "SessionStart", "SubagentStart"])
+        for name in ["ask.sh", "stop.sh", "intro.sh"] {
             let script = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
             // To this app's own socket on this Mac, and to no address on a network.
             if name == "stop.sh" {
@@ -939,5 +941,47 @@ final class FormatTests: XCTestCase {
         let cardWithEmptySteps = SessionCard(id: "s", project: "shop", branch: "", main: AgentRow(id: "m", info: AgentInfo(), status: .working, elapsed: 0),
                                              agents: [], startedAt: Date())
         XCTAssertNil(Format.sessionStep(cardWithEmptySteps))
+    }
+
+    func testAHandBackIsSaidByWhoBroughtIt() {
+        XCTAssertEqual(Format.handedBack(type: "Explore"), "Faye handed back")
+        XCTAssertEqual(Format.handedBack(type: "general-purpose"), "Felix handed back")
+        XCTAssertEqual(Format.handedBack(type: ""), "Felix handed back")
+        XCTAssertEqual(Format.handedBack(type: "plan"), "Judy handed back")
+        XCTAssertEqual(Format.handedBack(type: "review-kit:code-reviewer"), "code-reviewer handed back")
+    }
+
+    func testADoneLineIsTheTaskAndWhatCameBack() {
+        var info = AgentInfo()
+        info.task = "Map payment call sites"
+        info.type = "Explore"
+        info.handedBack = "## 14 call sites in 6 files.\n3 skip the retry wrapper."
+        info.handedBackAt = Date()
+        XCTAssertEqual(Format.doneLine(AgentRow(id: "a", info: info, status: .done, elapsed: 0)), "Map payment call sites → 14 call sites in 6 files.")
+        XCTAssertEqual(Format.handBackAloud(AgentRow(id: "a", info: info, status: .done, elapsed: 0)), "Faye handed back: 14 call sites in 6 files.")
+        // Handed in with no words.
+        info.handedBack = ""
+        XCTAssertEqual(Format.handBackText(info), "Handed back a result.")
+        // Stopped with nothing back: the task alone.
+        info.handedBackAt = nil
+        XCTAssertEqual(Format.doneLine(AgentRow(id: "a", info: info, status: .done, elapsed: 0)), "Map payment call sites")
+    }
+
+    func testTheFirstLineSkipsBlanksAndMarks() {
+        XCTAssertEqual(Format.firstLine("\n\n# Title\nrest"), "Title")
+        XCTAssertEqual(Format.firstLine("- **a** b"), "**a** b")
+        var info = AgentInfo()
+        info.handedBack = "## 14 call sites in 6 files.\n\n- 3 skip the retry wrapper.\nmore"
+        XCTAssertEqual(Format.handBackText(info), "14 call sites in 6 files.\n3 skip the retry wrapper.")
+        XCTAssertEqual(Format.handBackLine(info), "14 call sites in 6 files.")
+        info.handedBack = "Only one line."
+        XCTAssertEqual(Format.handBackText(info), "Only one line.")
+        XCTAssertEqual(Format.firstLine(String(repeating: "x", count: 50_000)).count, TranscriptReader.stepDetailLimit + 1)
+    }
+
+    func testHowLongAgoItCameBack() {
+        XCTAssertEqual(Format.handedBackAge(30), "just now")
+        XCTAssertEqual(Format.handedBackAge(240), "4m ago")
+        XCTAssertEqual(Format.handedBackAge(7300), "2h ago")
     }
 }

@@ -498,4 +498,67 @@ final class TranscriptReaderTests: XCTestCase {
         XCTAssertEqual(info.type, "Explore")
         XCTAssertEqual(info.task, "Find auth files")
     }
+
+    // What the lead asked is the sub-agent's first prompt, whole, line breaks and all.
+    func testAnAgentKeepsWhatItWasAskedAndWhatItHandedBack() {
+        let ask = #"{"type":"user","timestamp":"2026-10-12T02:00:00.000Z","message":{"role":"user","content":"Find every PaymentIntent.\nDon't change code."}}"#
+        let back = #"{"type":"assistant","timestamp":"2026-10-12T02:03:00.000Z","message":{"id":"m9","stop_reason":"end_turn","content":[{"type":"text","text":"14 call sites in 6 files.\n3 skip the retry wrapper."}]}}"#
+        let info = read(ask, toolUse, toolResult, back)
+        XCTAssertEqual(info.asked, "Find every PaymentIntent.\nDon't change code.")
+        XCTAssertEqual(info.handedBack, "14 call sites in 6 files.\n3 skip the retry wrapper.")
+        XCTAssertEqual(info.handedBackAt, date("2026-10-12T02:03:00.000Z"))
+        // A later prompt (the lead continuing it) does not replace what was first asked.
+        XCTAssertEqual(read(ask, back, prompt).asked, "Find every PaymentIntent.\nDon't change code.")
+    }
+
+    func testNothingIsHandedBackMidTurnOrOnAnInterrupt() {
+        XCTAssertNil(read(prompt, toolUse).handedBackAt)
+        let interrupted = #"{"type":"user","interruptedMessageId":"msg_1","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}"#
+        XCTAssertNil(read(prompt, toolUse, interrupted).handedBackAt)
+    }
+
+    func testAResultHandedInIsAHandBackWithoutWords() {
+        let handIn = #"{"type":"assistant","timestamp":"2026-10-13T08:00:00.000Z","message":{"role":"assistant","stop_reason":"tool_use","content":[{"type":"tool_use","id":"t9","name":"StructuredOutput","input":{}}]}}"#
+        let info = read(prompt, handIn)
+        XCTAssertEqual(info.handedBack, "")
+        XCTAssertEqual(info.handedBackAt, date("2026-10-13T08:00:00.000Z"))
+    }
+
+    // An API error ends the turn and hands nothing back: no box, a plain done line.
+    func testAnApiErrorIsNoHandBack() {
+        let flagged = #"{"type":"assistant","timestamp":"2026-10-12T02:00:10.000Z","isApiErrorMessage":true,"error":"server_error","message":{"id":"e1","model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","content":[{"type":"text","text":"API Error: 529 Overloaded"}]}}"#
+        let synthetic = #"{"type":"assistant","timestamp":"2026-10-12T02:00:10.000Z","message":{"id":"e2","model":"<synthetic>","stop_reason":"stop_sequence","content":[{"type":"text","text":"API Error: 529 Overloaded"}]}}"#
+        let flagOnly = #"{"type":"assistant","timestamp":"2026-10-12T02:00:10.000Z","isApiErrorMessage":true,"message":{"id":"e3","stop_reason":"stop_sequence","content":[{"type":"text","text":"API Error: 529 Overloaded"}]}}"#
+        for error in [flagged, synthetic, flagOnly] {
+            let info = read(prompt, toolUse, toolResult, error)
+            XCTAssertTrue(info.turnEnded)
+            XCTAssertNil(info.handedBackAt)
+            XCTAssertEqual(info.handedBack, "")
+        }
+    }
+
+    // The lead continued it: what it handed back before is not what this turn ends with.
+    func testANewPromptTakesTheOldHandBackAway() {
+        let again = #"{"type":"user","timestamp":"2026-10-12T03:00:00.000Z","message":{"role":"user","content":"now fix it"}}"#
+        let stopped = #"{"type":"user","timestamp":"2026-10-12T03:01:00.000Z","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user]"}]}}"#
+        let error = #"{"type":"assistant","timestamp":"2026-10-12T03:01:00.000Z","isApiErrorMessage":true,"message":{"id":"e1","model":"<synthetic>","stop_reason":"stop_sequence","content":[{"type":"text","text":"API Error: 529 Overloaded"}]}}"#
+        for end in [stopped, error] {
+            let info = read(prompt, toolUse, toolResult, answer, again, toolUse, end)
+            XCTAssertNil(info.handedBackAt)
+            XCTAssertEqual(info.handedBack, "")
+            XCTAssertEqual(info.asked, "find auth files")
+        }
+        // Handed back again: the latest stands.
+        let fixed = #"{"type":"assistant","timestamp":"2026-10-12T03:05:00.000Z","message":{"id":"m5","stop_reason":"end_turn","content":[{"type":"text","text":"Fixed."}]}}"#
+        let info = read(prompt, answer, again, toolUse, toolResult, fixed)
+        XCTAssertEqual(info.handedBack, "Fixed.")
+        XCTAssertEqual(info.handedBackAt, date("2026-10-12T03:05:00.000Z"))
+    }
+
+    func testLongTextIsCutWithAMark() {
+        let cut = HandBack.kept(String(repeating: "a", count: 50_000), limit: HandBack.resultLimit)
+        XCTAssertEqual(cut.count, 8193)
+        XCTAssertTrue(cut.hasSuffix("…"))
+        XCTAssertEqual(HandBack.kept("  one\ntwo \n", limit: 10), "one\ntwo")
+    }
 }

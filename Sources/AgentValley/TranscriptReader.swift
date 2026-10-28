@@ -51,6 +51,12 @@ struct AgentInfo: Equatable {
     /// Its last message handed in its result with StructuredOutput: how a workflow's sub-agent
     /// ends. It writes no closing answer after that, and nothing else either.
     var returned = false
+    /// The agent's first prompt: what its lead asked of it. Line breaks kept.
+    var asked = ""
+    /// The text of the latest line that ended a turn: what it handed back. Line breaks kept.
+    var handedBack = ""
+    /// When it last handed back, by a closing answer or by a result handed in.
+    var handedBackAt: Date?
     /// The agent's work is over, by a closing answer or by a result handed in. The model writes
     /// the names of its calls: a result handed in while another call still waits, for a
     /// permission or for an answer, is not the end.
@@ -66,6 +72,9 @@ struct AgentInfo: Equatable {
     var jobs: [BackgroundJob] = []
     /// Task ids seen ending in this file, newest last: a start written again must not bring one back.
     var endedJobs: [String] = []
+    /// The session's sub-agents that Claude Code told this file wait on work of their own, by agent
+    /// id, with when it said so. Claude Code wakes such an agent when that work ends.
+    var waitingAgents: [String: Date] = [:]
 }
 
 /// Turns Claude Code transcript lines into `AgentInfo`. Never touches the disk or the clock.
@@ -138,14 +147,17 @@ enum TranscriptReader {
         if type == "ai-title", let title = object["aiTitle"] as? String, !title.isEmpty {
             info.title = clipped(title)
         }
+        let at = (object["timestamp"] as? String).flatMap(Self.date(from:))
         if type == "queue-operation", object["operation"] as? String == "enqueue", let text = object["content"] as? String {
             for id in BackgroundJobs.ended(in: text) { info.endJob(id) }
+            info.readWaits(in: text, at: at)
         }
         // A notice can be queued as an attachment alone. That kind only: a snapshot of the system
         // prompt is an attachment too, and holds the words of a notice.
         if type == "attachment", let attachment = object["attachment"] as? [String: Any],
            attachment["type"] as? String == "queued_command", let text = attachment["prompt"] as? String {
             for id in BackgroundJobs.ended(in: text) { info.endJob(id) }
+            info.readWaits(in: text, at: at)
         }
         guard type == "user" || type == "assistant" else { return }
         let date = (object["timestamp"] as? String).flatMap(Self.date(from:))
@@ -170,9 +182,12 @@ enum TranscriptReader {
             // The person's own prompt begins a turn. A tool's result, a note Claude Code adds
             // and the interrupt notice do not.
             if type == "user", !info.turnEnded, isPrompt(object) {
-                // Work starts again, whatever was handed in before.
+                // Work starts again, whatever was handed in before: an old hand-back is not this turn's.
                 info.returned = false
+                info.handedBack = ""
+                info.handedBackAt = nil
                 if let date { info.turnStartedAt = date }
+                if info.asked.isEmpty { info.asked = HandBack.kept(text(of: object["message"] as? [String: Any]), limit: HandBack.askedLimit) }
             }
             if info.turnEnded {
                 info.openTools = []
@@ -196,6 +211,7 @@ enum TranscriptReader {
         var hasTool = false
         var asking = false
         var returned = false
+        var words: [String] = []
         for block in message["content"] as? [[String: Any]] ?? [] {
             switch block["type"] as? String {
             case "tool_use":
@@ -212,6 +228,7 @@ enum TranscriptReader {
                 info.lastStepAsRun = stepLabel(tool: tool, input: block["input"] as? [String: Any] ?? [:], asRun: true)
             case "text":
                 hasText = true
+                if let text = block["text"] as? String { words.append(text) }
             default:
                 break
             }
@@ -222,6 +239,21 @@ enum TranscriptReader {
         info.turnEnded = hasText && !hasTool && stop != nil && stop != "tool_use"
         info.returned = returned
         info.asking = asking
+        // An API error ends the turn too, and hands nothing back.
+        guard message["model"] as? String != "<synthetic>", object["isApiErrorMessage"] as? Bool != true else { return }
+        if info.turnEnded {
+            info.handedBack = HandBack.kept(words.joined(separator: "\n"), limit: HandBack.resultLimit)
+            info.handedBackAt = date
+        } else if returned {
+            info.handedBackAt = date
+        }
+    }
+
+    /// A message's text: its content when that is a string, else its text blocks joined by line breaks.
+    private static func text(of message: [String: Any]?) -> String {
+        let content = message?["content"]
+        if let string = content as? String { return string }
+        return (content as? [[String: Any]] ?? []).compactMap { $0["text"] as? String }.joined(separator: "\n")
     }
 
     private static func isPrompt(_ line: [String: Any]) -> Bool {
@@ -346,12 +378,15 @@ enum TranscriptReader {
     /// a command runs and while a permission prompt is open.
     // ponytail: without a record, "done" waits for the file to go quiet after a finished answer, because
     // the transcript cannot say whether another turn follows, and two silent minutes read as quiet.
-    static func status(of info: AgentInfo, lastActivity: Date, now: Date, session: SessionActivity? = nil) -> AgentStatus {
+    /// `waits`: a sub-agent Claude Code says ended its turn to wait on work of its own. Until it
+    /// answers again it is never done: at work while it waits, and by the usual rules once woken.
+    static func status(of info: AgentInfo, lastActivity: Date, now: Date, session: SessionActivity? = nil, waits: Bool = false) -> AgentStatus {
         // Ahead of the done check: a prompt for a background sub-agent can open after the main turn ended.
         if session == .waiting { return .needsYou }
+        if waits && info.finished { return .working }
         let idle = now.timeIntervalSince(lastActivity)
         // The record can trail a new prompt by a moment, so an idle one waits like a finished answer does.
-        if (info.finished || session == .idle) && idle >= doneAfter { return .done }
+        if !waits && (info.finished || session == .idle) && idle >= doneAfter { return .done }
         // No waiting period: the question is on screen from the moment the call is written. Ahead of
         // the busy check: an unanswered call is in the transcript in so many words, and what the
         // record says while a question is open is known from one version of Claude Code only.
@@ -361,9 +396,9 @@ enum TranscriptReader {
         return .working
     }
 
-    static func elapsed(of info: AgentInfo, lastActivity: Date, now: Date, session: SessionActivity? = nil) -> TimeInterval {
+    static func elapsed(of info: AgentInfo, lastActivity: Date, now: Date, session: SessionActivity? = nil, waits: Bool = false) -> TimeInterval {
         guard let start = info.turnStartedAt ?? info.startedAt else { return 0 }
-        let end = status(of: info, lastActivity: lastActivity, now: now, session: session) == .done ? lastActivity : now
+        let end = status(of: info, lastActivity: lastActivity, now: now, session: session, waits: waits) == .done ? lastActivity : now
         return max(0, end.timeIntervalSince(start))
     }
 }

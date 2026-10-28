@@ -108,6 +108,10 @@ extension AppDelegate {
             onStatus: { [store] id, session, status in
                 SendLog.write(id: id, route: store.reach[session]?.route.kind ?? "none", status: status, to: logFile)
             })
+        answers.onIntro = { [store, settings] request, connection in
+            guard settings.crewNames else { connection.reply(nil); return }
+            store.introduce(request) { connection.reply($0) }
+        }
         answers.onStop = { [desk] stop, connection in
             let hook = desk.arrived(stop) { connection.reply($0) }
             connection.onClose = { [weak desk] in desk?.hookGone(hook) }

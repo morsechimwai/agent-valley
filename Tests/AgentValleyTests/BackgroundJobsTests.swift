@@ -34,6 +34,10 @@ enum JobLines {
         "<task-notification>\n<task-id>\(task)</task-id>\n" + (status.map { "<status>\($0)</status>\n" } ?? "")
             + "<summary>Background command finished</summary>\n</task-notification>"
     }
+    /// What Claude Code queues for a lead when one of its background sub-agents stops.
+    static func agentNotice(_ agent: String, summary: String) -> String {
+        "<task-notification>\n<task-id>\(agent)</task-id>\n<status>completed</status>\n<summary>\(summary)</summary>\n</task-notification>"
+    }
     static func told(_ text: String) -> String {
         json(["type": "user", "timestamp": "2026-10-24T15:03:00.000Z", "message": ["role": "user", "content": text]])
     }
@@ -178,5 +182,24 @@ final class BackgroundJobsTests: XCTestCase {
         XCTAssertEqual(BackgroundJobs.bySession(files, now: start, running: [:])["/p/s"] ?? [], [])          // rule 4
         XCTAssertEqual(BackgroundJobs.bySession(files, now: start, running: ["s": start + 5])["/p/s"] ?? [], []) // rule 5
         XCTAssertEqual(BackgroundJobs.bySession(files, now: start, running: ["s": start - 5])["/p/s"]?.count, 1)
+    }
+
+    // Claude Code tells the lead when a sub-agent ends its turn with work of its own still running.
+    func testTheLeadHearsWhichSubAgentsWaitOnTheirOwnWork() {
+        let waits = JobLines.agentNotice("aa9f3fd2ca39e53c3", summary: "Agent \"Slow sub-agent\" is waiting on its own background work")
+        let done = JobLines.agentNotice("aa9f3fd2ca39e53c3", summary: "Agent \"Slow sub-agent\" finished")
+        let at = JobLines.date("2026-10-24T15:03:00.000Z")
+        // Queued, attached or told: each way a notice comes counts.
+        for line in [JobLines.queued(waits), JobLines.attached(waits), JobLines.told(waits)] {
+            XCTAssertEqual(JobLines.read([line]).waitingAgents, ["aa9f3fd2ca39e53c3": at])
+        }
+        XCTAssertEqual(JobLines.read([JobLines.queued(waits), JobLines.attached(done)]).waitingAgents, [:])
+        // A job's own notice says nothing of an agent.
+        XCTAssertEqual(JobLines.read([JobLines.queued(JobLines.notice("bp5ojl2mq", status: "completed"))]).waitingAgents, [:])
+        // A copy with no time leaves what an earlier one said.
+        let copy = JobLines.json(["type": "user", "message": ["role": "user", "content": waits]])
+        XCTAssertEqual(JobLines.read([JobLines.queued(waits), copy]).waitingAgents, ["aa9f3fd2ca39e53c3": at])
+        // Nor a snapshot of the system prompt that holds the words.
+        XCTAssertEqual(JobLines.read([JobLines.attached(waits, type: "prompt_snapshot")]).waitingAgents, [:])
     }
 }

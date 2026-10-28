@@ -99,6 +99,48 @@ final class RosterTests: XCTestCase {
         XCTAssertEqual(roster.regulars, seated.regulars)
     }
 
+    // A roster written before seats knew who got their name still loads whole: an empty one
+    // would hand every project a new regular on update.
+    func testAnOldRosterFileStillLoads() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("roster-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Data(#"{"regulars":{"/w/app":{"face":2,"hair":1,"shirt":3}},"seats":{"s1":{"look":{"face":2,"hair":1,"shirt":3},"project":"/w/app","seen":0}}}"#.utf8)
+            .write(to: file)
+        let roster = Roster.load(file)
+        XCTAssertEqual(roster.regulars["/w/app"], LeadLook(face: 2, hair: 1, shirt: 3))
+        XCTAssertEqual(roster.seats["s1"]?.look, LeadLook(face: 2, hair: 1, shirt: 3))
+        XCTAssertNil(try XCTUnwrap(roster.seats["s1"]).named)
+    }
+
+    // The SessionStart hook seats a session before its card exists; the card then finds it seated.
+    func testASessionSeatedByIdKeepsItsSeatWhenItsCardComes() {
+        var roster = Roster()
+        let seated = roster.seat(session: "s1", project: "/work/app", busy: { _ in false }, now: now)
+        XCTAssertEqual(look(&roster, [card("s1", in: "/work/app")], of: "s1"), seated)
+    }
+
+    func testSeatingByIdFollowsTheSameRules() {
+        var roster = Roster()
+        let regular = roster.seat(session: "s1", project: "/work/app", busy: { _ in false }, now: now)
+        let second = roster.seat(session: "s2", project: "/work/app", busy: { $0 == "s1" }, now: now)
+        XCTAssertNotEqual(second, regular)
+        XCTAssertEqual(roster.regulars["/work/app"], regular)
+        // Asked again, a seated session keeps whoever sits there.
+        XCTAssertEqual(roster.seat(session: "s2", project: "/work/app", busy: { _ in false }, now: now), second)
+    }
+
+    func testNamedIsKeptOnDisk() throws {
+        var roster = Roster()
+        _ = roster.seat(session: "s1", project: "/work/app", busy: { _ in false }, now: now)
+        roster.markNamed("s1")
+        roster.markNamed("nobody")
+        XCTAssertNil(roster.seats["nobody"])
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("roster-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try roster.save(file)
+        XCTAssertEqual(Roster.load(file).seats["s1"]?.named, true)
+    }
+
     // What `crew status` reads is who sits where.
     func testTheTerminalGetsWhoSitsWhere() {
         var roster = Roster()

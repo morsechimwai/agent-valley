@@ -12,6 +12,9 @@ struct Roster: Codable, Equatable {
         var project: String
         /// When the session was last listed, to an hour.
         var seen: Date
+        /// True once the session's agent was told its name (`CrewIntro`); nil before, and in
+        /// rosters written before this was kept.
+        var named: Bool?
     }
 
     /// Each project's regular, by its checkout, or the folder its sessions start in out of git.
@@ -24,21 +27,9 @@ struct Roster: Codable, Equatable {
     mutating func seat(_ cards: [SessionCard], busy: (String) -> Bool, now: Date) -> [SessionCard] {
         for card in cards.sorted(by: { ($0.startedAt, $0.id) < ($1.startedAt, $1.id) }) {
             guard let main = card.main else { continue }
-            let id = AnswerStore.sessionID(of: card)
-            if let seat = seats[id] {
-                // To the hour: a write a second would be for nothing.
-                if now.timeIntervalSince(seat.seen) >= 3600 { seats[id]?.seen = now }
-                continue
-            }
             // A worktree sits at its checkout's desk.
             let project = card.git?.checkout ?? (main.info.cwd.isEmpty ? card.project : main.info.cwd)
-            let regular = regulars[project] ?? Self.pick(by: project, taken: Array(regulars.values))
-            regulars[project] = regular
-            let regularIsOut = seats.contains { $0.key != id && $0.value.project == project && $0.value.look == regular && busy($0.key) }
-            let look = regularIsOut
-                ? Self.pick(by: id, taken: Array(regulars.values) + seats.filter { busy($0.key) }.map(\.value.look))
-                : regular
-            seats[id] = Seat(look: look, project: project, seen: now)
+            _ = seat(session: AnswerStore.sessionID(of: card), project: project, busy: busy, now: now)
         }
         seats = seats.filter { now.timeIntervalSince($0.value.seen) < AgentStore.forgetAfter }
         return cards.map { card in
@@ -46,6 +37,29 @@ struct Roster: Codable, Equatable {
             card.look = seats[AnswerStore.sessionID(of: card)]?.look
             return card
         }
+    }
+
+    /// Who sits in session `id` of `project`, seating it first when it has no seat: the regular
+    /// while the regular is free, else someone else. A seated session keeps whoever sits there.
+    mutating func seat(session id: String, project: String, busy: (String) -> Bool, now: Date) -> LeadLook {
+        if let seat = seats[id] {
+            // To the hour: a write a second would be for nothing.
+            if now.timeIntervalSince(seat.seen) >= 3600 { seats[id]?.seen = now }
+            return seat.look
+        }
+        let regular = regulars[project] ?? Self.pick(by: project, taken: Array(regulars.values))
+        regulars[project] = regular
+        let regularIsOut = seats.contains { $0.key != id && $0.value.project == project && $0.value.look == regular && busy($0.key) }
+        let look = regularIsOut
+            ? Self.pick(by: id, taken: Array(regulars.values) + seats.filter { busy($0.key) }.map(\.value.look))
+            : regular
+        seats[id] = Seat(look: look, project: project, seen: now)
+        return look
+    }
+
+    /// Notes that session `id`'s agent was told its name. Seats nobody.
+    mutating func markNamed(_ id: String) {
+        seats[id]?.named = true
     }
 
     /// Who sits in each session, by session id: what `crew status` shows in the session's terminal.

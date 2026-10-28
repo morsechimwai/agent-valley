@@ -6,7 +6,7 @@
     {
       "name": "notch-answers",
       "source": "./notch-answers",
-      "description": "Answer Claude Code's permission prompts and multiple-choice questions from the AgentValley notch panel."
+      "description": "Answer Claude Code's permission prompts and multiple-choice questions from the AgentValley notch panel, and let the crew call each other by name."
     }
   ]
 }

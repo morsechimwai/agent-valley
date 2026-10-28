@@ -44,6 +44,28 @@ final class AnswerProtocolTests: XCTestCase {
         XCTAssertEqual(AnswerProtocol.parse(Data(repeating: 0x41, count: AnswerProtocol.maxHeaderBytes + 1)), .invalid)
     }
 
+    // The intro hook says which Claude Code it runs under, so /clear can let go of that
+    // terminal's session before it was.
+    func testCrewIntroCarriesThePid() {
+        XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nContent-Length: 2\r\nx-claude-pid: 4321", body: "{}")),
+                       .complete(path: .crewIntro(pid: 4321), body: Data("{}".utf8)))
+        XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nContent-Length: 2", body: "{}")),
+                       .complete(path: .crewIntro(pid: nil), body: Data("{}".utf8)))
+        XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nX-Claude-Pid: abc\r\nContent-Length: 2", body: "{}")),
+                       .complete(path: .crewIntro(pid: nil), body: Data("{}".utf8)))
+    }
+
+    // The SubagentStart input as Claude Code 2.1.311 sent it: the session is the parent's.
+    func testCrewIntroRequestReadsTheHookInput() {
+        let probe = #"{"session_id":"3eae","transcript_path":"/Users/me/.claude/projects/-w/3eae.jsonl","cwd":"/w","prompt_id":"e9","agent_id":"ac85","agent_type":"Explore","hook_event_name":"SubagentStart"}"#
+        XCTAssertEqual(CrewIntroRequest(hookInput: Data(probe.utf8), pid: 7),
+                       CrewIntroRequest(event: "SubagentStart", session: "3eae", cwd: "/w", agentType: "Explore", pid: 7))
+        XCTAssertNil(CrewIntroRequest(hookInput: Data("{}".utf8), pid: nil))
+        XCTAssertNil(CrewIntroRequest(hookInput: Data(#"{"session_id":"s1","cwd":"/w"}"#.utf8), pid: nil))
+        let noID = #"{"transcript_path":"/r/p/s9.jsonl","cwd":"/w","hook_event_name":"SessionStart","source":"clear"}"#
+        XCTAssertEqual(CrewIntroRequest(hookInput: Data(noID.utf8), pid: nil)?.session, "s9")
+    }
+
     func testResponses() {
         let empty = String(decoding: AnswerProtocol.response(body: nil), as: UTF8.self)
         XCTAssertTrue(empty.hasPrefix("HTTP/1.1 204 "))

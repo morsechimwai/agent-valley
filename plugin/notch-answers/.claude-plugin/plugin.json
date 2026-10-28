@@ -1,6 +1,6 @@
 {
   "name": "notch-answers",
-  "version": "0.2.0",
-  "description": "Answer Claude Code's permission prompts and multiple-choice questions from the AgentValley notch panel. While you're Away, it also hands a finished turn the phone's next message.",
+  "version": "0.3.0",
+  "description": "Answer Claude Code's permission prompts and multiple-choice questions from the AgentValley notch panel. Each new session and sub-agent learns which of the crew it is, so work changes hands by name. While you're Away, it also hands a finished turn the phone's next message.",
   "author": { "name": "AgentValley" }
 }

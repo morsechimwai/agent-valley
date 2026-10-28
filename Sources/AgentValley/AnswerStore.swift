@@ -77,6 +77,8 @@ final class AnswerStore: ObservableObject {
 
     /// Where a Stop hook goes. Unset, it is answered with nothing at once and Claude ends its turn.
     var onStop: ((StopWait, AnswerConnection) -> Void)?
+    /// Where a SessionStart or SubagentStart hook asking for its name goes. Unset, it gets none.
+    var onIntro: ((CrewIntroRequest, AnswerConnection) -> Void)?
 
     /// The plugin points at an older copy of the app, so Allow and Deny cannot reach this one.
     @Published private(set) var pluginLost = false
@@ -109,6 +111,9 @@ final class AnswerStore: ObservableObject {
         } onStop: { [weak self] stop, connection in
             guard let handler = self?.onStop else { connection.reply(nil); return }
             handler(stop, connection)
+        } onIntro: { [weak self] request, connection in
+            guard let handler = self?.onIntro else { connection.reply(nil); return }
+            handler(request, connection)
         }
         do {
             try server.start()
@@ -399,7 +404,7 @@ final class AnswerStore: ObservableObject {
                 let last = row.info.lastActivity ?? time
                 let status = TranscriptReader.status(of: row.info, lastActivity: last, now: time)
                 return AgentRow(id: row.id, info: row.info, status: status, elapsed: TranscriptReader.elapsed(of: row.info, lastActivity: last, now: time),
-                                quietFor: status == .done ? 0 : max(0, time.timeIntervalSince(last)))
+                                quietFor: status == .done ? 0 : max(0, time.timeIntervalSince(last)), handBackSeenAt: row.handBackSeenAt)
             }
             var card = card
             card.main = card.main.map(lead)

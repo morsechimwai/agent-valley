@@ -7,6 +7,7 @@
 #   testing/pictures.sh [scene ...]   Every scene when none is named. Results in build/pictures.
 #     list      the list as it opens
 #     roomy     few sessions: full cards and their crew lines
+#     handback  finished sub-agents in boxes: Plan's unseen, an Asked box, Read all, then shut and opened again; both pages
 #     crew      a sub-agent waits: its line red, the rest folded to fit
 #     status    the same, grouped by status
 #     keys      the ring on each session in turn, in both orders
@@ -33,7 +34,7 @@ ROOT="/Users/Shared/pt"
 FAKE_HOME="$ROOT/pictures"
 OUT="$PWD/build/pictures"
 SCENES=("$@")
-[ ${#SCENES[@]} -gt 0 ] || SCENES=(list roomy crew status keys idle intro legend settings request reader oldcopy update tokens history history-project fishing fishing-week away)
+[ ${#SCENES[@]} -gt 0 ] || SCENES=(list roomy handback crew status keys idle intro legend settings request reader oldcopy update tokens history history-project fishing fishing-week away)
 
 # Every account on this Mac can write to /Users/Shared, so ROOT has to be this user's own
 # folder, closed to the others, before anything under it is removed: were it a link someone

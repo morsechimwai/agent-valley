@@ -8,6 +8,8 @@ struct TrackedFile: Equatable {
     var offset: UInt64 = 0
     var modified = Date.distantPast
     var metaLoaded = false
+    /// When the person last saw this file's hand-back. Memory only.
+    var seenAt: Date?
 
     /// When the agent last did something. The file's own time stands in until a conversation line carries one.
     var activity: Date { info.lastActivity ?? modified }
@@ -24,6 +26,19 @@ struct AgentRow: Identifiable, Equatable {
     /// Shown as quiet although Claude Code calls it busy: nothing has been written for so long
     /// that nobody can say it works. The line under the row says that much and no more.
     var calledBusy = false
+    /// When the person last saw this row's hand-back.
+    var handBackSeenAt: Date?
+    /// What it ended its turn to wait on, as its step says it: work of its own, which wakes it when done.
+    var waitingOn: String?
+
+    /// Finished and handed something back to its lead.
+    var handsBack: Bool { status == .done && info.handedBackAt != nil }
+
+    /// A hand-back the person has not looked at yet, or one that came again after the look.
+    var awaitsLook: Bool {
+        guard handsBack, let back = info.handedBackAt else { return false }
+        return handBackSeenAt.map { $0 < back } ?? true
+    }
 
     /// Quiet or asking: the person may have to do something before this agent moves again.
     var mayNeedPerson: Bool { status == .quiet || status == .needsYou }
@@ -31,7 +46,10 @@ struct AgentRow: Identifiable, Equatable {
     /// The step as the row shows it. While the row waits on the person with no words of its
     /// own, as when Claude Code asks leave to run a command, the step by what it runs: the
     /// person came to see what is asked. At any other time, by what it is called.
-    var step: String { status == .needsYou && !info.asking && !info.lastStepAsRun.isEmpty ? info.lastStepAsRun : info.lastStep }
+    var step: String {
+        if let waitingOn { return waitingOn }
+        return status == .needsYou && !info.asking && !info.lastStepAsRun.isEmpty ? info.lastStepAsRun : info.lastStep
+    }
 
     /// Waiting on a question it wrote down, which the row can show. A wait Claude Code only
     /// reports, such as a prompt for permission, leaves no words of its own.
@@ -42,7 +60,11 @@ struct AgentRow: Identifiable, Equatable {
     var isStalled: Bool { status == .working && quietFor >= TranscriptReader.quietAfter }
 
     /// What it is doing while it works, by its newest call without a result.
-    var activity: Activity? { status == .working ? Activity(tool: info.openTools.last?.tool) : nil }
+    var activity: Activity? {
+        guard status == .working else { return nil }
+        // A job runs in a terminal of its own, whatever kind it is.
+        return waitingOn == nil ? Activity(tool: info.openTools.last?.tool) : .running
+    }
 }
 
 /// The number on the collapsed bar. Agents that may need the person are their own state: they
@@ -319,6 +341,9 @@ final class AgentStore: ObservableObject {
     private let processStart: (Int32) -> Date?
     /// The sessions a running Claude Code holds a record of, with when that process started, by session id. Only touched on `queue`.
     private var runningSince: [String: Date] = [:]
+    /// Sessions the SessionStart hook seated whose record has not been read yet, and when: they
+    /// count as busy for a minute, so sessions started together get two people. Only on `queue`.
+    private var introducedAt: [String: Date] = [:]
     /// Whether the sessions folder could be listed. A Claude Code that keeps no records has none; one that removed its last record on exit has the folder, empty. Only touched on `queue`.
     private var keepsRecords = false
     /// Who sits in which session. Only touched on `queue`.
@@ -348,6 +373,8 @@ final class AgentStore: ObservableObject {
     private var scanned = false
     /// How long a finished session or agent stays on screen. Only touched on `queue`.
     private var visibleFor = AgentStore.defaultVisibleFor
+    /// Hand-backs older than this launch are not news.
+    private let launchedAt = Date()
 
     init(root: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects"),
          visibleFor: TimeInterval = AgentStore.defaultVisibleFor,
@@ -391,6 +418,16 @@ final class AgentStore: ObservableObject {
         timer.setEventHandler { [weak self] in self?.tick() }
         timer.resume()
         self.timer = timer
+    }
+
+    /// The person has looked at the hand-backs of these rows (file paths).
+    func saw(_ ids: Set<String>, at time: Date) {
+        // Each look and each rest on a pinned panel calls this, mostly with nothing seen.
+        guard !ids.isEmpty else { return }
+        queue.async { [self] in
+            for id in ids { files[id]?.seenAt = time }
+            publish()
+        }
     }
 
     /// Applies the "Keep finished for" setting. The folder is walked again only once it is being
@@ -615,7 +652,7 @@ final class AgentStore: ObservableObject {
             // A meta file caught half-written is read again on the next event.
             file.metaLoaded = TranscriptReader.applyMeta(meta, to: &file.info)
         }
-        files[path] = file
+        files[path] = HandBack.seenBeforeLaunch(file, launchedAt: launchedAt)
         // A subagent can keep writing long after its parent's last write; the card header needs the parent.
         if !isMain, files[session + ".jsonl"] == nil { ingest(path: session + ".jsonl") }
     }
@@ -700,6 +737,9 @@ final class AgentStore: ObservableObject {
         let gone = Set(states.keys).subtracting(live.keys).subtracting(unread).map { ($0, SessionState(activity: .idle)) }
         states = live.mapValues(\.state).merging(gone) { held, _ in held }
         runningSince = live.mapValues(\.startedAt)
+        // Once its record is read, the record speaks for a session the hook seated.
+        let readAt = Date()
+        introducedAt = introducedAt.filter { live[$0.key] == nil && readAt.timeIntervalSince($0.value) < 60 }
         // A process keeps its ancestors: an app once found is kept, and forgotten with its record.
         // One not found is looked for again, as the app may only be closed for now.
         var found: [Int32: (startedAt: Date, app: OwnerApp, route: SendRoute)] = [:]
@@ -759,7 +799,7 @@ final class AgentStore: ObservableObject {
     /// anything in its session is fresh. `visibleFor` is for agents that have finished; one still
     /// in the middle of a turn keeps at least the default window, or a long command would hide it.
     static func visible(_ files: [String: TrackedFile], now: Date, visibleFor: TimeInterval = AgentStore.defaultVisibleFor,
-                        claimed: [String: SessionState] = [:], holding: Set<String> = []) -> [String: TrackedFile] {
+                        claimed: [String: SessionState] = [:], holding: Set<String> = [], waiting: Set<String> = []) -> [String: TrackedFile] {
         // A file with no conversation line is not an agent anyone ran: some other program's
         // file under the folder, a stub Claude Code left behind, or one cut off before its first
         // line ended. Its own time used to stand in, and each such file was listed as an agent
@@ -771,9 +811,17 @@ final class AgentStore: ObservableObject {
             // ponytail: a suspended Claude Code keeps saying busy, so its card stays until `forget` drops it after a day.
             if $0.value.isMain, holding.contains($0.value.session) { return true }
             if $0.value.isMain, let activity = claimed[$0.value.session]?.activity, activity != .idle { return true }
+            // A sub-agent waiting on a job of its own is at work, however long the job runs.
+            if waiting.contains($0.key) { return true }
             let info = $0.value.info
+            // A hand-back nobody looked at stays for a day, past the keep setting; a seen one counts the keep setting from the look.
+            var last = $0.value.activity
+            if !$0.value.isMain, info.finished, let back = info.handedBackAt {
+                if let seen = $0.value.seenAt, seen >= back { last = max(last, seen) }
+                else if now.timeIntervalSince(back) < HandBack.hold { return true }
+            }
             let midTurn = max(visibleFor, info.asking ? askingVisibleFor : defaultVisibleFor)
-            return now.timeIntervalSince($0.value.activity) < (info.finished ? visibleFor : midTurn)
+            return now.timeIntervalSince(last) < (info.finished ? visibleFor : midTurn)
         }
         let alive = Set(fresh.values.map(\.session))
         return files.filter { $0.value.isMain ? alive.contains($0.value.session) : fresh[$0.key] != nil }
@@ -803,6 +851,12 @@ final class AgentStore: ObservableObject {
     /// way up, the checkout that folder, or for a worktree the checkout its `.git` file names.
     /// nil when there is no `.git`, or one that is neither a folder nor a plain file that says
     /// where its repository is. Read as `isWorktree` reads it.
+    /// The git place a session in `cwd` counts as, or nil when it is in none. A home folder kept
+    /// in git, for its settings, is no project. The card and the SessionStart hook both ask this.
+    static func projectPlace(of cwd: String, home: String, git: (String) -> GitPlace?) -> GitPlace? {
+        cwd.isEmpty ? nil : git(cwd).flatMap { $0.checkout == home ? nil : $0 }
+    }
+
     static func gitPlace(of folder: String) -> GitPlace? {
         guard folder.hasPrefix("/") else { return nil }
         var url = URL(fileURLWithPath: folder)
@@ -849,21 +903,51 @@ final class AgentStore: ObservableObject {
         let claimed = claims(states, files: files)
         let jobs = BackgroundJobs.bySession(files, now: now, running: running)
         let holding = Set(jobs.filter { !$0.value.isEmpty }.keys)
-        let withoutJobs = Set(visible(files, now: now, visibleFor: visibleFor, claimed: claimed).values.map(\.session))
+        // A sub-agent that ended its turn with work of its own still running has not handed back:
+        // Claude Code says so in its lead's file, and wakes it when the work ends. Until it answers
+        // again, or Claude Code says it finished. After as long as a job is taken for one left
+        // running on purpose, it is done, and in a closed session nobody wakes it.
+        let told = Dictionary(files.values.filter(\.isMain).map { ($0.session, $0.info.waitingAgents) }, uniquingKeysWith: { $0.merging($1, uniquingKeysWith: max) })
+        func isWaiting(_ path: String, _ file: TrackedFile) -> Bool {
+            let agent = String(((path as NSString).lastPathComponent as NSString).deletingPathExtension.dropFirst("agent-".count))
+            guard !file.isMain, let since = told[file.session]?[agent] else { return false }
+            return now.timeIntervalSince(since) < BackgroundJobs.longAfter
+                && (file.info.handedBackAt ?? .distantPast) <= since
+                && running.map({ $0[(file.session as NSString).lastPathComponent] != nil }) ?? true
+        }
+        func waitingOn(_ file: TrackedFile) -> String {
+            guard let job = jobs[file.session]?.first(where: { job in file.info.jobs.contains { $0.id == job.id } }) else {
+                return "Waiting on its background work"
+            }
+            return "Waiting on " + (job.name.isEmpty ? (job.kind == .shell ? "a shell" : "a monitor") : job.name)
+        }
+        let waiting = Set(files.filter { isWaiting($0.key, $0.value) }.keys)
+        let withoutJobs = Set(visible(files, now: now, visibleFor: visibleFor, claimed: claimed, waiting: waiting).values.map(\.session))
+        // A hand-back a day old counts as seen, even when its card is still listed for other reasons.
+        func seen(_ file: TrackedFile) -> Date? {
+            if let back = file.info.handedBackAt, file.seenAt.map({ $0 < back }) ?? true, now.timeIntervalSince(back) >= HandBack.hold { return back }
+            return file.seenAt
+        }
         func row(_ path: String, _ file: TrackedFile) -> AgentRow {
             let state = signal(for: file, in: claimed)
-            let status = TranscriptReader.status(of: file.info, lastActivity: file.activity, now: now, session: state?.activity)
+            let waits = isWaiting(path, file)
+            // Still idle after its interim words; once woken it shows its own steps.
+            let asleep = waits && file.info.finished
+            let status = TranscriptReader.status(of: file.info, lastActivity: file.activity, now: now, session: state?.activity, waits: waits)
             // A waiting record says since when; the transcript only knows its last line.
             let since = state?.activity == .waiting ? state?.since ?? file.activity : file.activity
             return AgentRow(
                 id: path,
                 info: file.info,
                 status: status,
-                elapsed: TranscriptReader.elapsed(of: file.info, lastActivity: file.activity, now: now, session: state?.activity),
-                quietFor: status == .done ? 0 : max(0, now.timeIntervalSince(since))
+                elapsed: TranscriptReader.elapsed(of: file.info, lastActivity: file.activity, now: now, session: state?.activity, waits: waits),
+                // Waiting on a job is no silence: nothing is due from it until the job ends.
+                quietFor: status == .done || asleep ? 0 : max(0, now.timeIntervalSince(since)),
+                handBackSeenAt: seen(file),
+                waitingOn: asleep ? waitingOn(file) : nil
             )
         }
-        return Dictionary(grouping: visible(files, now: now, visibleFor: visibleFor, claimed: claimed, holding: holding), by: { $0.value.session })
+        return Dictionary(grouping: visible(files, now: now, visibleFor: visibleFor, claimed: claimed, holding: holding, waiting: waiting), by: { $0.value.session })
             .compactMap { session, entries -> SessionCard? in
                 let main = entries.first { $0.value.isMain }
                 let subs = entries.filter { !$0.value.isMain }.sorted {
@@ -877,8 +961,7 @@ final class AgentStore: ObservableObject {
                 let project = TranscriptReader.clipped((source.cwd as NSString).lastPathComponent)
                 // By the checkout's own folder while it is there to ask; by the path alone, as
                 // History names it, once it is gone.
-                // A home folder kept in git, for its settings, is no project.
-                let place = source.cwd.isEmpty ? nil : git(source.cwd).flatMap { $0.checkout == home ? nil : $0 }
+                let place = projectPlace(of: source.cwd, home: home, git: git)
                 let repo = source.cwd.isEmpty ? "" : place.map { TranscriptReader.clipped(($0.checkout as NSString).lastPathComponent) }
                     ?? Projects.name(of: source.cwd, home: home)
                 return SessionCard(
@@ -1010,16 +1093,63 @@ final class AgentStore: ObservableObject {
                     running: keepsRecords ? runningSince : nil)
     }
 
+    /// Whether someone is at a session, by id: held by a live record of Claude Code's. A Claude
+    /// Code that keeps no records leaves only the transcripts to go by: one of `listed` still at work.
+    /// Only called on `queue`.
+    private func busy(_ listed: [SessionCard]) -> (String) -> Bool {
+        let byRecords = !records.isEmpty
+        let atWork = Set(listed.filter { !$0.isIdle }.map(AnswerStore.sessionID(of:)))
+        return { [runningSince] in byRecords ? runningSince[$0] != nil : atWork.contains($0) }
+    }
+
+    /// For the plugin's SessionStart and SubagentStart hooks: seats a session Claude Code is
+    /// starting and tells it who it is, or tells a sub-agent of an introduced session who it and
+    /// its lead are. `reply` gets the hook's output, or nil for none, on the main thread.
+    func introduce(_ request: CrewIntroRequest, reply: @escaping (Data?) -> Void) {
+        queue.async { [self] in
+            let body = introduction(request, now: Date())
+            DispatchQueue.main.async { reply(body) }
+        }
+    }
+
+    private func introduction(_ request: CrewIntroRequest, now: Date) -> Data? {
+        switch request.event {
+        case "SessionStart":
+            guard !request.cwd.isEmpty else { return nil }
+            // A worktree sits at its checkout's desk, as its card will.
+            let project = Self.projectPlace(of: request.cwd, home: NSHomeDirectory(), git: Self.gitPlace(of:))?.checkout ?? request.cwd
+            // After /clear this terminal's record may still name the session it ran until now:
+            // that one has let go of its seat.
+            let released = request.pid.flatMap { pid in records.values.first { $0.record.pid == pid }?.record.sessionId }
+            let held = busy(cards(now: now))
+            let before = roster
+            // ponytail: a session seated here counts as busy for a minute or until its record is read, so sessions started together get two people; ask the records directly if that ever misfires.
+            let fresh = introducedAt
+            let look = roster.seat(session: request.session, project: project, busy: { id in
+                id != released && (held(id) || fresh[id].map { now.timeIntervalSince($0) < 60 } ?? false)
+            }, now: now)
+            if runningSince[request.session] == nil { introducedAt[request.session] = now }
+            roster.markNamed(request.session)
+            if roster != before, let rosterFile { try? roster.save(rosterFile) }
+            // The terminal's status line gets the face before the first prompt.
+            publish()
+            return CrewIntro.body(event: request.event, note: CrewIntro.leadNote(Crew.lead(look)))
+        case "SubagentStart":
+            // A lead that was never told its name would hear it first from its sub-agent.
+            guard let seat = roster.seats[request.session], seat.named == true else { return nil }
+            return CrewIntro.body(event: request.event, note: CrewIntro.subNote(Crew.sub(type: request.agentType), lead: Crew.lead(seat.look)))
+        default:
+            return nil
+        }
+    }
+
     /// Hands the cards to the main thread. Only called on `queue`, and by tests.
     func publish() {
         let now = Date()
-        // Someone is at a session Claude Code runs. A Claude Code that keeps no records leaves
-        // only the transcripts to go by: someone is at a session still at work.
-        let byRecords = !records.isEmpty
+        // Someone is at a session Claude Code runs.
         let listed = cards(now: now)
-        let atWork = Set(listed.filter { !$0.isIdle }.map(AnswerStore.sessionID(of:)))
         let before = roster
-        let cards = roster.seat(listed, busy: { [runningSince] in byRecords ? runningSince[$0] != nil : atWork.contains($0) }, now: now)
+        let cards = roster.seat(listed, busy: busy(listed), now: now)
         if roster != before, let rosterFile { try? roster.save(rosterFile) }
         let looks = roster.looks
         let missing = !FileManager.default.fileExists(atPath: root)

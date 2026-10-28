@@ -5,6 +5,8 @@ import Foundation
 enum HookPath: Equatable {
     case permissionRequest
     case stopWait
+    /// SessionStart or SubagentStart asking who it is. `pid`: the Claude Code it runs under.
+    case crewIntro(pid: Int32?)
 }
 
 /// What the bytes received from the hook script amount to so far.
@@ -19,7 +21,8 @@ enum AnswerProtocol {
     static let maxHeaderBytes = 16 * 1024
     static let maxBodyBytes = 1024 * 1024
 
-    /// Reads the request a hook script sends: `POST /permission-request` or `POST /stop-wait` with a JSON body.
+    /// Reads the request a hook script sends: `POST /permission-request`, `POST /stop-wait` or
+    /// `POST /crew-intro` with a JSON body, the last with an `X-Claude-Pid` header if it has one.
     /// Anything else is invalid; nothing here is guessed at or repaired.
     static func parse(_ data: Data) -> HTTPRequest {
         guard let end = data.range(of: Data("\r\n\r\n".utf8)) else {
@@ -27,19 +30,26 @@ enum AnswerProtocol {
         }
         guard end.lowerBound - data.startIndex <= maxHeaderBytes else { return .invalid }
         let lines = String(decoding: data[data.startIndex..<end.lowerBound], as: UTF8.self).components(separatedBy: "\r\n")
-        let path: HookPath
+        var path: HookPath
         if lines[0].hasPrefix("POST /permission-request HTTP/1.") {
             path = .permissionRequest
         } else if lines[0].hasPrefix("POST /stop-wait HTTP/1.") {
             path = .stopWait
+        } else if lines[0].hasPrefix("POST /crew-intro HTTP/1.") {
+            path = .crewIntro(pid: nil)
         } else {
             return .invalid
         }
         var length: Int?
         for line in lines.dropFirst() {
             let parts = line.split(separator: ":", maxSplits: 1)
-            guard parts.count == 2, parts[0].lowercased() == "content-length" else { continue }
-            length = Int(parts[1].trimmingCharacters(in: .whitespaces))
+            guard parts.count == 2 else { continue }
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+            switch parts[0].lowercased() {
+            case "content-length": length = Int(value)
+            case "x-claude-pid" where path == .crewIntro(pid: nil): path = .crewIntro(pid: Int32(value))
+            default: break
+            }
         }
         guard let length, (0...maxBodyBytes).contains(length) else { return .invalid }
         let body = data[end.upperBound...]
@@ -100,6 +110,32 @@ struct StopWait: Equatable {
               let session = AnswerProtocol.session(transcriptPath: transcript) else { return nil }
         // Not every Claude Code sends the last message; the turn ended all the same.
         self.init(session: session, lastMessage: object["last_assistant_message"] as? String ?? "")
+    }
+}
+
+/// A SessionStart or SubagentStart hook asking who it is. For SubagentStart, `session` is the
+/// parent's: Claude Code sends the session that started the sub-agent.
+struct CrewIntroRequest: Equatable {
+    let event: String
+    let session: String
+    let cwd: String
+    /// SubagentStart's `agent_type`; empty for SessionStart.
+    let agentType: String
+    let pid: Int32?
+
+    init(event: String, session: String, cwd: String, agentType: String, pid: Int32?) {
+        self.event = event
+        self.session = session
+        self.cwd = cwd
+        self.agentType = agentType
+        self.pid = pid
+    }
+
+    init?(hookInput: Data, pid: Int32?) {
+        guard let object = SafeJSON.object(hookInput), let event = object["hook_event_name"] as? String,
+              let session = (object["session_id"] as? String).flatMap({ $0.isEmpty ? nil : $0 })
+                ?? (object["transcript_path"] as? String).flatMap(AnswerProtocol.session(transcriptPath:)) else { return nil }
+        self.init(event: event, session: session, cwd: object["cwd"] as? String ?? "", agentType: object["agent_type"] as? String ?? "", pid: pid)
     }
 }
 

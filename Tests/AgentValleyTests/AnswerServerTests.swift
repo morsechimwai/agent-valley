@@ -175,6 +175,28 @@ final class AnswerServerTests: XCTestCase {
         XCTAssertEqual(received, StopWait(session: "s1", lastMessage: "Done."))
     }
 
+    func testCrewIntroReachesItsHandler() throws {
+        let answered = expectation(description: "curl got the note")
+        var received: CrewIntroRequest?
+        let note = CrewIntro.body(event: "SessionStart", note: "hi")
+        let server = AnswerServer(directory: folder, requestTimeout: 10, onAsk: { _, _ in }, onIntro: { request, connection in
+            received = request
+            connection.reply(note)
+        })
+        servers.append(server)
+        try server.start()
+        let input = try JSONSerialization.data(withJSONObject: [
+            "hook_event_name": "SessionStart", "session_id": "s1", "transcript_path": "/r/p/s1.jsonl", "cwd": "/w", "source": "startup",
+        ])
+        try post(input, arguments: ["--header", "X-Claude-Pid: 42"], route: "crew-intro") { output, status in
+            XCTAssertEqual(output, String(decoding: note, as: UTF8.self))
+            XCTAssertEqual(status, 0)
+            answered.fulfill()
+        }
+        wait(for: [answered], timeout: 5)
+        XCTAssertEqual(received, CrewIntroRequest(event: "SessionStart", session: "s1", cwd: "/w", agentType: "", pid: 42))
+    }
+
     // No decision is an empty answer: the hook prints nothing and the terminal keeps asking.
     func testNoDecisionReachesTheHookAsNothing() throws {
         let answered = expectation(description: "curl finished")
@@ -288,6 +310,51 @@ final class AnswerServerTests: XCTestCase {
         ])
         hook = try post(input, route: "stop-wait") { _, _ in }
         wait(for: [closed], timeout: 5)
+    }
+
+    /// Runs `intro.sh` off the main thread, where the server answers, and hands back its output.
+    private func runIntro(entrypoint: String?, pid: String? = nil) -> String? {
+        var environment: [String: String] = [:]
+        environment["CLAUDE_CODE_ENTRYPOINT"] = entrypoint
+        environment["CLAUDE_PID"] = pid
+        let done = expectation(description: "intro.sh finished")
+        var output: String?
+        DispatchQueue.global().async { [home] in
+            let result = try? runHookScript(PluginTests.introScript, home: home!, input: #"{"hook_event_name":"SessionStart","session_id":"s1","cwd":"/w"}"#,
+                                            environment: environment)
+            DispatchQueue.main.async {
+                XCTAssertEqual(result?.status, 0)
+                output = result?.output
+                done.fulfill()
+            }
+        }
+        wait(for: [done], timeout: 5)
+        return output
+    }
+
+    // `claude -p` and other scripted runs (entrypoint sdk-…) get no names: their output is read by scripts.
+    func testIntroSkipsScriptedRuns() throws {
+        let server = AnswerServer(directory: folder, requestTimeout: 10, onAsk: { _, _ in }, onIntro: { _, connection in
+            XCTFail("a scripted run reached the app")
+            connection.reply(nil)
+        })
+        servers.append(server)
+        try server.start()
+        XCTAssertEqual(runIntro(entrypoint: "sdk-cli"), "")
+        XCTAssertEqual(runIntro(entrypoint: nil), "")
+    }
+
+    func testIntroPrintsTheAppsNote() throws {
+        let note = CrewIntro.body(event: "SessionStart", note: "hi")
+        var pids: [Int32?] = []
+        let server = AnswerServer(directory: folder, requestTimeout: 10, onAsk: { _, _ in }, onIntro: { request, connection in
+            pids.append(request.pid)
+            connection.reply(note)
+        })
+        servers.append(server)
+        try server.start()
+        XCTAssertEqual(runIntro(entrypoint: "cli", pid: "42"), String(decoding: note, as: UTF8.self))
+        XCTAssertEqual(pids, [42])
     }
 
     // The Stop script asks the app only while Away is on, which the app marks with a file beside

@@ -305,9 +305,11 @@ final class PanelPicturesTests: XCTestCase {
         window.orderFrontRegardless()
         defer { window.orderOut(nil) }
 
+        func shown() -> [SessionCard] {
+            AgentStore.ordered(AgentStore.showing(answers.overlay(store.sessions), hidden: state.hidden), by: settings.grouping)
+        }
         func list() -> SessionList {
-            AgentStore.arrange(AgentStore.ordered(AgentStore.showing(answers.overlay(store.sessions), hidden: state.hidden), by: settings.grouping),
-                               idle: settings.idleSessions, keeping: answers.settledSessions)
+            AgentStore.arrange(shown(), idle: settings.idleSessions, keeping: answers.settledSessions.union(HandBack.holding(shown(), openedAt: state.openedAt)))
         }
         func walked() -> [String] { list().walked(idleExpanded: state.idleExpanded).map(\.id) }
         func open() {
@@ -331,6 +333,7 @@ final class PanelPicturesTests: XCTestCase {
         /// change with it.
         func checkHeight() {
             let list = list()
+            let keeping = answers.settledSessions.union(HandBack.holding(shown(), openedAt: state.openedAt))
             let putAway = AgentStore.putAway(answers.overlay(store.sessions), hidden: state.hidden)
             let compact = Format.oneLineRows(liveAgents: list.cards.reduce(0) { $0 + $1.liveAgents().count })
             let headers: Set<String> = list.cards.count + list.folded.count < 2 ? [] : settings.grouping == .projects
@@ -340,23 +343,29 @@ final class PanelPicturesTests: XCTestCase {
                 state.keyboard,
             ].filter { $0 }.count)
             let room = NotchGeometry.listRoom(screen: state.screenFrame, barHeight: state.barHeight)
-            let entries = list.cards.map { card in
-                let session = AnswerStore.sessionID(of: card)
-                return ListFit.Entry(
-                    id: card.id,
-                    full: ListFit.fullHeight(card, header: headers.contains(card.id),
-                                             requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
-                                             settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
-                                             showingDone: state.doneExpanded.contains(card.id), oneLineAgents: compact),
-                    row: ListFit.rowHeight(header: headers.contains(card.id)),
-                    keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || answers.settledSessions.contains(session)
-                        || state.doneExpanded.contains(card.id),
-                    quiet: card.group == .quiet || card.group == .idle,
-                    header: headers.contains(card.id),
-                    crew: !card.liveAgents().isEmpty)
+            func entries(doneFolded: Bool) -> [ListFit.Entry] {
+                list.cards.map { card in
+                    let session = AnswerStore.sessionID(of: card)
+                    let boxes = HandBack.boxes(card, openedAt: state.openedAt, reading: state.readingAll)
+                    return ListFit.Entry(
+                        id: card.id,
+                        full: ListFit.fullHeight(card, header: headers.contains(card.id),
+                                                 requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
+                                                 settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
+                                                 showingDone: state.doneShown[card.id] ?? !doneFolded, oneLineAgents: compact,
+                                                 asked: state.askedOpen, boxes: boxes, reading: state.readingAll),
+                        row: ListFit.rowHeight(header: headers.contains(card.id)),
+                        keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || keeping.contains(session)
+                            || state.doneShown[card.id] == true || !boxes.isEmpty || card.liveAgents().contains { state.askedOpen.contains($0.id) },
+                        quiet: card.group == .quiet || card.group == .idle,
+                        header: headers.contains(card.id),
+                        crew: !card.liveAgents().isEmpty)
+                }
             }
-            let folded = ListFit.compact(entries, room: room - ListFit.padding - under)
-            let estimate = ListFit.padding + ListFit.height(entries, folded: folded) + under
+            let shown = entries(doneFolded: false)
+            let fitted = ListFit.foldsDone(shown, room: room - ListFit.padding - under) ? entries(doneFolded: true) : shown
+            let folded = ListFit.compact(fitted, room: room - ListFit.padding - under)
+            let estimate = ListFit.padding + ListFit.height(fitted, folded: folded) + under
             print("estimate \(estimate) measured \(state.contentHeight) room \(room)")
             XCTAssertEqual(estimate, state.contentHeight, accuracy: 12)
         }
@@ -375,11 +384,99 @@ final class PanelPicturesTests: XCTestCase {
             open()
             picture("open")
             checkHeight()
-            // Its finished sub-agents unfolded: under the envelope, a line from it to each.
+            // Its finished sub-agents listed, as they are unless the list runs out of room: under
+            // the envelope, a line from it to each. Then folded back into the envelope by a click.
+            picture("done-open")
             if let checkout = store.sessions.first(where: { $0.name == "Refactor checkout flow" }) {
-                state.doneExpanded.insert(checkout.id)
-                picture("done-open")
+                state.doneShown[checkout.id] = false
+                picture("done-folded")
             }
+        case "handback":
+            // The checkout alone, as roomy. Plan's finished answer is a box under the envelope, then
+            // the Asked box of a sub-agent at work, Plan's answer read whole, and the panel shut and
+            // opened again: Plan is a line by then. Then the same on the STATUS page.
+            for card in store.sessions where card.name != "Refactor checkout flow" {
+                state.hidden[card.id] = Date()
+            }
+            func rowID(_ task: String) throws -> String {
+                let checkout = try XCTUnwrap(store.sessions.first { $0.name == "Refactor checkout flow" })
+                return try XCTUnwrap(checkout.agents.first { $0.info.task == task }).id
+            }
+            let plan = try rowID("Plan the tax rounding fix"), map = try rowID("Map payment call sites")
+            // demo.py's Plan answered before the app launched, so nobody could have missed it. Each
+            // page gets a fresh answer, as one that came in while the store watched.
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            func answers() throws {
+                let answer = "Round once at the total, not per line.\nPer-line rounding adds up to a cent or two on a cart of twelve cheap items.\nThe payment provider rounds the grand total once, so that is the number to match.\nFiles to change: src/cart/tax.ts and src/cart/tax.test.ts.\nReceipt totals in src/receipt/format.ts need no change."
+                let line: [String: Any] = ["type": "assistant", "timestamp": iso.string(from: Date()),
+                    "message": ["role": "assistant", "model": "claude-sonnet-5-5", "stop_reason": "end_turn",
+                                "usage": ["input_tokens": 900, "cache_read_input_tokens": 30_000, "output_tokens": 210],
+                                "content": [["type": "text", "text": answer]]]]
+                let handle = try XCTUnwrap(FileHandle(forWritingAtPath: plan))
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                try handle.write(contentsOf: Data((String(decoding: try JSONSerialization.data(withJSONObject: line), as: UTF8.self) + "\n").utf8))
+                // A turn counts as ended after ten quiet seconds.
+                pump(12)
+            }
+            for grouping in [Grouping.projects, .status] {
+                settings.grouping = grouping
+                let page = grouping == .projects ? "all" : "status"
+                state.askedOpen = []
+                state.readingAll = []
+                // Shut while it comes in: an open panel would see it at once and call it seen.
+                state.expanded = false
+                try answers()
+                open()
+                picture("\(page)-open")
+                checkHeight()
+                state.askedOpen = [map]
+                picture("\(page)-asked")
+                checkHeight()
+                state.askedOpen = []
+                state.readingAll = [plan]
+                picture("\(page)-read-all")
+                checkHeight()
+                // Seen while open (the time is after the opening), then shut and opened again.
+                store.saw([plan], at: Date())
+                pump()
+                state.readingAll = []
+                state.expanded = false
+                pump(0.3)
+                open()
+                picture("\(page)-reopened")
+                checkHeight()
+            }
+            // Run the cart tests sends its coverage run to the background and ends its turn to wait,
+            // and Claude Code tells the lead so: still among the working, by the job it waits on, and no box.
+            let verify = try rowID("Run the cart tests")
+            let lead = try XCTUnwrap(store.sessions.first { $0.name == "Refactor checkout flow" }?.main?.id)
+            let lines: [[String: Any]] = [
+                ["type": "user", "timestamp": iso.string(from: Date()), "toolUseResult": ["backgroundTaskId": "bcart1"],
+                 "message": ["role": "user", "content": [["type": "tool_result", "tool_use_id": "v0", "content": "Command running in background with ID: bcart1."]]]],
+                ["type": "assistant", "timestamp": iso.string(from: Date()),
+                 "message": ["role": "assistant", "model": "claude-sonnet-5-5", "stop_reason": "end_turn",
+                             "usage": ["input_tokens": 900, "cache_read_input_tokens": 30_000, "output_tokens": 40],
+                             "content": [["type": "text", "text": "The coverage run is going in the background. I'll report once it ends."]]]],
+            ]
+            let notice = "<task-notification>\n<task-id>verify</task-id>\n<status>completed</status>\n"
+                + "<summary>Agent \"Run the cart tests\" is waiting on its own background work</summary>\n</task-notification>"
+            let told: [String: Any] = ["type": "queue-operation", "operation": "enqueue", "timestamp": iso.string(from: Date().addingTimeInterval(0.2)), "content": notice]
+            for (path, written) in [(verify, lines), (lead, [told])] {
+                let handle = try XCTUnwrap(FileHandle(forWritingAtPath: path))
+                try handle.seekToEnd()
+                for line in written {
+                    try handle.write(contentsOf: Data((String(decoding: try JSONSerialization.data(withJSONObject: line), as: UTF8.self) + "\n").utf8))
+                }
+                try handle.close()
+            }
+            settings.grouping = .projects
+            state.expanded = false
+            pump(12)
+            open()
+            picture("all-waiting-on-job")
+            checkHeight()
         case "crew":
             // A sub-agent of the checkout asks to run a command: its branch red, the card whole,
             // the sessions around it folded to fit.

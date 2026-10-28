@@ -9,6 +9,18 @@ enum Crew: String, CaseIterable {
 
     /// The lead whose face a session's agent wears.
     static func lead(_ look: LeadLook) -> Crew { leads[look.face % leads.count] }
+
+    /// Who a sub-agent of `type` is: whoever `MascotKind` draws it as.
+    static func sub(type: String) -> Crew {
+        switch MascotKind(type: type) {
+        case .plan: .judy
+        case .explore: .faye
+        default: .felix
+        }
+    }
+
+    /// The name the person sees: "Sunny".
+    var name: String { rawValue.capitalized }
 }
 
 /// What someone is waiting for, which picks the line a lead says.

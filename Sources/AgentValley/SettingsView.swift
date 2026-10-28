@@ -189,6 +189,11 @@ struct SettingsView: View {
                 SettingRow(title: "Answer from the notch", caption: Format.answersCaption(installed: answers.pluginInstalled)) {
                     Switch(title: "Answer from the notch", isOn: $settings.answers)
                 }
+                // Names go over the same socket: with Answer off there is no way in.
+                SettingRow(title: "Crew names in Claude Code", caption: Format.crewNamesCaption) {
+                    Switch(title: "Crew names in Claude Code", isOn: $settings.crewNames)
+                }
+                .disabled(!settings.answers)
                 // Shown with the switch off too while the plugin is not in: the cards that wait send people here.
                 if settings.answers || !answers.pluginInstalled { install }
             }

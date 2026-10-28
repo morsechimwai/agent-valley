@@ -108,6 +108,26 @@ def append(path, *lines):
             file.write(json.dumps(line) + "\n")
 
 
+# Real sub-agent prompts run long: these fill the Asked box past its height cap.
+MAP_PROMPT = """Find every place in shop-web that creates, confirms or refunds a payment. Start from src/checkout/index.tsx and follow the imports; the Stripe calls are wrapped in src/payments/, but a few pages still call the SDK directly.
+
+For each call site, write down the file, the function, and whether it passes the cart total in cents or in dollars. The last bug came from one caller sending dollars to a function that expects cents.
+
+Do not change any code. Report the list as a table, and mark the callers that skip src/payments/ so we can move them over later."""
+
+PLAN_PROMPT = """Read src/cart/tax.ts and the tests next to it. We round each line item's tax before adding them up, and the totals on the receipt drift by a cent or two on carts with many cheap items.
+
+Decide where the rounding should happen. Compare rounding per line, rounding once at the subtotal, and rounding once at the grand total. For each, say what a cart of twelve items at 1.99 with 7.25 percent tax would come to, and which one matches what the payment provider charges.
+
+Do not change any code. Answer with your pick first, then the reasons, then the files that would need to change, one per line."""
+
+PLAN_ANSWER = """Round once at the total, not per line.
+Per-line rounding adds up to a cent or two on a cart of twelve cheap items.
+The payment provider rounds the grand total once, so that is the number to match.
+Files to change: src/cart/tax.ts and src/cart/tax.test.ts.
+Receipt totals in src/receipt/format.ts need no change."""
+
+
 def prompt(name, text, ago):
     _, cwd, branch, _, _ = SESSIONS[name]
     return {"type": "user", "timestamp": stamp(ago), "cwd": cwd, "gitBranch": branch, "entrypoint": "cli",
@@ -155,14 +175,14 @@ def start(home):
     for agent, kind, task, model in [("map", "Explore", "Map payment call sites", "claude-haiku-5-5"),
                                      ("tests", "general-purpose", "Write cart total tests", "claude-sonnet-5-5")]:
         path = os.path.join(subagents, f"agent-{agent}.jsonl")
-        append(path, prompt("checkout", task, 170), call("checkout", "Grep", {"pattern": "PaymentIntent"}, f"{agent}0", 15, model))
+        append(path, prompt("checkout", MAP_PROMPT if agent == "map" else task, 170), call("checkout", "Grep", {"pattern": "PaymentIntent"}, f"{agent}0", 15, model))
         with open(path[:-len(".jsonl")] + ".meta.json", "w") as file:
             json.dump({"agentType": kind, "description": task}, file)
         moving[path] = (model, f"{agent}0")
     plan = os.path.join(subagents, "agent-plan.jsonl")
-    append(plan, prompt("checkout", "Plan the tax rounding fix", 175),
+    append(plan, prompt("checkout", PLAN_PROMPT, 175),
            call("checkout", "Read", {"file_path": "/Users/demo/shop-web/src/cart/tax.ts"}, "p1", 160), result("p1", ago=158),
-           say("checkout", "Round per line, then sum.", 150))
+           say("checkout", PLAN_ANSWER, 150))
     with open(plan[:-len(".jsonl")] + ".meta.json", "w") as file:
         json.dump({"agentType": "Plan", "description": "Plan the tax rounding fix"}, file)
     # Stands still on a command no other agent runs, so a request for it matches this row alone.

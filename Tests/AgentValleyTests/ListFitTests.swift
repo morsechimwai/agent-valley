@@ -64,6 +64,35 @@ final class ListFitTests: XCTestCase {
         XCTAssertEqual(ListFit.requestHeight(.question(text: "", header: "", options: [option, option, option]), hidden: true), permission)
     }
 
+    func testAnOpenAskedBoxIsCountedInTheCard() {
+        let card = card(main: .working, agents: [.working])
+        let shut = ListFit.fullHeight(card, header: false, requests: { _ in [] }, settled: { _ in 0 }, hintRow: nil, showingDone: false, oneLineAgents: false)
+        let open = ListFit.fullHeight(card, header: false, requests: { _ in [] }, settled: { _ in 0 }, hintRow: nil, showingDone: false, oneLineAgents: false, asked: [card.agents[0].id])
+        XCTAssertEqual(open - shut, ListFit.askedBox)
+    }
+
+    func testDoneLinesFoldFirstWhenTheListRunsOutOfRoom() {
+        let fits = [ListFit.Entry(id: "a", full: 300, row: 40, keepsFull: false, quiet: false, header: false, crew: true)]
+        XCTAssertFalse(ListFit.foldsDone(fits, room: 300))
+        XCTAssertTrue(ListFit.foldsDone(fits, room: 299))
+    }
+
+    func testHandBackBoxesStayAndDoneLinesFold() {
+        let c = card(main: .working, agents: [.done, .done, .done])
+        let first = c.agents[0].id
+        let h = { (shown: Bool, boxes: [String], reading: Set<String>) in
+            ListFit.fullHeight(c, header: false, requests: { _ in [] }, settled: { _ in 0 }, hintRow: nil, showingDone: shown, oneLineAgents: false,
+                               boxes: boxes, reading: reading) }
+        let envelope = h(false, [], [])
+        XCTAssertEqual(h(true, [first], []) - envelope, ListFit.handBackBox + 2 * ListFit.agentLine)
+        XCTAssertEqual(h(true, [first], [first]) - envelope, ListFit.readAllBox + 2 * ListFit.agentLine)
+        // Folded, the lines go into "3 done"; the box stays.
+        XCTAssertEqual(h(false, [first], []) - envelope, ListFit.handBackBox)
+        XCTAssertEqual(h(true, [], []) - envelope, 3 * ListFit.agentLine)
+        // Read whole, it is one scroll of what it was asked and what came back, not two.
+        XCTAssertLessThan(ListFit.readAllBox, HandBackBox.maxHeight + AskedBox.maxHeight)
+    }
+
     func testTheQuietHintTakesALine() {
         let c = card(main: .working, agents: [.quiet])
         let h = { (hint: String?) in

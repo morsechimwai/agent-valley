@@ -169,6 +169,116 @@ final class AgentStoreTests: XCTestCase {
         return (reading, folder)
     }
 
+    // MARK: crew names for the plugin's SessionStart and SubagentStart hooks
+
+    private func introduce(_ request: CrewIntroRequest, on other: AgentStore? = nil) -> Data? {
+        let replied = expectation(description: "introduce replied")
+        var body: Data?
+        (other ?? store).introduce(request) { body = $0; replied.fulfill() }
+        wait(for: [replied], timeout: 2)
+        return body
+    }
+
+    private func note(_ data: Data?) -> String? {
+        let object = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        return (object?["hookSpecificOutput"] as? [String: Any])?["additionalContext"] as? String
+    }
+
+    private func start(_ session: String, in cwd: String? = nil, pid: Int32? = nil) -> CrewIntroRequest {
+        CrewIntroRequest(event: "SessionStart", session: session, cwd: cwd ?? store.root + "/work", agentType: "", pid: pid)
+    }
+
+    func testSessionStartSeatsAndNamesTheLead() throws {
+        let text = try XCTUnwrap(note(introduce(start("s1"))))
+        let look = try XCTUnwrap(store.looks["s1"])
+        XCTAssertTrue(text.contains("draws this session as \(Crew.lead(look).name)"), text)
+    }
+
+    // A sub-agent names its lead only once the lead knows its own name.
+    func testASubAgentIsNamedOnlyAfterItsLead() throws {
+        let faye = CrewIntroRequest(event: "SubagentStart", session: "s1", cwd: store.root + "/work", agentType: "Explore", pid: nil)
+        XCTAssertNil(introduce(faye))
+        _ = introduce(start("s1"))
+        let text = try XCTUnwrap(note(introduce(faye)))
+        XCTAssertTrue(text.contains("draws you as Faye"), text)
+        XCTAssertTrue(text.contains("Hand your report back to \(Crew.lead(try XCTUnwrap(store.looks["s1"])).name)"), text)
+    }
+
+    // A session that started while the app was closed is seated from its card, but its lead
+    // never heard its name: its sub-agents stay unnamed rather than say it first.
+    func testASubAgentOfASessionSeatedOnlyByItsCardGetsNoName() throws {
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let line = toolUse.replacingOccurrences(of: "2026-10-12T02:00:05.000Z", with: stamp)
+        store.ingest(path: try write(line + "\n", to: "proj/s5.jsonl"))
+        store.publish()
+        let published = expectation(description: "looks published")
+        DispatchQueue.main.async { published.fulfill() }
+        wait(for: [published], timeout: 2)
+        XCTAssertNotNil(store.looks["s5"])
+        XCTAssertNil(introduce(CrewIntroRequest(event: "SubagentStart", session: "s5", cwd: "/w", agentType: "Explore", pid: nil)))
+    }
+
+    // Superset opens several worktrees of one checkout at once, before their records are read.
+    func testTwoSessionsStartingTogetherGetTwoPeople() throws {
+        _ = introduce(start("s1"))
+        _ = introduce(start("s2"))
+        XCTAssertNotEqual(try XCTUnwrap(store.looks["s1"]).face, try XCTUnwrap(store.looks["s2"]).face)
+    }
+
+    // /clear starts a new session in the same terminal, whose record may still name the old one.
+    func testClearKeepsTheFaceOfTheTerminal() throws {
+        let (reading, folder) = try storeWithRecords(alive: [7])
+        try Data(recordJSON(pid: 7, session: "old", status: "idle").utf8).write(to: folder.appendingPathComponent("7.json"))
+        reading.readSessions()
+        _ = introduce(start("old", pid: 7), on: reading)
+        _ = introduce(start("new", pid: 7), on: reading)
+        XCTAssertEqual(reading.looks["new"], try XCTUnwrap(reading.looks["old"]))
+    }
+
+    // Quit claude and start it again within a minute: the first one is gone, so the regular is back.
+    func testAQuickRestartGetsTheRegularBack() throws {
+        let (reading, folder) = try storeWithRecords(alive: [7, 8, 9])
+        // Another live session elsewhere, so the store goes by records.
+        try Data(recordJSON(pid: 9, session: "other", status: "idle").utf8).write(to: folder.appendingPathComponent("9.json"))
+        try Data(recordJSON(pid: 7, session: "s1", status: "idle").utf8).write(to: folder.appendingPathComponent("7.json"))
+        reading.readSessions()
+        _ = introduce(start("s1", pid: 7), on: reading)
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("7.json"))
+        reading.readSessions()
+        _ = introduce(start("s2", pid: 8), on: reading)
+        XCTAssertEqual(reading.looks["s2"], try XCTUnwrap(reading.looks["s1"]))
+    }
+
+    // /clear in a session's first minute, the record already moved to the new session when the hook lands.
+    func testClearAfterTheRecordMovedKeepsTheFace() throws {
+        let (reading, folder) = try storeWithRecords(alive: [7])
+        try Data(recordJSON(pid: 7, session: "old", status: "idle").utf8).write(to: folder.appendingPathComponent("7.json"))
+        reading.readSessions()
+        _ = introduce(start("old", pid: 7), on: reading)
+        try Data(recordJSON(pid: 7, session: "new", status: "idle").utf8).write(to: folder.appendingPathComponent("7.json"))
+        reading.readSessions()
+        _ = introduce(start("new", pid: 7), on: reading)
+        XCTAssertEqual(reading.looks["new"], try XCTUnwrap(reading.looks["old"]))
+    }
+
+    // A home folder kept in git, for its settings, is no project: on the card's path or the hook's.
+    func testTheHookAndTheCardShareTheHomeFolderRule() {
+        let home = GitPlace(worktree: "/h", checkout: "/h"), repo = GitPlace(worktree: "/h/app", checkout: "/h/app")
+        XCTAssertNil(AgentStore.projectPlace(of: "/h/notes", home: "/h", git: { _ in home }))
+        XCTAssertEqual(AgentStore.projectPlace(of: "/h/app/src", home: "/h", git: { _ in repo }), repo)
+        XCTAssertNil(AgentStore.projectPlace(of: "", home: "/h", git: { _ in repo }))
+    }
+
+    func testEmptyOrUnknownInputSeatsNobody() {
+        XCTAssertNil(introduce(start("s1", in: "")))
+        XCTAssertNil(introduce(CrewIntroRequest(event: "PreToolUse", session: "s2", cwd: store.root + "/work", agentType: "", pid: nil)))
+        let settled = expectation(description: "store published")
+        store.introduce(start("s3")) { _ in settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertNil(store.looks["s1"])
+        XCTAssertNil(store.looks["s2"])
+    }
+
     // A quiet agent may be waiting on the person, so it keeps its session out of the fold.
     func testSessionIsIdleOnlyWhenEveryRowIsDone() {
         XCTAssertTrue(card("a", main: .done).isIdle)
@@ -1545,5 +1655,204 @@ final class AgentStoreTests: XCTestCase {
         stuck.jobs = [job]
         XCTAssertEqual(stuck.asShown.main?.status, .quiet)
         XCTAssertEqual(stuck.asShown.jobs, [job])
+    }
+
+    // Back while nobody looked: listed past the keep setting, for a day at most.
+    func testAnUnseenHandBackOutstaysTheKeepSetting() {
+        var sub = tracked("/r/p/s1", idle: 3600)
+        sub.info.turnEnded = true
+        sub.info.handedBackAt = sub.activity
+        let files = ["/r/p/s1.jsonl": tracked("/r/p/s1", main: true, idle: 3600), "/r/p/s1/subagents/agent-a.jsonl": sub]
+        XCTAssertEqual(AgentStore.visible(files, now: now).count, 2)
+        // Seen: the keep setting counts from the look.
+        var seen = files
+        seen["/r/p/s1/subagents/agent-a.jsonl"]!.seenAt = now.addingTimeInterval(-60)
+        XCTAssertEqual(AgentStore.visible(seen, now: now).count, 2)
+        seen["/r/p/s1/subagents/agent-a.jsonl"]!.seenAt = now.addingTimeInterval(-700)
+        XCTAssertTrue(AgentStore.visible(seen, now: now).isEmpty)
+        // A day on, unseen or not, it goes.
+        var old = files
+        old["/r/p/s1/subagents/agent-a.jsonl"]!.info.handedBackAt = now.addingTimeInterval(-HandBack.hold - 1)
+        XCTAssertTrue(AgentStore.visible(old, now: now).isEmpty)
+    }
+
+    func testAHandBackAfterTheLookAwaitsAnotherLook() {
+        var info = AgentInfo()
+        info.handedBackAt = now
+        var row = AgentRow(id: "a", info: info, status: .done, elapsed: 0)
+        XCTAssertTrue(row.awaitsLook)
+        row.handBackSeenAt = now.addingTimeInterval(1)
+        XCTAssertFalse(row.awaitsLook)
+        // The lead continued it and it came back again.
+        row.handBackSeenAt = now.addingTimeInterval(-1)
+        XCTAssertTrue(row.awaitsLook)
+        XCTAssertFalse(AgentRow(id: "b", info: AgentInfo(), status: .done, elapsed: 0).handsBack)
+    }
+
+    // Relaunching, or a wider keep setting rescanning old files, pops nothing up.
+    func testAHandBackFromBeforeTheLaunchIsSeen() {
+        var file = tracked("/r/p/s1", idle: 7200)
+        file.info.handedBackAt = file.activity
+        XCTAssertEqual(HandBack.seenBeforeLaunch(file, launchedAt: now).seenAt, file.info.handedBackAt)
+        file.info.handedBackAt = now.addingTimeInterval(10)
+        XCTAssertNil(HandBack.seenBeforeLaunch(file, launchedAt: now).seenAt)
+    }
+
+    func testASessionWithAnUnseenHandBackIsHeld() {
+        var c = card("s1", main: .done, agents: [.done])
+        var info = AgentInfo()
+        info.handedBackAt = now
+        c.agents[0] = AgentRow(id: c.agents[0].id, info: info, status: .done, elapsed: 0)
+        XCTAssertEqual(HandBack.awaiting([c]), [c.agents[0].id])
+        XCTAssertEqual(HandBack.holding([c], openedAt: nil), [AnswerStore.sessionID(of: c)])
+        XCTAssertEqual(AgentStore.arrange([c], idle: .fold, keeping: HandBack.holding([c], openedAt: nil)).cards.count, 1)
+    }
+
+    // A box seen in this opening holds its card until the panel shuts: an idle card does not
+    // fold into "N idle", or leave the list, under the person's eyes.
+    func testABoxSeenInThisOpeningHoldsItsCardUntilTheShut() {
+        var c = card("s1", main: .done, agents: [.done])
+        var info = AgentInfo()
+        info.handedBackAt = now.addingTimeInterval(-30)
+        var row = AgentRow(id: c.agents[0].id, info: info, status: .done, elapsed: 0)
+        row.handBackSeenAt = now
+        c.agents[0] = row
+        XCTAssertTrue(HandBack.awaiting([c]).isEmpty)
+        let opened = now.addingTimeInterval(-1)
+        XCTAssertEqual(AgentStore.arrange([c], idle: .fold, keeping: HandBack.holding([c], openedAt: opened)).cards.count, 1)
+        XCTAssertEqual(AgentStore.arrange([c], idle: .hide, keeping: HandBack.holding([c], openedAt: opened)).cards.count, 1)
+        XCTAssertEqual(AgentStore.arrange([c], idle: .fold, keeping: HandBack.holding([c], openedAt: now)).cards.count, 1)
+        // Shut, or opened again after the look: the old rules.
+        XCTAssertEqual(AgentStore.arrange([c], idle: .fold, keeping: HandBack.holding([c], openedAt: nil)).folded.count, 1)
+        XCTAssertEqual(AgentStore.arrange([c], idle: .fold, keeping: HandBack.holding([c], openedAt: now.addingTimeInterval(60))).folded.count, 1)
+    }
+
+    // A lead's own turn ending is no hand-back: a session without sub-agents folds as it always did.
+    func testALeadsEndedTurnHoldsNothing() {
+        var c = card("s1", main: .done)
+        var info = AgentInfo()
+        info.handedBackAt = now
+        c.main = AgentRow(id: c.main!.id, info: info, status: .done, elapsed: 0)
+        XCTAssertEqual(HandBack.awaiting([c]), [])
+        XCTAssertEqual(HandBack.holding([c], openedAt: nil), [])
+        XCTAssertEqual(AgentStore.arrange([c], idle: .fold, keeping: HandBack.holding([c], openedAt: nil)).folded.count, 1)
+    }
+
+    // A day on, an unseen hand-back counts as seen, though its card is listed for other reasons.
+    func testADayOldHandBackNoLongerAwaitsALook() {
+        var sub = tracked("/r/p/s1", idle: 60)
+        sub.info.turnEnded = true
+        sub.info.handedBackAt = now.addingTimeInterval(-HandBack.hold - 60)
+        let files = ["/r/p/s1.jsonl": tracked("/r/p/s1", main: true, idle: 30), "/r/p/s1/subagents/agent-a.jsonl": sub]
+        let rows = AgentStore.cards(from: files, now: now, home: "/Users/me").flatMap(\.agents)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertTrue(rows[0].handsBack)
+        XCTAssertFalse(rows[0].awaitsLook)
+    }
+
+    // A resumed sub-agent that died mid-turn is not held by its earlier hand-back.
+    func testAMidTurnResumedAgentIsNotHeldByAnOldHandBack() {
+        var sub = tracked("/r/p/s1", idle: 3 * 3600)
+        sub.info.handedBackAt = sub.activity
+        let files = ["/r/p/s1.jsonl": tracked("/r/p/s1", main: true, idle: 3 * 3600), "/r/p/s1/subagents/agent-a.jsonl": sub]
+        XCTAssertTrue(AgentStore.visible(files, now: now).isEmpty)
+    }
+
+    // The cap holds for a hand-back that came again after a look.
+    func testADayOldSecondHandBackNoLongerAwaitsALook() {
+        var sub = tracked("/r/p/s1", idle: 60)
+        sub.info.turnEnded = true
+        sub.info.handedBackAt = now.addingTimeInterval(-HandBack.hold - 60)
+        sub.seenAt = now.addingTimeInterval(-HandBack.hold - 120)
+        let files = ["/r/p/s1.jsonl": tracked("/r/p/s1", main: true, idle: 30), "/r/p/s1/subagents/agent-a.jsonl": sub]
+        let rows = AgentStore.cards(from: files, now: now, home: "/Users/me").flatMap(\.agents)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertFalse(rows[0].awaitsLook)
+    }
+
+    private func subRows(_ files: [String: TrackedFile], running: [String: Date]? = nil, states: [String: SessionState] = [:]) -> [AgentRow] {
+        AgentStore.cards(from: files, now: now, states: states, home: "/Users/me", running: running).flatMap(\.agents)
+    }
+    private let subPath = "/r/p/s1/subagents/agent-a.jsonl"
+    /// A sub-agent that ended its turn while its job runs on, and the lead's file with Claude Code's word that it waits.
+    private func waitingFiles(idle: TimeInterval = 1200) -> [String: TrackedFile] {
+        var sub = tracked("/r/p/s1", idle: idle, started: idle + 300)
+        sub.info.turnEnded = true
+        sub.info.handedBack = "The sleep runs in the background. I'll reply once it ends."
+        sub.info.handedBackAt = sub.activity
+        sub.info.jobs = [BackgroundJob(id: "j", kind: .shell, name: "npm run dev", startedAt: sub.activity - 1, endsBy: nil)]
+        var main = tracked("/r/p/s1", main: true, idle: idle)
+        main.info.waitingAgents = ["a": sub.activity + 0.2]
+        return ["/r/p/s1.jsonl": main, subPath: sub]
+    }
+
+    // Claude Code said so: it ended its turn to wait on work of its own, and wakes when that ends.
+    func testASubAgentClaudeCodeSaysWaitsIsAtWork() {
+        let files = waitingFiles()
+        let row = subRows(files).first
+        XCTAssertEqual(row?.status, .working)
+        XCTAssertEqual(row?.step, "Waiting on npm run dev")
+        XCTAssertEqual(row?.activity, .running)
+        XCTAssertEqual(row?.isStalled, false)
+        XCTAssertEqual(row?.handsBack, false)
+        XCTAssertEqual(row?.elapsed, 1500)
+        // Its job's end already read, or its start never: what it waits on goes unnamed.
+        var unnamed = files
+        unnamed[subPath]!.info.jobs = []
+        XCTAssertEqual(subRows(unnamed).first?.step, "Waiting on its background work")
+    }
+
+    // Woken by its work's end, it goes by the usual rules and its own step, but its interim words
+    // never pass for a hand-back: not done until it answers.
+    func testAWokenSubAgentIsNotDoneUntilItAnswers() {
+        var woken = waitingFiles()
+        woken[subPath]!.info.turnEnded = false
+        woken[subPath]!.info.lastStep = "Read cart.ts"
+        woken[subPath]!.info.lastActivity = now.addingTimeInterval(-30)
+        // The lead's record says idle, which would call a row silent ten seconds done.
+        let idle = ["s1": SessionState(activity: .idle)]
+        XCTAssertEqual(subRows(woken, states: idle).first?.status, .working)
+        XCTAssertEqual(subRows(woken).first?.step, "Read cart.ts")
+        woken[subPath]!.info.lastActivity = now.addingTimeInterval(-200)
+        XCTAssertEqual(subRows(woken).first?.status, .quiet)
+        woken[subPath]!.info.asking = true
+        XCTAssertEqual(subRows(woken).first?.status, .needsYou)
+    }
+
+    func testASubAgentStopsWaitingOnceItIsBack() {
+        // Claude Code said it finished: what it said is its hand-back.
+        var finished = waitingFiles()
+        finished["/r/p/s1.jsonl"]!.info.waitingAgents = [:]
+        XCTAssertEqual(subRows(finished).first?.status, .done)
+        XCTAssertEqual(subRows(finished).first?.handsBack, true)
+        // It answered after the notice: back, whether or not the next notice was read.
+        var answered = waitingFiles()
+        answered[subPath]!.info.handedBackAt = answered[subPath]!.activity + 1
+        XCTAssertEqual(subRows(answered).first?.status, .done)
+        // Thirty minutes on, the work is taken for something left running on purpose.
+        XCTAssertEqual(subRows(waitingFiles(idle: BackgroundJobs.longAfter + 60)).first?.status, .done)
+        // A closed session wakes nobody.
+        XCTAssertEqual(subRows(waitingFiles(), running: [:]).first?.status, .done)
+        XCTAssertEqual(subRows(waitingFiles(), running: ["s1": now - 3600]).first?.status, .working)
+    }
+
+    // Still waiting past the keep setting, its interim words seen before the launch: it stays listed.
+    func testASubAgentWaitingOutstaysTheKeepSetting() {
+        var files = waitingFiles()
+        files[subPath]!.seenAt = files[subPath]!.activity
+        XCTAssertEqual(subRows(files).map(\.status), [.working])
+    }
+
+    // A job the lead started is the lead's: a finished sub-agent beside it has handed back.
+    func testAJobOfTheLeadKeepsNoSubAgentWaiting() {
+        var main = tracked("/r/p/s1", main: true, idle: 60)
+        main.info.jobs = [job]
+        var sub = tracked("/r/p/s1", idle: 60)
+        sub.info.turnEnded = true
+        sub.info.handedBackAt = sub.activity
+        let files = ["/r/p/s1.jsonl": main, "/r/p/s1/subagents/agent-a.jsonl": sub]
+        let row = AgentStore.cards(from: files, now: now, home: "/Users/me").flatMap(\.agents).first
+        XCTAssertEqual(row?.status, .done)
+        XCTAssertNil(row?.waitingOn)
     }
 }

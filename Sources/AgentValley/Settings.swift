@@ -233,6 +233,13 @@ final class Settings: ObservableObject {
         tokenUse = defaults.object(forKey: Key.tokenUse) as? Bool ?? true
         display = defaults.string(forKey: Key.display) ?? DisplayChoice.automatic.id
         dailyCount = defaults.object(forKey: Key.dailyCount) as? Bool ?? true
+        crewNames = defaults.object(forKey: Key.crewNames) as? Bool ?? true
+    }
+
+    /// Whether a new session and its sub-agents are told which of the crew they are, through the
+    /// plugin. Needs `answers`: its socket is the way in.
+    @Published var crewNames: Bool {
+        didSet { defaults.set(crewNames, forKey: Key.crewNames) }
     }
 
     /// A stored hour of the day, or the default when it is missing or is not one. Read as an
@@ -251,6 +258,7 @@ final class Settings: ObservableObject {
         static let shortcut = "shortcut"
         static let shortcutKey = "shortcutKey"
         static let sounds = "sounds"
+        static let crewNames = "crewNames"
         static let soundNeedsYou = "soundNeedsYou"
         static let soundFinished = "soundFinished"
         static let soundStyle = "soundStyle"

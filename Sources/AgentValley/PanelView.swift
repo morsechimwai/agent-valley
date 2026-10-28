@@ -113,6 +113,64 @@ enum Format {
         task.isEmpty || type == "general-purpose" ? nil : type.split(separator: ":").last.map(String.init)
     }
 
+    /// The crew member a type is drawn as, by the same rule as its face; any other type goes
+    /// by its own name, less the plugin's.
+    static func crewName(type: String) -> String {
+        switch MascotKind(type: type) {
+        case .general: return "Felix"
+        case .explore: return "Faye"
+        case .plan: return "Judy"
+        default: return type.split(separator: ":").last.map(String.init) ?? type
+        }
+    }
+
+    static func handedBack(type: String) -> String {
+        "\(crewName(type: type)) handed back"
+    }
+
+    /// What the sub-agent handed back, in one line; a plain line when it handed in no words.
+    static func handBackLine(_ info: AgentInfo) -> String {
+        let line = firstLine(info.handedBack)
+        return line.isEmpty ? "Handed back a result." : line
+    }
+
+    /// The first two lines of what the sub-agent handed back, as the box shows them; a plain line when it handed in no words.
+    static func handBackText(_ info: AgentInfo) -> String {
+        let lines = info.handedBack.split(whereSeparator: \.isNewline).filter { !$0.allSatisfy(\.isWhitespace) }.prefix(2).map(cleaned)
+        return lines.isEmpty ? "Handed back a result." : lines.joined(separator: "\n")
+    }
+
+    /// The first line with words in it, less a heading or quote mark and one list bullet,
+    /// cut at the length a step is.
+    static func firstLine(_ text: String) -> String {
+        guard let raw = text.split(whereSeparator: \.isNewline).first(where: { !$0.allSatisfy(\.isWhitespace) }) else { return "" }
+        return cleaned(raw)
+    }
+
+    private static func cleaned(_ raw: Substring) -> String {
+        var line = Substring(raw.drop(while: { $0 == "#" || $0 == ">" || $0 == " " }))
+        if line.hasPrefix("- ") || line.hasPrefix("* ") { line = line.dropFirst(2) }
+        let limit = TranscriptReader.stepDetailLimit
+        return line.count > limit ? String(line.prefix(limit)) + "…" : String(line)
+    }
+
+    /// A done row's line: the task, and what came back when something did.
+    static func doneLine(_ row: AgentRow) -> String {
+        let title = rowTitle(task: row.info.task, type: row.info.type)
+        return row.handsBack ? "\(title) → \(handBackLine(row.info))" : title
+    }
+
+    static func handedBackAge(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        if total < 60 { return "just now" }
+        return total < 3600 ? "\(total / 60)m ago" : "\(total / 3600)h ago"
+    }
+
+    /// What a screen reader says of a hand-back: who, then what.
+    static func handBackAloud(_ row: AgentRow) -> String {
+        "\(handedBack(type: row.info.type)): \(handBackLine(row.info))"
+    }
+
     /// What a row can do without: its type, unless that led as the title. It stands at the end
     /// of the row's second line and is the first to go.
     static func rowExtras(task: String, type: String) -> String {
@@ -549,7 +607,7 @@ enum Format {
     /// asks them to run a command it does not run itself, so it owes them what the command
     /// does: nine of thirteen testers stopped at a bare command, and the one who came to check
     /// what the app touches found nothing said. Only what `plugin/` does.
-    static let pluginWhat = "The plugin is inside this app, and installing it points Claude Code at it. It adds two hooks to Claude Code: each permission prompt and question is handed to this app, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before."
+    static let pluginWhat = "The plugin is inside this app, and installing it points Claude Code at it. It adds hooks to Claude Code: each permission prompt and question is handed to this app, each new session and sub-agent learns which of us it is, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before."
     /// Under the button: what it runs, which can also be pasted by hand. Then the one step left.
     /// The button since 2026-10-26: nine of thirteen testers stopped at the command alone.
     static let installSteps = (
@@ -617,6 +675,9 @@ enum Format {
         showing ? "Hide what the symbols mean" : legendTitle
     }
 
+    /// Under the crew-names switch: what it does, that it rides on answering from the notch, and
+    /// that open sessions keep what they were told.
+    static let crewNamesCaption = "Your sessions hand work to Judy, Faye and Felix by name and get it back the same way. Needs Answer from the notch. Starts with the next session you open."
     /// Under the switch that turns answering on. Until the plugin is in, how to install is right below.
     static func answersCaption(installed: Bool) -> String {
         "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command." + (installed ? "" : " Needs a plugin that comes with this app: install it below.")
@@ -837,7 +898,7 @@ struct PanelView: View {
                     // The list runs past the panel's edge: fade the last lines and say what is below.
                     let overflowing = state.expanded && !atEnd && NotchGeometry.overflows(screen: state.screenFrame, barHeight: state.barHeight, contentHeight: state.contentHeight)
                     // Of the cards that are drawn: one folded away since leaves its id behind.
-                    let drawn = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions).cards
+                    let drawn = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).cards
                     let hidden = drawn.filter { below.contains($0.id) }
                     // Every row that waits past the edge, also inside a card that starts above it.
                     let waiting = AgentStore.waitingBelow(drawn, cards: below, rows: belowRows)
@@ -901,7 +962,7 @@ struct PanelView: View {
                     // Scrolled, the list has gone on above its top edge too, and says so the same way.
                     // Not the settings: their pages stay at the top, and the band would cover them.
                     let scrolled = state.expanded && !atTop && !state.showingSettings
-                    let hidden = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions).cards.filter { above.contains($0.id) }
+                    let hidden = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).cards.filter { above.contains($0.id) }
                     let waiting = AgentStore.count(.needsYou, in: hidden)
                     let label = state.showingPage ? nil : Format.below(sessions: hidden.count, quiet: AgentStore.count(.quiet, in: hidden), needsYou: waiting)
                     let height: CGFloat = scrolled ? NotchGeometry.topBand : 0
@@ -1042,7 +1103,7 @@ struct PanelView: View {
 
     /// To whoever waits on the person: the header's red count is where the pointer finds it.
     private func jumpToWaiting() {
-        guard let found = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions).firstWaiting else { return }
+        guard let found = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).firstWaiting else { return }
         let target = ScrollTarget.to(found.row, on: found.card)
         guard state.showingPage else { return scrollTarget = target }
         // From a page the list has to be drawn first: a turn later it has rows to scroll to.
@@ -1054,12 +1115,22 @@ struct PanelView: View {
     /// Tells the sounds what the list holds, and whether the person is at the panel to see it:
     /// by the same rule as the bar's own mark, with whoever waits in view.
     private func listen(_ cards: [SessionCard]) {
-        let drawn = AgentStore.arrange(cards, idle: settings.idleSessions, keeping: answers.settledSessions)
+        let drawn = AgentStore.arrange(cards, idle: settings.idleSessions, keeping: keeping)
         let past = AgentStore.waitingBelow(drawn.cards, cards: below, rows: belowRows)
         sound.listed(cards, loaded: store.loaded, looks: state.looks,
                      looking: state.expanded && WaitWatch.looking(openFor: state.openedAt.map { Date().timeIntervalSince($0) }, pinned: state.pinned,
                                                                   inView: WaitWatch.inView(showingList: !state.showingPage, pastEdge: !past.isEmpty, grouping: settings.grouping, atTop: atTop)))
     }
+
+    /// The cards the list draws where the person can see them: none wholly past its bottom edge or above its top.
+    /// ponytail: a card that starts above the bottom edge counts whole, though its hand-back box may lie past
+    /// it; track box positions as `belowRows` does rows to tell.
+    private func inSight() -> [SessionCard] {
+        AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).cards.filter { !below.contains($0.id) && !above.contains($0.id) }
+    }
+
+    /// Sessions whose cards stay unfolded: a settled answer, or a hand-back box drawn in this opening.
+    private var keeping: Set<String> { answers.settledSessions.union(HandBack.holding(sessions, openedAt: state.openedAt)) }
 
     /// The sessions as the panel counts and draws them: a row with a request waiting needs the person.
     /// In the order the list is in: everything that reads an order reads this one.
@@ -1070,7 +1141,7 @@ struct PanelView: View {
     /// Whether there is more than one session to put in order. One alone is in every order
     /// at once: it gets no tabs and no line over it.
     private var grouped: Bool {
-        let list = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions)
+        let list = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping)
         return list.cards.count + list.folded.count >= 2
     }
 
@@ -1350,8 +1421,27 @@ struct PanelView: View {
             guard state.expanded, !fresh.isEmpty else { return }
             // A turn later: the card has to be laid out before it is known to lie below the edge.
             DispatchQueue.main.async {
-                let drawn = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions).cards
+                let drawn = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).cards
                 if answerableBelow(drawn).contains(where: { fresh.contains($0.id) }) { bandBeats += 1 }
+            }
+        }
+        // A look: what the open panel draws has been seen. Folded, put-away and paged-over cards have
+        // not, nor cards past the list's bottom edge or scrolled above its top.
+        .onChange(of: state.looks) {
+            guard state.expanded, !state.showingPage, let opened = state.openedAt else { return }
+            // Never earlier than the opening: a box seen before it began would drop to a line under the eyes.
+            let now = max(Date(), opened)
+            store.saw(HandBack.awaiting(inSight()), at: now)
+        }
+        .onChange(of: HandBack.awaiting(sessions)) { old, new in
+            // A turn later: the card has to be laid out before it is known to lie past an edge.
+            DispatchQueue.main.async {
+                // Past an edge is left to `inSight`, card by card: no edge stops the whole look.
+                let looking = state.expanded && state.openedAt != nil && WaitWatch.looking(
+                    openFor: state.openedAt.map { Date().timeIntervalSince($0) }, pinned: state.pinned,
+                    inView: WaitWatch.inView(showingList: !state.showingPage, pastEdge: false, grouping: settings.grouping, atTop: atTop))
+                let mark = HandBack.toMark(old: old, new: new, lookingNow: looking).intersection(HandBack.awaiting(inSight()))
+                if !mark.isEmpty { store.saw(mark, at: Date()) }
             }
         }
         .onChange(of: AgentStore.waiting(sessions)) { old, new in
@@ -1369,7 +1459,7 @@ struct PanelView: View {
                                      userInfo: [.announcement: Format.needsYou(count), .priority: NSAccessibilityPriorityLevel.high.rawValue])
                 // Open under the pointer right now, it is seen as it happens. Pinned open, the
                 // person may be anywhere.
-                let drawn = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions)
+                let drawn = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping)
                 let past = AgentStore.waitingBelow(drawn.cards, cards: below, rows: belowRows)
                 watch.arrived(looks: state.looks, lookingNow: state.expanded
                     && WaitWatch.looking(openFor: state.openedAt.map { Date().timeIntervalSince($0) }, pinned: state.pinned,
@@ -1407,6 +1497,13 @@ struct PanelView: View {
         }
     }
 
+    /// Read all or Show less. The list is led to an opened box a turn later, once the box and the
+    /// mark under it are laid out: led at once, it moved by the box's closed height or not at all.
+    private func toggleReading(_ id: String) {
+        guard let target = ScrollTarget.reading(id, in: &state.readingAll) else { return }
+        DispatchQueue.main.async { scrollTarget = target }
+    }
+
     /// Sessions, or the settings in their place. Either way its height sizes the island.
     private func content(_ motion: Motion, viewport: CGFloat) -> some View {
         ScrollViewReader { reader in
@@ -1428,6 +1525,9 @@ struct PanelView: View {
                         case .row(let id): reader.scrollTo(id, anchor: UnitPoint(x: 0.5, y: 0.3))
                         // A third of the way down: the request whole, with its row still above it.
                         case .request(let id): reader.scrollTo(id, anchor: UnitPoint(x: 0.5, y: 0.3))
+                        // The least it takes to show the box whole and clear of the bottom band,
+                        // or nothing when it already is.
+                        case .readAll(let id): reader.scrollTo(ScrollTarget.readAllEnd(id))
                         case .end: reader.scrollTo(ScrollTarget.endID, anchor: .bottom)
                         }
                     }
@@ -1440,7 +1540,7 @@ struct PanelView: View {
                     guard let id else { return }
                     // On the first session the list stays at its very top: the line about the
                     // keys stands above that card, and must not be scrolled out by it.
-                    let walked = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions).walked(idleExpanded: state.idleExpanded)
+                    let walked = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).walked(idleExpanded: state.idleExpanded)
                     scrollTarget = id == walked.first?.id ? .top : .selection(id)
                     // And said, for someone who cannot see the ring arrive.
                     if let card = walked.first(where: { $0.id == id }) {
@@ -1474,7 +1574,7 @@ struct PanelView: View {
                 .onChange(of: state.opens) { _, _ in
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         guard state.expanded, !state.showingPage, !state.keyboard else { return }
-                        let found = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions).firstWaiting
+                        let found = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).firstWaiting
                         let waiting = found.flatMap { found in
                             AgentStore.waitingBelow([found.card], cards: below, rows: belowRows).contains { $0.id == found.row.id } ? ScrollTarget.to(found.row, on: found.card) : nil
                         }
@@ -1521,7 +1621,7 @@ struct PanelView: View {
     }
 
     private func sessions(_ motion: Motion, viewport: CGFloat) -> some View {
-        let list = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: answers.settledSessions)
+        let list = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping)
         let looks = AgentStore.looks(sessions)
         let putAway = AgentStore.putAway(answers.overlay(store.sessions), hidden: state.hidden)
         // Past eight sub-agents each takes one line.
@@ -1539,7 +1639,9 @@ struct PanelView: View {
             state.keyboard,
         ].filter { $0 }.count)
         // Sessions drawn as one line, so the list fits the panel without a scroll.
-        let folded = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
+        let (folded, doneFolded) = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
+        // A card's done lines: as the person last set them, or listed unless the list folds them to fit.
+        let showsDone = { (card: SessionCard) in state.doneShown[card.id] ?? !doneFolded }
         let crew = CrewTree.snapshot(list.cards)
         let leftOut = folded.union(below).union(above)
         // A change in this very frame is already a packet on its way, before `.onChange` below
@@ -1645,8 +1747,10 @@ struct PanelView: View {
                             // Whether each sub-agent's row starts past the bottom edge, for the band.
                             viewport: viewport, rowBelow: { row, below in
                                 if below { belowRows.insert(row) } else { belowRows.remove(row) }
-                            }, reserveHide: anyHide, showingDone: state.doneExpanded.contains(card.id),
-                            toggleDone: { state.doneExpanded.formSymmetricDifference([card.id]) },
+                            }, reserveHide: anyHide, showingDone: showsDone(card),
+                            toggleDone: { state.doneShown[card.id] = !showsDone(card) },
+                            askedOpen: state.askedOpen, toggleAsked: { state.askedOpen.formSymmetricDifference([$0]) },
+                            openedAt: state.openedAt, reading: state.readingAll, toggleReading: { toggleReading($0) },
                             pulses: (pulses + fresh).filter { $0.card == card.id })
                     }
                 }
@@ -1685,7 +1789,10 @@ struct PanelView: View {
                         // line each while the list above has folded any.
                         Group {
                             if folded.isEmpty {
-                                SessionCardView(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), showsApp: list.showsApps, compact: compact)
+                                SessionCardView(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), showsApp: list.showsApps, compact: compact,
+                                                showingDone: showsDone(card), toggleDone: { state.doneShown[card.id] = !showsDone(card) },
+                                                askedOpen: state.askedOpen, toggleAsked: { state.askedOpen.formSymmetricDifference([$0]) },
+                                                openedAt: state.openedAt, reading: state.readingAll, toggleReading: { toggleReading($0) })
                             } else {
                                 CompactSessionRow(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), reserveHide: anyHide)
                             }
@@ -1769,7 +1876,7 @@ struct PanelView: View {
             case .done:
                 // A folded row shows no sub-agents to unfold.
                 guard !folded.contains(card.id), !card.doneAgents().isEmpty else { return }
-                state.doneExpanded.formSymmetricDifference([card.id])
+                state.doneShown[card.id] = !showsDone(card)
                 answers.noteLayoutChange()
             default:
                 break
@@ -1824,28 +1931,37 @@ struct PanelView: View {
         .onAppear { answers.noteLayoutChange() }
     }
 
-    /// The sessions to draw as one line: as few as it takes for the list to fit the panel.
-    private func foldedRows(_ list: SessionList, headers: [String: String], oneLineAgents: Bool, under: CGFloat) -> Set<String> {
+    /// The sessions to draw as one line: as few as it takes for the list to fit the panel. Before
+    /// any, the done lines the person did not open fold into their envelopes: `doneFolded`.
+    private func foldedRows(_ list: SessionList, headers: [String: String], oneLineAgents: Bool, under: CGFloat) -> (Set<String>, doneFolded: Bool) {
         // Less the list's padding and the lines under it.
         let room = NotchGeometry.listRoom(screen: state.screenFrame, barHeight: state.barHeight) - ListFit.padding - under
-        let entries = list.cards.map { card in
-            let session = AnswerStore.sessionID(of: card)
-            return ListFit.Entry(
-                id: card.id,
-                full: ListFit.fullHeight(card, header: headers[card.id] != nil,
-                                         requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
-                                         settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
-                                         showingDone: state.doneExpanded.contains(card.id), oneLineAgents: oneLineAgents),
-                row: ListFit.rowHeight(header: headers[card.id] != nil),
-                // Asks something of the person, or has just been answered and shows how, or the
-                // person has just opened its done agents.
-                keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || answers.settledSessions.contains(session)
-                    || state.doneExpanded.contains(card.id),
-                quiet: card.group == .quiet || card.group == .idle,
-                header: headers[card.id] != nil,
-                crew: !card.liveAgents().isEmpty)
+        // Once a pass: worked out per card, it read every card for each.
+        let keeping = self.keeping
+        func entries(doneFolded: Bool) -> [ListFit.Entry] {
+            list.cards.map { card in
+                let session = AnswerStore.sessionID(of: card)
+                let boxes = HandBack.boxes(card, openedAt: state.openedAt, reading: state.readingAll)
+                return ListFit.Entry(
+                    id: card.id,
+                    full: ListFit.fullHeight(card, header: headers[card.id] != nil,
+                                             requests: { answers.requests(forRow: $0, in: card).map { ListFit.requestHeight($0.ask.kind, hidden: $0.hidden) } },
+                                             settled: { answers.settled(forRow: $0, in: card).count }, hintRow: list.hintRow,
+                                             showingDone: state.doneShown[card.id] ?? !doneFolded, oneLineAgents: oneLineAgents,
+                                             asked: state.askedOpen, boxes: boxes, reading: state.readingAll),
+                    row: ListFit.rowHeight(header: headers[card.id] != nil),
+                    // Asks something of the person, or has just been answered and shows how, or the
+                    // person has just opened its done lines, or it has a hand-back box.
+                    keepsFull: card.group == .needsYou || answers.pending.contains { $0.ask.session == session } || keeping.contains(session)
+                        || state.doneShown[card.id] == true || !boxes.isEmpty || card.liveAgents().contains { state.askedOpen.contains($0.id) },
+                    quiet: card.group == .quiet || card.group == .idle,
+                    header: headers[card.id] != nil,
+                    crew: !card.liveAgents().isEmpty)
+            }
         }
-        return ListFit.compact(entries, room: room)
+        let shown = entries(doneFolded: false)
+        let doneFolded = ListFit.foldsDone(shown, room: room)
+        return (ListFit.compact(doneFolded ? entries(doneFolded: true) : shown, room: room), doneFolded)
     }
 
     /// Where the arrow keys are. A ring and no more: it moves nothing. To a screen reader it is
@@ -1895,12 +2011,27 @@ enum ScrollTarget: Equatable {
     /// A sub-agent's row.
     case row(String)
     case request(UUID)
+    /// A hand-back box opened to read whole.
+    case readAll(String)
     case top
     case end
     /// The shortcut's row in the settings.
     case shortcut
 
     static let shortcutID = "agent-valley.shortcut"
+
+    /// Read all or Show less on the box of `id`. Read all opens downward, often past the list's
+    /// edge, so the list is led to it. Show less leaves the list where it is.
+    static func reading(_ id: String, in reading: inout Set<String>) -> ScrollTarget? {
+        if reading.remove(id) != nil { return nil }
+        reading.insert(id)
+        return .readAll(id)
+    }
+
+    /// The id of the mark under a box opened to read whole: a band's height of room below it.
+    static func readAllEnd(_ row: String) -> String {
+        "agent-valley.read-all." + row
+    }
 
     /// The id of the mark at the very top of the list's content.
     static let topID = "agent-valley.top"
@@ -2525,6 +2656,14 @@ struct SessionCardView: View {
     /// Whether the finished subagents are listed, and what a click on their line does.
     var showingDone = false
     var toggleDone: () -> Void = {}
+    /// The sub-agents whose Asked box is open, and how a click on one's triangle opens or shuts it.
+    var askedOpen: Set<String> = []
+    var toggleAsked: (String) -> Void = { _ in }
+    /// When the panel opened: a hand-back seen in this opening stays a box until it shuts.
+    var openedAt: Date?
+    /// The finished sub-agents whose box shows all of it, and how a click opens or closes one.
+    var reading: Set<String> = []
+    var toggleReading: (String) -> Void = { _ in }
     /// The packets running along this card's branches.
     var pulses: [CrewPulse] = []
     @Environment(\.goTo) private var goTo
@@ -2649,6 +2788,10 @@ struct SessionCardView: View {
         let flash = pulses.contains { $0.up && $0.arrived }
         let live = card.liveAgents(holding: holding)
         let finished = card.doneAgents(holding: holding)
+        // Under the envelope: the hand-back boxes, then the rest a line each while its lines show.
+        let boxIDs = HandBack.boxes(card, openedAt: openedAt, reading: reading)
+        let boxes = boxIDs.compactMap { id in finished.first { $0.id == id } }
+        let lines = showingDone ? finished.filter { !boxIDs.contains($0.id) } : []
         // The rows a line runs to from the lead, top to bottom, and the ones that wait on the person.
         // The finished ones hang off the envelope, not the lead: they are what it holds.
         let branches = live.map(\.id) + (finished.isEmpty ? [] : ["done"])
@@ -2715,7 +2858,8 @@ struct SessionCardView: View {
                 .padding(.leading, CardStyle.underMascot)
             }
             ForEach(live) { row in
-                AgentRowView(row: row, asking: asking, hint: hintRow == row.id, compact: compact, reserveHide: hide != nil || reserveHide, owner: card.owner)
+                AgentRowView(row: row, asking: asking, hint: hintRow == row.id, compact: compact, reserveHide: hide != nil || reserveHide, owner: card.owner,
+                             askedOpen: askedOpen.contains(row.id), toggleAsked: { toggleAsked(row.id); moved?() })
                     // Kept in place while hidden: its branch is drawn to where it stands.
                     .opacity(coming.contains(row.id) ? 0 : 1)
                     .animation(.easeOut(duration: 0.15), value: coming.contains(row.id))
@@ -2728,27 +2872,34 @@ struct SessionCardView: View {
                     .transition(.asymmetric(insertion: motion.rowEntrance, removal: .opacity.animation(.easeOut(duration: 0.1))))
             }
             if !finished.isEmpty {
-                DoneRow(agents: finished, expanded: showingDone) {
-                    toggleDone()
-                    // The rows that unfold push down the cards below, and their answer buttons with them.
-                    moved?()
+                VStack(alignment: .leading, spacing: CardStyle.block) {
+                    DoneRow(agents: finished, expanded: showingDone) {
+                        toggleDone()
+                        // The lines that unfold push down the cards below, and their answer buttons with them.
+                        moved?()
+                    }
+                    ForEach(boxes) { row in
+                        // Looked at twice a minute, for its age.
+                        TimelineView(.periodic(from: .now, by: 30)) { context in
+                            HandBackBox(row: row, reading: reading.contains(row.id), toggle: { toggleReading(row.id); moved?() }, now: context.date)
+                        }
+                        .padding(.leading, CrewTree.indent).transition(.opacity)
+                    }
+                    ForEach(lines) { row in
+                        DoneLine(row: row) { toggleReading(row.id); moved?() }
+                            .padding(.leading, CrewTree.indent).transition(.opacity)
+                    }
                 }
                 .padding(.leading, CrewTree.indent)
                 // In once the rows over it have moved up: in at once, it showed through the last of them.
                 .transition(.asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.15).delay(0.2)), removal: .opacity))
-                if showingDone {
-                    ForEach(finished) { row in
-                        AgentRowView(row: row, compact: compact, reserveHide: hide != nil || reserveHide, owner: card.owner)
-                            .padding(.leading, CrewTree.indent * 2).transition(.opacity)
-                    }
-                }
             }
         }
         .padding(CardStyle.inset)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
         .overlayPreferenceValue(CrewAnchors.self) { anchors in
             CrewTreeView(anchors: anchors, order: branches, hot: hot, pulses: pulses)
-            if showingDone { CrewTreeView(anchors: anchors, root: "done", order: finished.map(\.id), hot: []) }
+            if !(boxes + lines).isEmpty { CrewTreeView(anchors: anchors, root: "done", order: (boxes + lines).map(\.id), hot: []) }
         }
         // Rows settle in as agents start, and the card closes up as they finish: also once a
         // packet has run up from one.
@@ -2894,7 +3045,7 @@ struct JobList: View {
     }
 }
 
-/// A card's finished subagents in one line. Click to list them.
+/// A card's finished subagents in one line. Click to list them, a line each, or fold them back.
 struct DoneRow: View {
     let agents: [AgentRow]
     let expanded: Bool
@@ -2908,9 +3059,12 @@ struct DoneRow: View {
                     .anchorPreference(key: CrewAnchors.self, value: .bounds) { ["done": $0] }
                     .frame(width: 20)
                 Text(verbatim: Format.done(agents.count)).foregroundStyle(.white.opacity(0.8))
+                // Folded, the task names: listed, the lines under it name them.
                 // verbatim: task names come from transcripts and must never be read as Markdown.
-                let names = agents.map { Format.rowTitle(task: $0.info.task, type: $0.info.type) }.joined(separator: " · ")
-                Text(verbatim: names).help(Text(verbatim: names))
+                if !expanded {
+                    let names = agents.map { Format.rowTitle(task: $0.info.task, type: $0.info.type) }.joined(separator: " · ")
+                    Text(verbatim: names).help(Text(verbatim: names))
+                }
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.white.opacity(0.6))
@@ -2938,9 +3092,14 @@ struct AgentRowView: View {
     var reserveHide = false
     /// The app the session runs in, for a request that has to be answered there.
     var owner: OwnerApp?
+    /// Whether the box with what it was asked is open, and how its triangle opens it. Nothing to
+    /// toggle, or a row that is done or was asked nothing: no triangle.
+    var askedOpen = false
+    var toggleAsked: (() -> Void)?
 
     var body: some View {
         let done = row.status == .done
+        let showsAsked = toggleAsked != nil && !done && !row.info.asked.isEmpty
         let extras = Format.rowExtras(task: row.info.task, type: row.info.type)
         let title = Format.rowTitle(task: row.info.task, type: row.info.type)
         // A request under the row says what is asked, in full: the step would repeat it or name something older.
@@ -2965,11 +3124,13 @@ struct AgentRowView: View {
                                 // The name first and whole while there is room: it is what tells
                                 // the rows apart. The step keeps a little, and takes what is left.
                                 Text(verbatim: title).help(Text(verbatim: title)).layoutPriority(1)
+                                askedMark(showsAsked)
                                 if !done, row.info.steps > 0 {
                                     step(extras: "", counted: false).foregroundStyle(.white.opacity(0.6)).frame(minWidth: 96, alignment: .leading)
                                 }
                             } else {
                                 Text(verbatim: title).help(Text(verbatim: title))
+                                askedMark(showsAsked)
                             }
                             Spacer(minLength: 12)
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -3029,9 +3190,24 @@ struct AgentRowView: View {
                 }
             }
             .padding(.leading, CardStyle.underMascot)
+            if showsAsked, askedOpen { AskedBox(text: row.info.asked).padding(.leading, CardStyle.underMascot) }
         }
         // One level of dimming only: stacked on the 0.6 above, anything lower fails to read.
         .opacity(done ? 0.8 : 1)
+    }
+
+    /// The triangle after the title that opens the box with what the row was asked. A button of
+    /// its own: a click on it does not go on to the terminal.
+    @ViewBuilder private func askedMark(_ shown: Bool) -> some View {
+        if shown {
+            Button { toggleAsked?() } label: {
+                FoldMark(open: askedOpen).foregroundStyle(.white.opacity(0.6)).frame(width: 14, height: 14).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(askedOpen ? "Hide what it was asked" : "Show what it was asked")
+            .accessibilityLabel(Text(verbatim: "Asked"))
+            .accessibilityValue(Text(verbatim: askedOpen ? "Shown" : "Hidden"))
+        }
     }
 
     /// The step, how many there have been and, for a row gone silent, since when. With room to

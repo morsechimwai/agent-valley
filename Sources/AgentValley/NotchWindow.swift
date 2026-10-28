@@ -290,8 +290,22 @@ final class NotchState: ObservableObject {
     /// The last key the list has to act on itself, because only it knows what is on screen:
     /// an answer, hiding the chosen session, unfolding its finished agents.
     @Published var keyed: Keyed?
-    /// The sessions whose finished agents are listed. Remembered while the app runs.
-    @Published var doneExpanded: Set<String> = []
+    /// Whether each session's done lines are listed under its envelope, as the person last set
+    /// it. None: listed, unless the list folds them to fit. Remembered while the app runs.
+    @Published var doneShown: [String: Bool] = [:]
+    /// The finished sub-agents whose hand-back box shows all of it, by row id. For this opening
+    /// only: a box read here is a line at the next.
+    @Published var readingAll: Set<String> = []
+    /// The working sub-agents whose Asked box is open, by row id. Only a live row's id counts.
+    @Published var askedOpen: Set<String> = []
+
+    /// Once the panel has finished closing, what was for that opening only is put away: the
+    /// first-launch words, the legend and the hand-backs left read whole.
+    func finishedClosing() {
+        introducing = false
+        showingLegend = false
+        readingAll = []
+    }
 
     /// A key for the list, pressed at `at` on the session the arrow keys are on now.
     func press(_ command: KeyCommand, at: Date) {
@@ -491,7 +505,8 @@ final class NotchWindowController: NSObject {
         self.updates = updates
         let state = self.state
         cards = {
-            AgentStore.arrange(AgentStore.ordered(AgentStore.showing(answers.overlay(store.sessions), hidden: state.hidden), by: settings.grouping), idle: settings.idleSessions, keeping: answers.settledSessions)
+            let shown = AgentStore.ordered(AgentStore.showing(answers.overlay(store.sessions), hidden: state.hidden), by: settings.grouping)
+            return AgentStore.arrange(shown, idle: settings.idleSessions, keeping: answers.settledSessions.union(HandBack.holding(shown, openedAt: state.openedAt)))
                 .walked(idleExpanded: state.idleExpanded)
         }
         super.init()
@@ -593,7 +608,8 @@ final class NotchWindowController: NSObject {
         layout()
         // One turn later the window already has its new size, so the island is the only thing that animates.
         DispatchQueue.main.async { [state] in
-            if expanded { state.opens += 1 }
+            // Opened again before the close settled, `finishedClosing` never ran: what was read whole was for the last opening.
+            if expanded { state.opens += 1; state.readingAll = [] }
             state.expanded = expanded
             state.openedAt = expanded ? Date() : nil
         }
@@ -614,8 +630,7 @@ final class NotchWindowController: NSObject {
         // still closing would show through the fade.
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleDelay) { [weak self] in
             guard let self, !self.isExpanded else { return }
-            self.state.introducing = false
-            self.state.showingLegend = false
+            self.state.finishedClosing()
         }
         // The settings and History stay a little longer, for a pointer that only strayed.
         let work = DispatchWorkItem { [weak self] in

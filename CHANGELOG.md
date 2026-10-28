@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.15 — 2026-10-28
+
+- Claude Code knows your crew by the names the notch gives them. The lead hands an Explore job to Faye by name, and Faye reports back to the lead by name, each in their own voice and in the language you write in. The code, commits and files they write stay as they would be without it. It needs the plugin that answers from the notch, and starts with your next Claude Code session. Turn it off with Crew names in Claude Code in Settings, under Answer from the notch.
+- See what a sub-agent was asked: the triangle on a working sub-agent's row opens Asked, the whole prompt its lead gave it.
+- When a sub-agent finishes, what it handed back waits under the envelope until you have seen it: who brought it, how long ago, the first two lines, and Read all for the rest. After that it folds to one line.
+- A sub-agent waiting on a job of its own stays at work now, instead of looking done.
+
 ## 0.3.14 — 2026-10-27
 
 - The app now sends us one count a day, so we know how many Macs run it. It says the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions or code. Turn it off with Send a daily count in Settings, About. The details are at agentvalley.app/privacy.

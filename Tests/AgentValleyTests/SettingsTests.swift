@@ -73,6 +73,13 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(Settings(defaults: defaults).answers)
     }
 
+    // Crew names are on from the start, like the sounds; the choice to turn them off is kept.
+    func testCrewNamesStartOnAndRememberTheChoice() {
+        XCTAssertTrue(Settings(defaults: defaults).crewNames)
+        Settings(defaults: defaults).crewNames = false
+        XCTAssertFalse(Settings(defaults: defaults).crewNames)
+    }
+
     // The crew talks from the start; one switch turns it off.
     func testSoundsStartOnWithBothMomentsReady() {
         let settings = Settings(defaults: defaults)
