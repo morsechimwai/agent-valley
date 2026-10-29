@@ -5,6 +5,7 @@ import { Caveat } from 'next/font/google';
 import { Announcer } from '@/components/announcer';
 import { HalloweenTouches } from '@/components/halloween-touches';
 import { IconSprite } from '@/components/icons';
+import { SmoothScroll } from '@/components/smooth-scroll';
 import './globals.css';
 import { CSP } from '@/lib/csp';
 import { isHalloween } from '@/lib/halloween';
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Announcer />
         <HalloweenTouches />
+        <SmoothScroll />
       </body>
     </html>
   );

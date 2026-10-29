@@ -182,7 +182,8 @@ test('at the top the bar wears the block-letter name alone; down the page, only 
   await expect(name).toBeHidden();
   await expect(mark).toBeVisible();
   await expect(home).toHaveAccessibleName('AgentValley');
-  await page.evaluate(() => scrollTo(0, 0));
+  // Home while the wheel's glide is still going: the key wins and the page goes back to the top.
+  await page.keyboard.press('Home');
   await expect(name).toBeVisible();
   await expect(mark).toBeHidden();
 });

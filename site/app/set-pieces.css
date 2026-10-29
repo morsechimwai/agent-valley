@@ -8,8 +8,10 @@
 
 /* Top bar: one row that stays at the top, on a hairline, at every width. */
 html{scroll-padding-top:80px}
-/* Links to a part of the page glide there; the Stop button and reduced motion keep the jump. */
-@media (prefers-reduced-motion:no-preference){html:not(.still){scroll-behavior:smooth}}
+/* Links to a part of the page glide there; the Stop button and reduced motion keep the jump. With
+   scripts Lenis takes the glide (smooth-scroll.tsx) and the browser's own jumps under it, or the two
+   would run at once and the browser's would end it a little short. */
+@media (prefers-reduced-motion:no-preference){html:not(.still):not(.lenis){scroll-behavior:smooth}}
 .nav{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:8px;min-height:64px}
 .nav::before{content:"";position:absolute;z-index:-1;inset:0 calc(50% - 50vw);background:var(--background);border-bottom:1px solid var(--border)}
 .brand{display:grid;align-items:center;min-height:44px;text-decoration:none}
