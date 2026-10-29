@@ -118,6 +118,8 @@ enum ListFit {
         // The jobs it left running: three lines at most, then one that says how many more.
         if !card.jobs.isEmpty { h += CGFloat(min(card.jobs.count, 3) + (card.jobs.count > 3 ? 1 : 0)) * jobLine + CardStyle.block - CardStyle.line }
         if let main = card.main, main.status != .done, requests(main.id).isEmpty, !main.step.isEmpty { h += stepLine }
+        // Its task list: up to five lines, each as tall as a job's.
+        if let tasks = card.taskLines { h += CGFloat(tasks.lines) * jobLine + CardStyle.block - CardStyle.line }
         for r in card.rows {
             let asked = requests(r.id)
             h += asked.reduce(0, +) + CGFloat(settled(r.id)) * outcomeLine

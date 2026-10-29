@@ -134,6 +134,44 @@ final class ListFitTests: XCTestCase {
         XCTAssertEqual(h(4) - h(3), h(3) - h(2))
     }
 
+    private func tasks(_ statuses: String) -> [TaskItem] {
+        statuses.enumerated().map { n, c in
+            TaskItem(id: "\(n)", subject: "t\(n)", status: c == "d" ? "completed" : c == "w" ? "in_progress" : "pending")
+        }
+    }
+
+    func testTaskLinesShowAShortListWholeAndALongOneFromWhereItStands() {
+        XCTAssertNil(TaskLines(tasks("")))
+        // All done: Claude Code puts the list away, and so does the card.
+        XCTAssertNil(TaskLines(tasks("ddd")))
+        let short = TaskLines(tasks("ddwpp"))
+        XCTAssertEqual(short?.shown.map(\.subject), ["t0", "t1", "t2", "t3", "t4"])
+        XCTAssertEqual(short?.folded, 0)
+        // Seven: the two done fold to a line, three of the five left show, and "+2 more".
+        let long = TaskLines(tasks("ddwpppp"))
+        XCTAssertEqual(long?.folded, 2)
+        XCTAssertEqual(long?.shown.map(\.subject), ["t2", "t3", "t4"])
+        XCTAssertEqual(long?.more, 2)
+        XCTAssertEqual(long?.lines, TaskLines.most)
+        XCTAssertEqual(TaskLines(tasks("wppppp"))?.lines, TaskLines.most)
+        XCTAssertEqual(TaskLines(tasks("ddddddwp"))?.lines, 3)
+    }
+
+    func testTaskLinesTakeRoomOnTheLeadsCardUnlessItWaitsOnThePerson() {
+        let h = { (statuses: String, main: AgentStatus) -> CGFloat in
+            var info = AgentInfo()
+            info.lastStep = "Reading files"
+            info.tasks = self.tasks(statuses)
+            let c = SessionCard(id: "s", project: "p", branch: "", main: AgentRow(id: "m", info: info, status: main, elapsed: 0),
+                                agents: [], startedAt: Date(timeIntervalSince1970: 0))
+            return ListFit.fullHeight(c, header: false, requests: { _ in [] }, settled: { _ in 0 }, hintRow: nil, showingDone: false, oneLineAgents: false)
+        }
+        XCTAssertGreaterThan(h("wp", .working), h("", .working))
+        XCTAssertEqual(h("wpp", .working) - h("wp", .working), h("wp", .working) - h("w", .working))
+        XCTAssertEqual(h("ddd", .working), h("", .working))
+        XCTAssertEqual(h("wp", .needsYou), h("", .needsYou))
+    }
+
     func testRowHeightCountsTheHeader() {
         XCTAssertGreaterThan(ListFit.rowHeight(header: true), ListFit.rowHeight(header: false))
         XCTAssertEqual(ListFit.rowHeight(header: false), ListFit.row + 10)  // a card's gap under it

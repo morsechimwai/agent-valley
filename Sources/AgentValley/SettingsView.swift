@@ -578,8 +578,17 @@ struct Legend: View {
         }
         HStack(spacing: 12) {
             mark("what one handed back") { DocIcon().frame(width: 14) }
-            mark("job left running") { JobScreen(size: 14) }
             mark("Monitor job") { JobEye(size: 14) }
+        }
+        HStack(spacing: 12) {
+            mark("job left running") { JobScreen(size: 14) }
+            mark("server left running") { JobServer(size: 14) }
+        }
+        // The lead's task list, in Claude Code's own marks.
+        HStack(spacing: 12) {
+            mark("task done") { TaskMark(status: "completed").opacity(0.4) }
+            mark("under way") { TaskMark(status: "in_progress") }
+            mark("to do") { TaskMark(status: "pending").opacity(0.6) }
         }
         caption(Format.quietCaption)
         caption(Format.timeCaption)
@@ -599,6 +608,7 @@ struct Legend: View {
         HStack(spacing: 12) {
             mark("nothing running") { Mug(size: 14) }
             mark("job left running") { JobScreen(size: 14) }
+            mark("only servers running") { JobServer(size: 14) }
         }
         caption(Format.barMascotCaption)
         caption(Format.ringCaption)

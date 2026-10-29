@@ -9,6 +9,8 @@ struct BackgroundJob: Equatable, Identifiable {
     let startedAt: Date
     /// When a Monitor's own timeout stops it; nil for a shell and for a persistent monitor.
     let endsBy: Date?
+    /// A shell whose words read like a server left open on a port: `BackgroundJobs.serves`.
+    var serves = false
 
     func isLong(now: Date) -> Bool { now.timeIntervalSince(startedAt) >= BackgroundJobs.longAfter }
 }
@@ -64,7 +66,8 @@ enum BackgroundJobs {
             return ""
         }
         if let id = result["backgroundTaskId"] as? String, !id.isEmpty {
-            return BackgroundJob(id: id, kind: .shell, name: name(), startedAt: at, endsBy: nil)
+            let words = ["command", "description"].compactMap { call?.input[$0] as? String }.joined(separator: "\n")
+            return BackgroundJob(id: id, kind: .shell, name: name(), startedAt: at, endsBy: nil, serves: serves(words))
         }
         if let id = result["taskId"] as? String, !id.isEmpty, let timeout = result["timeoutMs"] as? NSNumber {
             let persistent = result["persistent"] as? Bool == true
@@ -73,6 +76,26 @@ enum BackgroundJobs {
         }
         return nil
     }
+
+    /// Whether a shell's command or description reads like a server left open on a port: a dev
+    /// server, a preview, a file server. Only the picture hangs on it, so a miss shows the plain
+    /// terminal and changes nothing else.
+    // ponytail: a word list, not the ports the process opened. Ask the system for listening ports
+    // if misses pile up.
+    static func serves(_ words: String) -> Bool {
+        words.range(of: servePattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    static let servePattern = [
+        #"\b(npm|pnpm|yarn|bun)( run)? (dev|start|serve|preview|storybook)\b"#,
+        #"\b(next|nuxt|astro|remix|vite|wrangler|vercel|netlify|expo) (dev|start|preview)\b"#,
+        // Not `vite build`, and not a file named after one: vite.config.ts.
+        #"\b(vite|serve|http-server|live-server|http\.server|runserver|uvicorn|gunicorn|hypercorn|storybook|studio)\b(?![.-]| build)"#,
+        #"\b(flask run|rails (s|server)|hugo server|php -S|docker[- ]compose up)\b"#,
+        #"--port\b|\bPORT=\d|\bport \d{2,5}\b"#,
+        // A description's own words: "Start Next.js dev server". Not a bare "server": `cd server`.
+        #"\b(dev|web|api|http|preview|local|static|backend|frontend|mock|proxy|file|docs?) server\b"#,
+    ].joined(separator: "|")
 
     /// Every job is old enough that nobody is likely waiting on any of them.
     static func resting(_ jobs: [BackgroundJob], now: Date) -> Bool {

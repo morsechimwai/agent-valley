@@ -166,9 +166,18 @@ def start(home):
     for name, (_, _, _, _, title) in SESSIONS.items():
         append(transcript(home, name), {"type": "ai-title", "aiTitle": title})
 
+    # Its task list, as TaskCreate and TaskUpdate write it: two done, one under way, two to do.
+    to_do = ["Map the payment call sites", "Plan the tax rounding fix", "Split checkout into step pages",
+            "Write cart total tests", "Run the cart tests"]
+    tasks = []
+    for n, subject in enumerate(to_do, 1):
+        tasks += [call("checkout", "TaskCreate", {"subject": subject, "description": subject}, f"t{n}", 189),
+                  dict(result(f"t{n}", ago=189), toolUseResult={"task": {"id": str(n), "subject": subject}})]
+    for n, (task, status) in enumerate([("1", "completed"), ("2", "completed"), ("3", "in_progress")]):
+        tasks += [call("checkout", "TaskUpdate", {"taskId": task, "status": status}, f"u{n}", 25), result(f"u{n}", ago=25)]
     append(transcript(home, "checkout"),
-           prompt("checkout", "Split the checkout page into steps and keep the totals right.", 190),
-           call("checkout", "Agent", {"description": "Map payment call sites"}, "c1", 180), result("c1", ago=179),
+           prompt("checkout", "Split the checkout page into steps and keep the totals right.", 190), *tasks[:10],
+           call("checkout", "Agent", {"description": "Map payment call sites"}, "c1", 180), result("c1", ago=179), *tasks[10:],
            call("checkout", "Read", {"file_path": "/Users/demo/shop-web/src/checkout/index.tsx"}, "c2", 20))
     subagents = os.path.join(os.path.dirname(transcript(home, "checkout")), IDS["checkout"], "subagents")
     moving = {transcript(home, "checkout"): ("claude-opus-5-5", "c2")}

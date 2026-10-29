@@ -70,6 +70,26 @@ final class BackgroundJobsTests: XCTestCase {
         // No description: the command names it.
         XCTAssertEqual(JobLines.read(JobLines.bash(description: nil, command: "npm run dev")).jobs.first?.name, "npm run dev")
     }
+    func testAShellThatServesOnAPortIsMarked() {
+        XCTAssertTrue(JobLines.read(JobLines.bash(description: "Start Next.js dev server", command: "cd site && npm run dev")).jobs[0].serves)
+        // By the command alone, too.
+        XCTAssertTrue(JobLines.read(JobLines.bash(description: nil, command: "python3 -m http.server 8000")).jobs[0].serves)
+        XCTAssertFalse(JobLines.read(JobLines.bash()).jobs[0].serves)
+        XCTAssertFalse(JobLines.read(JobLines.monitor()).jobs[0].serves)
+    }
+    func testTheServerWords() {
+        for words in ["npm run dev", "pnpm dev", "yarn start", "bun run preview", "npx next dev -p 3001", "next start",
+                      "npx vite", "vite --host", "npx serve out", "ng serve", "bundle exec jekyll serve", "uvicorn app:app --reload",
+                      "python manage.py runserver", "flask run", "rails s", "hugo server -D", "php -S localhost:8000",
+                      "docker compose up", "npx remotion studio", "npx storybook dev", "PORT=4000 node index.js",
+                      "node server.js --port 8080", "Start Next.js dev server", "Serve the docs site", "Start API server on port 8080"] {
+            XCTAssertTrue(BackgroundJobs.serves(words), words)
+        }
+        for words in ["npm run build", "npm test", "swift test", "vite build", "cat vite.config.ts", "cd server && npm run build",
+                      "Run server tests", "tsc --watch", "sleep 30", "python bench.py", "Run CadQuery benchmark", "npm run lint"] {
+            XCTAssertFalse(BackgroundJobs.serves(words), words)
+        }
+    }
     func testAMonitorStartsAJobWithItsCeiling() {
         let start = JobLines.date("2026-10-24T15:00:03.000Z")
         XCTAssertEqual(JobLines.read(JobLines.monitor()).jobs,

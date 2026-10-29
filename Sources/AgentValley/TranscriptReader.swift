@@ -5,6 +5,15 @@ enum AgentStatus: Equatable {
     case working, quiet, needsYou, done
 }
 
+/// One task of a session's task list, as Claude Code draws it under its spinner.
+struct TaskItem: Equatable {
+    let id: String
+    /// The model's own words: untrusted, and drawn verbatim.
+    var subject: String
+    var status: String
+    var done: Bool { status == "completed" }
+}
+
 /// A tool call the transcript has no result for yet.
 struct OpenTool: Equatable {
     let id: String
@@ -83,6 +92,18 @@ struct AgentInfo: Equatable {
     /// The session's sub-agents that Claude Code told this file wait on work of their own, by agent
     /// id, with when it said so. Claude Code wakes such an agent when that work ends.
     var waitingAgents: [String: Date] = [:]
+    /// The session's task list in the order the tasks were made, as TaskCreate, TaskUpdate and
+    /// TodoWrite wrote it.
+    var tasks: [TaskItem] = []
+    /// Changes what is given of a task, or adds it at the end while the list has room.
+    mutating func setTask(_ id: String, status: String? = nil, subject: String? = nil) {
+        if let i = tasks.firstIndex(where: { $0.id == id }) {
+            if let status { tasks[i].status = status }
+            if let subject { tasks[i].subject = subject }
+        } else if tasks.count < TranscriptReader.maxTasks {
+            tasks.append(TaskItem(id: id, subject: subject ?? "", status: status ?? "pending"))
+        }
+    }
 }
 
 /// Turns Claude Code transcript lines into `AgentInfo`. Never touches the disk or the clock.
@@ -96,6 +117,8 @@ enum TranscriptReader {
     /// A file keeps at most this many open tool calls; a call can lose its result to an interrupt.
     static let openToolLimit = 16
     static let closedToolLimit = 8
+    /// A session's task list holds at most this many ids.
+    static let maxTasks = 200
 
     /// Over a hundred times quicker than `ISO8601DateFormatter`, which took more of a first read
     /// than parsing the JSON did.
@@ -181,7 +204,14 @@ enum TranscriptReader {
         if let branch = object["gitBranch"] as? String, !branch.isEmpty { info.branch = branch == "HEAD" ? "" : clipped(branch) }
         if let entrypoint = object["entrypoint"] as? String, !entrypoint.isEmpty { info.entrypoint = entrypoint }
         guard type == "assistant", let message = object["message"] as? [String: Any] else {
-            if type == "user" { info.readJobs(in: object, at: date) }
+            if type == "user" {
+                info.readJobs(in: object, at: date)
+                // TaskCreate's id is known only from the result that follows it.
+                if let task = (object["toolUseResult"] as? [String: Any])?["task"] as? [String: Any], let id = task["id"] as? String,
+                   !info.tasks.contains(where: { $0.id == id }) {
+                    info.setTask(id, status: "pending", subject: clipped(task["subject"] as? String ?? ""))
+                }
+            }
             // A user line normally means work is about to start. The notice Claude Code writes when
             // the user presses Esc means it just stopped.
             info.turnEnded = type == "user" && isInterruptNotice(object["message"] as? [String: Any])
@@ -231,6 +261,19 @@ enum TranscriptReader {
                 if let id = block["id"] as? String, !id.isEmpty {
                     info.openTools.append(OpenTool(id: id, tool: tool, input: block["input"] as? NSDictionary ?? [:]))
                     info.openTools.removeFirst(max(0, info.openTools.count - openToolLimit))
+                }
+                let input = block["input"] as? [String: Any] ?? [:]
+                if tool == "TaskUpdate", let id = input["taskId"] as? String {
+                    let status = input["status"] as? String
+                    if status == "deleted" {
+                        info.tasks.removeAll { $0.id == id }
+                    } else if status != nil || input["subject"] is String {
+                        info.setTask(id, status: status, subject: (input["subject"] as? String).map { clipped($0) })
+                    }
+                } else if tool == "TodoWrite", let todos = input["todos"] as? [[String: Any]] {
+                    info.tasks = todos.prefix(maxTasks).enumerated().map { n, todo in
+                        TaskItem(id: "todo-\(n)", subject: clipped(todo["content"] as? String ?? ""), status: todo["status"] as? String ?? "pending")
+                    }
                 }
                 info.steps += 1
                 info.lastStep = stepLabel(tool: tool, input: block["input"] as? [String: Any] ?? [:])

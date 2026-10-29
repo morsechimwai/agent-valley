@@ -885,6 +885,8 @@ enum Format {
 
     /// The tail of a list of jobs that did not fit.
     static func moreJobs(_ count: Int) -> String { "+\(count) more" }
+    /// Not "N done": the book under the lead says that of its finished sub-agents.
+    static func tasksDone(_ count: Int) -> String { count == 1 ? "1 task done" : "\(count) tasks done" }
 
     /// The red badge beside "needs you": how long the row has waited, from the first second,
     /// on the clock a working row keeps. Nil for a row not waiting on the person.
@@ -1312,9 +1314,13 @@ struct PanelView: View {
                                     Mug(size: 18)
                                 }
                                 if !jobs.isEmpty {
-                                    JobScreen(size: 17, still: BackgroundJobs.resting(jobs, now: context.date))
-                                        .accessibilityElement(children: .ignore)
-                                        .accessibilityLabel(Text(verbatim: Format.jobsInBackground(jobs)))
+                                    // The server only when every job is one: a command beside them may be waited on.
+                                    let still = BackgroundJobs.resting(jobs, now: context.date)
+                                    Group {
+                                        if jobs.allSatisfy(\.serves) { JobServer(size: 17, still: still) } else { JobScreen(size: 17, still: still) }
+                                    }
+                                    .accessibilityElement(children: .ignore)
+                                    .accessibilityLabel(Text(verbatim: Format.jobsInBackground(jobs)))
                                 }
                             }
                         }
@@ -2965,6 +2971,7 @@ struct SessionCardView: View {
                             }
                             .foregroundStyle(main.asksInWords ? Color.white : Color.white.opacity(0.8))
                         }
+                        if let lines = card.taskLines { TaskList(lines: lines) }
                         if let main = card.main, hintRow == main.id {
                             Text(verbatim: Format.quietHint(main: true, calledBusy: main.calledBusy)).foregroundStyle(.white.opacity(0.6))
                                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
@@ -3150,6 +3157,7 @@ struct JobList: View {
                     HStack(spacing: 6) {
                         Group {
                             switch job.kind {
+                            case .shell where job.serves: JobServer(size: 14, still: long)
                             case .shell: JobScreen(size: 14, still: long)
                             case .monitor: JobEye(size: 14).opacity(dim)
                             }
@@ -3170,6 +3178,83 @@ struct JobList: View {
             // The clocks in line with the model's name, which keeps a place for the hide button.
             .padding(.trailing, reserveHide ? 8 + 18 : 0)
         }
+    }
+}
+
+/// What a card shows of its session's task list: all of a short one, as Claude Code draws it
+/// under its spinner, and of a long one the tasks left, with the done ones folded to a line.
+struct TaskLines: Equatable {
+    static let most = 5
+    /// Done tasks folded into one line: only on a list too long to show whole.
+    var folded = 0
+    var shown: [TaskItem] = []
+    /// Tasks left that found no room, said on a line of their own.
+    var more = 0
+    var lines: Int { (folded > 0 ? 1 : 0) + shown.count + (more > 0 ? 1 : 0) }
+
+    /// nil once every task is done, or with none: Claude Code puts its list away then too.
+    init?(_ tasks: [TaskItem]) {
+        guard tasks.contains(where: { !$0.done }) else { return nil }
+        guard tasks.count > Self.most else { shown = tasks; return }
+        let left = tasks.filter { !$0.done }
+        folded = tasks.count - left.count
+        let room = Self.most - (folded > 0 ? 1 : 0)
+        shown = left.count > room ? Array(left.prefix(room - 1)) : left
+        more = left.count - shown.count
+    }
+}
+
+extension SessionCard {
+    /// The lead's task list on its card. Not while it waits on the person: what it asks comes first.
+    var taskLines: TaskLines? {
+        guard let main, main.status != .needsYou else { return nil }
+        return TaskLines(main.info.tasks)
+    }
+}
+
+/// A task's mark, as Claude Code draws it: a tick when done, a filled square under way, an empty one to do.
+struct TaskMark: View {
+    let status: String
+
+    var body: some View {
+        let done = status == "completed"
+        let now = status == "in_progress"
+        Image(systemName: done ? "checkmark" : now ? "square.fill" : "square")
+            .font(.system(size: 9, weight: .bold))
+            .frame(width: 14, height: 14)
+            .accessibilityLabel(Text(verbatim: done ? "done" : now ? "under way" : "to do"))
+    }
+}
+
+/// The lead's task list under its step line, in Claude Code's marks: a tick, struck through, for
+/// a task done, a filled square for the one under way, an empty one for one to do.
+struct TaskList: View {
+    let lines: TaskLines
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CardStyle.line) {
+            if lines.folded > 0 { line(Format.tasksDone(lines.folded), status: "completed") }
+            ForEach(lines.shown, id: \.id) { task in
+                // verbatim: a task is the model's own words, never Markdown.
+                line(task.subject, status: task.status).help(Text(verbatim: task.subject))
+            }
+            if lines.more > 0 { Text(verbatim: Format.moreJobs(lines.more)).foregroundStyle(.white.opacity(0.6)) }
+        }
+        .font(CardStyle.aside)
+    }
+
+    private func line(_ text: String, status: String) -> some View {
+        let done = status == "completed"
+        let now = status == "in_progress"
+        return HStack(spacing: 6) {
+            TaskMark(status: status)
+            Text(verbatim: text).strikethrough(done).fontWeight(now ? .semibold : .regular).lineLimit(1)
+        }
+        // The one under way as bright as the name, the rest grey, the done ones fainter still.
+        .foregroundStyle(.white.opacity(done ? 0.4 : now ? 1 : 0.6))
+        .accessibilityElement(children: .combine)
+        // The tick came through as "selected": the line already says "done".
+        .accessibilityRemoveTraits(.isSelected)
     }
 }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.22 — 2026-10-29
+
+- A lead's card shows its task list under the step it is on, in Claude Code's own marks: a tick for done, a filled square for the one under way, an empty square for what is left. A list longer than five folds its done tasks into one line, like "3 tasks done", and ends with "+2 more". The list goes once every task is done, and while the agent waits on you.
+- A background job that serves on a port, like `npm run dev` or `python3 -m http.server 8000`, shows a small server sending out waves instead of the green screen. Other commands keep the screen. When every job left running is a server, the bar shows the server too. The ? legend has the server and the three task marks.
+
 ## 0.3.21 — 2026-10-28
 
 - The envelope is a green book now. When a sub-agent finishes, the book on its lead's row says how many are new, like "2 done 1 new". Click the book to open it: each sub-agent that handed something back is a document named after its task, like fix-tax-rounding.md, with who wrote it, how long ago and its first two lines. Read all shows what it was asked and everything it handed back. Shut the book and they all fold away.

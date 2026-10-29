@@ -109,6 +109,78 @@ struct JobScreen: View {
     }
 }
 
+/// A small server rack sending waves out, in place of the terminal for a shell that serves on a
+/// port: open for visitors, not work anyone waits on. The first frame shows both waves, so the
+/// still one and Reduce Motion's still say it too.
+struct JobServer: View {
+    var size: CGFloat = 17
+    var still = false
+
+    static let frames: [[String]] = [
+        [
+            "............",
+            "............",
+            ".vvvvv..g...",
+            ".vddgv...g..",
+            ".vvvvv.g..g.",
+            ".vddgv..g.g.",
+            ".vvvvv..g.g.",
+            ".vddgv.g..g.",
+            ".vvvvv...g..",
+            "..d.d...g...",
+            "............",
+            "............",
+        ],
+        [
+            "............",
+            "............",
+            ".vvvvv..Q...",
+            ".vddgv...Q..",
+            ".vvvvv....Q.",
+            ".vddgv....Q.",
+            ".vvvvv....Q.",
+            ".vddgv....Q.",
+            ".vvvvv...Q..",
+            "..d.d...Q...",
+            "............",
+            "............",
+        ],
+        [
+            "............",
+            "............",
+            ".vvvvv......",
+            ".vddgv......",
+            ".vvvvv......",
+            ".vddgv......",
+            ".vvvvv......",
+            ".vddgv......",
+            ".vvvvv......",
+            "..d.d.......",
+            "............",
+            "............",
+        ],
+        [
+            "............",
+            "............",
+            ".vvvvv......",
+            ".vddgv......",
+            ".vvvvv.g....",
+            ".vddgv..g...",
+            ".vvvvv..g...",
+            ".vddgv.g....",
+            ".vvvvv......",
+            "..d.d.......",
+            "............",
+            "............",
+        ],
+    ]
+
+    var body: some View {
+        Flipbook(frames: still ? [Self.frames[0]] : Self.frames, colour: JobScreen.colour, size: size)
+            .opacity(still ? 0.5 : 1)
+    }
+}
+
 /// A watching eye, the icon of a `Monitor` job on a session card.
 struct JobEye: View {
     var size: CGFloat = 14

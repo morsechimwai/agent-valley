@@ -263,6 +263,20 @@ final class MascotTests: XCTestCase {
         for cell: Character in ["v", "e", "g", "d"] { XCTAssertEqual(JobScreen.hex(cell), Person.guru.hex(cell), "\(cell)") }
     }
 
+    func testTheServerSendsWavesAndHoldsTheRackStill() {
+        for frame in JobServer.frames {
+            XCTAssertEqual(frame.count, 12)
+            for row in frame {
+                XCTAssertEqual(row.count, 12)
+                for cell in row where cell != "." { XCTAssertNotNil(JobScreen.colour(cell), "\(cell)") }
+            }
+            // The rack is the left six columns, the same in every frame.
+            XCTAssertEqual(frame.map { $0.prefix(6) }, JobServer.frames[0].map { $0.prefix(6) })
+        }
+        // The first frame, the still one, shows both waves: three lights, four and eight cells of wave.
+        XCTAssertEqual(JobServer.frames[0].joined().filter { $0 == "g" }.count, 3 + 4 + 8)
+    }
+
     func testTheEyeIsTwelveCellsSquare() {
         XCTAssertEqual(JobEye.cells.count, 12)
         XCTAssertTrue(JobEye.cells.allSatisfy { $0.count == 12 })

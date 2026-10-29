@@ -19,6 +19,69 @@ final class TranscriptReaderTests: XCTestCase {
         return formatter.date(from: stamp)!
     }
 
+    private func create(_ n: Int, _ subject: String = "s") -> [String] {
+        [#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"c\#(n)","name":"TaskCreate","input":{"subject":"\#(subject)","description":"d"}}]}}"#,
+         #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"c\#(n)","content":"ok"}]},"toolUseResult":{"task":{"id":"\#(n)","subject":"\#(subject)"}}}"#]
+    }
+
+    private func update(_ id: String, _ status: String) -> String {
+        #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"u\#(id)\#(status)","name":"TaskUpdate","input":{"taskId":"\#(id)","status":"\#(status)"}}]}}"#
+    }
+
+    private func todos(_ json: String) -> String {
+        #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"w","name":"TodoWrite","input":{"todos":\#(json)}}]}}"#
+    }
+
+    /// Done and all.
+    private func done(_ info: AgentInfo) -> [Int] { [info.tasks.filter(\.done).count, info.tasks.count] }
+
+    private func apply(_ lines: [String], to info: inout AgentInfo) {
+        for line in lines { TranscriptReader.apply(line: Data(line.utf8), to: &info) }
+    }
+
+    func testTaskCreateAndUpdateCountProgress() {
+        var info = AgentInfo()
+        apply(create(1) + create(2) + create(3) + [update("1", "completed"), update("2", "in_progress")], to: &info)
+        XCTAssertEqual(done(info), [1, 3])
+        apply([update("3", "deleted")], to: &info)
+        XCTAssertEqual(done(info), [1, 2])
+    }
+
+    func testTheTaskListKeepsWhatEachTaskIsInOrder() {
+        var info = AgentInfo()
+        apply(create(1, "Map the call sites") + create(2, "Plan the fix") + [update("2", "in_progress")], to: &info)
+        XCTAssertEqual(info.tasks, [TaskItem(id: "1", subject: "Map the call sites", status: "pending"),
+                                    TaskItem(id: "2", subject: "Plan the fix", status: "in_progress")])
+        // A task renamed keeps its status and its place.
+        apply([#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"r1","name":"TaskUpdate","input":{"taskId":"1","subject":"Map every call site"}}]}}"#], to: &info)
+        XCTAssertEqual(info.tasks.first, TaskItem(id: "1", subject: "Map every call site", status: "pending"))
+        apply([todos(#"[{"content":"a","status":"completed"},{"content":"b","status":"in_progress"}]"#)], to: &info)
+        XCTAssertEqual(info.tasks.map(\.subject), ["a", "b"])
+        XCTAssertEqual(info.tasks.map(\.status), ["completed", "in_progress"])
+    }
+
+    func testTodoWriteReplacesTheList() {
+        var info = AgentInfo()
+        apply([todos(#"[{"content":"a","status":"completed"},{"content":"b","status":"in_progress"},{"content":"c","status":"pending"}]"#)], to: &info)
+        XCTAssertEqual(done(info), [1, 3])
+        apply([todos("[]")], to: &info)
+        XCTAssertTrue(info.tasks.isEmpty)
+    }
+
+    func testOddTaskInputStaysBounded() {
+        var info = AgentInfo()
+        apply([update("9", "completed")], to: &info)
+        XCTAssertEqual(done(info), [1, 1])
+        apply([update("8", "blocked")], to: &info)
+        XCTAssertEqual(done(info), [1, 2])
+        apply([todos(#""x""#)], to: &info)
+        XCTAssertEqual(done(info), [1, 2])
+        var many = AgentInfo()
+        for n in 1...300 { apply(create(n), to: &many) }
+        XCTAssertEqual(many.tasks.count, 200)
+        XCTAssertEqual(TranscriptReader.maxTasks, 200)
+    }
+
     // A call that waits on the person says what it asks, not the name of the tool that asks it.
     func testAStepThatAsksThePersonSaysWhatItAsks() {
         let input: [String: Any] = ["questions": [["question": "Which rounding rule\nshould totals use?", "options": [String]()], ["question": "And the second?"]]]
