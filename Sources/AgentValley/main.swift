@@ -67,7 +67,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // On the next turn: the published value is set only after the sink is told.
             settings.$heardFrom
                 .receive(on: RunLoop.main)
-                .sink { [dailyCount] _ in dailyCount.sendHeard() }
+                .sink { [dailyCount] _ in dailyCount.sendHeard(); dailyCount.sendRating() }
+                .store(in: &watches)
+            // The same for the stars, or a final skip of the rating.
+            settings.$rating
+                .receive(on: RunLoop.main)
+                .sink { [dailyCount] _ in dailyCount.sendRating() }
                 .store(in: &watches)
         }
         wireSending()

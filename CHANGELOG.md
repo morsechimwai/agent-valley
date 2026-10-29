@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.24 — 2026-10-29
+
+- Skip on "where did you hear about us?" puts the question away for a week, not for good. It asks once more, and then your answer, or that you skipped again, goes out once, the same way as the daily count: the answer, the app's version and whether it came on the second ask. A Skip pressed in 0.3.23 stays as it was: nothing goes out, and the question doesn't come back.
+- A week after that question is done, the panel asks how we're doing, in one to five stars. The stars go out once, the same way: the stars, the app's version and whether it came on the second ask. Skip works the same: once more a week later, then the skip goes out instead. After a star, Write a few words opens a page on agentvalley.app for a review for our site; what you write there leaves only when you send it from that page.
+- Both show, and send, only while Send a daily count is on in About.
+
 ## 0.3.23 — 2026-10-29
 
 - The panel asks one thing, once: where you heard about us. Pick Product Hunt, Facebook, X, Bluesky, Reddit, GitHub, Google, A friend or Other, or press Skip. A pick goes out once, the same way as the daily count: the answer and the app's version, nothing else. Skip sends nothing. Either way the question is gone for good. It only shows while Send a daily count is on in About.

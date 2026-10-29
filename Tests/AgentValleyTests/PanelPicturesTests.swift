@@ -611,6 +611,14 @@ final class PanelPicturesTests: XCTestCase {
             settings.heardFrom = "Facebook"
             picture("answered")
             spoken("answered")
+            // A week on, the stars; a star pressed, the follow-up.
+            settings.ratingClockAt = Date().addingTimeInterval(-8 * 86_400)
+            picture("stars")
+            spoken("stars")
+            click(atTopLeftOffset: CGPoint(x: 142, y: 119))
+            XCTAssertEqual(settings.rating, 4)
+            picture("followup")
+            spoken("followup")
         case "tokens":
             // The sessions put away, so that the line at the foot of the list is in sight.
             for card in store.sessions { state.hidden[card.id] = Date() }

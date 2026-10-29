@@ -201,10 +201,42 @@ final class Settings: ObservableObject {
         didSet { defaults.set(heardFrom, forKey: Key.heardFrom) }
     }
 
+    /// When the person first skipped the question; it comes back a week later.
+    @Published var heardSkippedAt: Date? {
+        didSet { defaults.set(heardSkippedAt, forKey: Key.heardSkippedAt) }
+    }
+
     /// Whether that answer has gone out.
     var heardSent: Bool {
         get { defaults.bool(forKey: Key.heardSent) }
         set { defaults.set(newValue, forKey: Key.heardSent) }
+    }
+
+    /// When the heard box was first seen done; the rating asks a week after.
+    var ratingClockAt: Date? {
+        get { defaults.object(forKey: Key.ratingClockAt) as? Date }
+        set { defaults.set(newValue, forKey: Key.ratingClockAt) }
+    }
+
+    /// Starts that week, once, as soon as the heard box is done.
+    func startRatingClock(now: Date = Date()) {
+        if ratingClockAt == nil, heardFrom != nil { ratingClockAt = now }
+    }
+
+    /// The stars (1 to 5), or `AppRating.skipped`; nil while the panel still asks.
+    @Published var rating: Int? {
+        didSet { defaults.set(rating, forKey: Key.rating) }
+    }
+
+    /// When the person first skipped the rating; it comes back a week later.
+    @Published var ratingSkippedAt: Date? {
+        didSet { defaults.set(ratingSkippedAt, forKey: Key.ratingSkippedAt) }
+    }
+
+    /// Whether the rating has gone out.
+    var ratingSent: Bool {
+        get { defaults.bool(forKey: Key.ratingSent) }
+        set { defaults.set(newValue, forKey: Key.ratingSent) }
     }
 
     private let defaults: UserDefaults
@@ -253,6 +285,9 @@ final class Settings: ObservableObject {
         display = defaults.string(forKey: Key.display) ?? DisplayChoice.automatic.id
         dailyCount = defaults.object(forKey: Key.dailyCount) as? Bool ?? true
         heardFrom = defaults.string(forKey: Key.heardFrom)
+        heardSkippedAt = defaults.object(forKey: Key.heardSkippedAt) as? Date
+        rating = defaults.object(forKey: Key.rating) as? Int
+        ratingSkippedAt = defaults.object(forKey: Key.ratingSkippedAt) as? Date
         crewNames = defaults.object(forKey: Key.crewNames) as? Bool ?? true
     }
 
@@ -296,6 +331,11 @@ final class Settings: ObservableObject {
         static let dailyCount = "dailyCount"
         static let countedAt = "countedAt"
         static let heardFrom = "heardFrom"
+        static let heardSkippedAt = "heardSkippedAt"
         static let heardSent = "heardSent"
+        static let ratingClockAt = "ratingClockAt"
+        static let rating = "rating"
+        static let ratingSkippedAt = "ratingSkippedAt"
+        static let ratingSent = "ratingSent"
     }
 }

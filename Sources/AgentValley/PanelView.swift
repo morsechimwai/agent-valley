@@ -666,10 +666,15 @@ enum Format {
     static let updatesTitle = "Check for updates"
     static let updatesCaption = "Once an hour we look on GitHub. Nothing gets installed until you say so."
     static let dailyCountTitle = "Send a daily count"
-    static let dailyCountCaption = "Once a day: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. It's how we know anyone's out there. If you tell the panel where you heard about us, that goes once too."
+    static let dailyCountCaption = "Once a day: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. It's how we know anyone's out there. If you tell the panel where you heard about us, or how we're doing, that goes once too."
     static let heardQuestion = "Quick one from the crew: where did you hear about us?"
     static let heardThanks = "Thanks. Back to work."
     static let heardSkip = "Skip"
+    static let ratingQuestion = "One week with the crew. How are we doing?"
+    static let ratingThanks = "Thanks. A few words for our site?"
+    static let ratingWrite = "Write a few words"
+    static let ratingNo = "No thanks"
+    static func starsLabel(_ n: Int) -> String { n == 1 ? "1 star" : "\(n) stars" }
     static let checkNow = "Check now"
     static func updateWaiting(version: String) -> String { "Version \(version) came in." }
     static let updateLook = "Have a look"
@@ -962,6 +967,8 @@ struct PanelView: View {
     @State private var keyNote: KeyNote?
     /// An answer to where the person heard about us was just picked: the box says thanks a moment.
     @State private var heardThanks = false
+    /// A star was just pressed: the rating box asks for a few words, until a button or the panel closes.
+    @State private var ratedStars: Int?
     /// Where each request sits in the list, as last laid out. Outside the view's state on
     /// purpose: it changes on every scrolled frame, and nothing is drawn from it.
     @State private var spans = RequestSpans()
@@ -1726,6 +1733,7 @@ struct PanelView: View {
                 // Shut, the list goes back to its top, so that every opening starts from the
                 // same place. Not a page: a pointer that strayed finds it as it was.
                 .onChange(of: state.expanded) { _, open in
+                    if !open { ratedStars = nil }
                     guard !open, !state.showingPage else { return }
                     // Once it has stayed shut, as above.
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -1775,13 +1783,17 @@ struct PanelView: View {
             ? AgentStore.projectHeaders(of: list.cards).mapValues(Format.projectHeader)
             : AgentStore.headers(of: list.cards, by: settings.grouping).mapValues(Format.groupHeader)
         // The question of where the person heard about us, over the list until it is answered.
-        let asking = HeardFrom.asks(release: updates.isAvailable, counting: settings.dailyCount, answer: settings.heardFrom) || heardThanks
+        let asking = HeardFrom.asks(release: updates.isAvailable, counting: settings.dailyCount, answer: settings.heardFrom,
+                                  skippedAt: settings.heardSkippedAt, now: Date()) || heardThanks
+        let rating = AppRating.asks(release: updates.isAvailable, counting: settings.dailyCount, heardDone: settings.heardFrom != nil,
+                                    clockAt: settings.ratingClockAt, rating: settings.rating, skippedAt: settings.ratingSkippedAt,
+                                    now: Date()) || ratedStars != nil
         // The lines under the list, which take room from it.
         let under = ListFit.under(idle: !list.folded.isEmpty, hidden: putAway.count, plain: [
             settings.tokenUse && usage.summary.map { !$0.isEmpty } ?? false, answers.pluginLost, updates.oldCopyLeft, updates.waiting != nil,
             // The line about the keys sits over the list, not under it, but takes as much room.
             state.keyboard,
-        ].filter { $0 }.count + (asking ? HeardBox.lines : 0))
+        ].filter { $0 }.count + (asking ? HeardBox.lines : 0) + (rating ? RatingBox.lines : 0))
         // Sessions drawn as one line, so the list fits the panel without a scroll.
         let folded = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
         let showsDone = bookOpen
@@ -1805,7 +1817,21 @@ struct PanelView: View {
                     // A moment to say thanks, then the box goes for good.
                     heardThanks = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { heardThanks = false }
-                }, skip: { settings.heardFrom = HeardFrom.skipped })
+                }, skip: {
+                    if settings.heardSkippedAt == nil { settings.heardSkippedAt = Date() } else { settings.heardFrom = HeardFrom.skipped }
+                })
+                .modifier(Reveal(shown: state.expanded, index: 0, motion: motion))
+            }
+            if rating {
+                RatingBox(stars: ratedStars, pick: { stars in
+                    settings.rating = stars
+                    ratedStars = stars
+                }, write: {
+                    if let stars = ratedStars { NSWorkspace.shared.open(AppRating.reviewURL(stars: stars)) }
+                    ratedStars = nil
+                }, decline: { ratedStars = nil }, skip: {
+                    if settings.ratingSkippedAt == nil { settings.ratingSkippedAt = Date() } else { settings.rating = AppRating.skipped }
+                })
                 .modifier(Reveal(shown: state.expanded, index: 0, motion: motion))
             }
             if state.introducing {
@@ -2565,6 +2591,56 @@ struct HeardBox: View {
                             Button { pick(choice) } label: { Text(verbatim: choice).panelButton() }
                                 .buttonStyle(.plain)
                         }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// How we are doing, in five stars, a week after the heard box. A star sends it; the box then
+/// asks for a few words on the site.
+struct RatingBox: View {
+    /// The question and the row of stars.
+    static let lines = 2
+    /// Set once a star was pressed: the box asks for words instead.
+    let stars: Int?
+    let pick: (Int) -> Void
+    let write: () -> Void
+    let decline: () -> Void
+    let skip: () -> Void
+    @State private var hover = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if stars != nil {
+                Text(verbatim: Format.ratingThanks).foregroundStyle(.white.opacity(0.6))
+                HStack(spacing: 6) {
+                    Button(action: write) { Text(verbatim: Format.ratingWrite).panelButton() }.buttonStyle(.plain)
+                    Button(action: decline) { Text(verbatim: Format.ratingNo).panelButton() }.buttonStyle(.plain)
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(verbatim: Format.ratingQuestion).foregroundStyle(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(Format.heardSkip, action: skip)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                HStack(spacing: 4) {
+                    ForEach(1...5, id: \.self) { n in
+                        Button { pick(n) } label: {
+                            Image(systemName: n <= hover ? "star.fill" : "star").font(.system(size: 15))
+                                .foregroundStyle(n <= hover ? Color(red: 1, green: 0.839, blue: 0.039) : .white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { inside in hover = inside ? n : (hover == n ? 0 : hover) }
+                        .accessibilityLabel(Text(verbatim: Format.starsLabel(n)))
                     }
                 }
             }

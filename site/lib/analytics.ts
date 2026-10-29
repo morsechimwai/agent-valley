@@ -8,7 +8,7 @@ import type { PostHog } from 'posthog-js';
 // ponytail: memory persistence over-counts people who reload; fine for one page.
 
 // The project's public key: it can only send events, never read them.
-const TOKEN = 'phc_BW9fdvDdnyfQmKArTiTCJnQdBwXEFqi7LALhqcYQpAqb'; // gitleaks:allow
+export const TOKEN = 'phc_BW9fdvDdnyfQmKArTiTCJnQdBwXEFqi7LALhqcYQpAqb'; // gitleaks:allow
 
 let posthog: Promise<PostHog> | undefined;
 

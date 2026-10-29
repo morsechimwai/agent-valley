@@ -5,7 +5,7 @@ import { Nav } from '@/components/sections/nav';
 const PAGE = 'https://agentvalley.app/privacy/';
 const TITLE = 'Privacy · AgentValley';
 const DESCRIPTION =
-  'What AgentValley and agentvalley.app collect: the app sends one anonymous count a day, the site counts visits without cookies, and your email is used only for release news.';
+  'What AgentValley and agentvalley.app collect: the app sends one anonymous count a day, the site counts visits without cookies, your email is used only for release news, and a review keeps the name you put on it.';
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -27,7 +27,7 @@ export default function Privacy() {
         <article className="grid max-w-[68ch] gap-12 [&_h2]:mb-4 [&_li]:mt-2 [&_p+p]:mt-4 [&_ul]:list-disc [&_ul]:pl-5">
           <header className="grid gap-4">
             <h1>Privacy</h1>
-            <p className="lead">The app sends us one anonymous count a day, and you can turn it off. The website counts visits without cookies, and keeps your email only if you ask for news.</p>
+            <p className="lead">The app sends us one anonymous count a day, and you can turn it off. The website counts visits without cookies, keeps your email only if you ask for news, and keeps a review with the name you put on it.</p>
             <p className="font-mono text-sm text-muted-foreground">Last changed October 29, 2026</p>
           </header>
 
@@ -52,8 +52,12 @@ export default function Privacy() {
                 macOS version, and whether this is the Mac&apos;s first count. Nothing else: no name, no ID that ties one
                 day to the next, nothing about your sessions, projects or code. It goes through agentvalley.app to
                 PostHog, which works out the country from your IP address and then drops the address. Once, the panel
-                also asks where you heard about us. If you pick an answer, the same way sends that answer and the app
-                version, one time. Skip sends nothing. You can turn it all off in Settings, About.
+                also asks where you heard about us, and if you skip, once more a week later. The same way then sends your
+                answer, or that you skipped, with the app version, one time. You can turn it all off in Settings, About.
+              </li>
+              <li>
+                A rating, if you give one. A week after that question the panel asks for one to five stars. The stars you
+                press go the same way as the daily count, with the app version, and the same switch turns them off.
               </li>
               <li>
                 Plan limits, only if you turn it on. The app reads your Claude Code login from the Keychain and sends it to
@@ -86,6 +90,17 @@ export default function Privacy() {
             <p>
               The Product Hunt badge on the home page is loaded from Product Hunt, so they see your IP address too.
               Everything else, fonts and videos included, comes from this site.
+            </p>
+          </section>
+
+          <section>
+            <h2>Reviews</h2>
+            <p>
+              After a star press the app offers &ldquo;Write a few words&rdquo;, which opens the review page here. If you send
+              one, we get your stars, your words and whether you ticked the box that lets us show it. Only if you ticked it,
+              we also get your name and your GitHub or X name if you gave it. It goes through agentvalley.app to PostHog. We put a review on the site only if you ticked
+              that box, and only the ones we pick. To have one taken down or deleted, write to{' '}
+              <a href="mailto:hello@agentvalley.app">hello@agentvalley.app</a>.
             </p>
           </section>
 

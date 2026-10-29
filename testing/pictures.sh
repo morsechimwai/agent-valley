@@ -19,7 +19,8 @@
 #     reader    what a screen reader is told: open, with the ring, in the settings, and shut
 #     oldcopy   the line and the settings when Homebrew left our 0.1 installed
 #     update    a new version came in: the green dot on the gear, the About tab and its line
-#     heard     a release asks where you heard about us, over the list, then answered
+#     heard     a release asks where you heard about us, over the list, then answered, a week on the stars,
+#               and the ask for a few words after a star
 #     tokens    the token line at the foot of the list, and what a screen reader is told of it
 #     history          the History page in the panel over a made-up month
 #     history-project  the same, one project deep
