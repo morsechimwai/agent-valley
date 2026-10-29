@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.23 — 2026-10-29
+
+- The panel asks one thing, once: where you heard about us. Pick Product Hunt, Facebook, X, Bluesky, Reddit, GitHub, Google, A friend or Other, or press Skip. A pick goes out once, the same way as the daily count: the answer and the app's version, nothing else. Skip sends nothing. Either way the question is gone for good. It only shows while Send a daily count is on in About.
+
 ## 0.3.22 — 2026-10-29
 
 - A lead's card shows its task list under the step it is on, in Claude Code's own marks: a tick for done, a filled square for the one under way, an empty square for what is left. A list longer than five folds its done tasks into one line, like "3 tasks done", and ends with "+2 more". The list goes once every task is done, and while the agent waits on you.

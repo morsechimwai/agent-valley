@@ -28,7 +28,7 @@ export default function Privacy() {
           <header className="grid gap-4">
             <h1>Privacy</h1>
             <p className="lead">The app sends us one anonymous count a day, and you can turn it off. The website counts visits without cookies, and keeps your email only if you ask for news.</p>
-            <p className="font-mono text-sm text-muted-foreground">Last changed October 27, 2026</p>
+            <p className="font-mono text-sm text-muted-foreground">Last changed October 29, 2026</p>
           </header>
 
           <section>
@@ -51,8 +51,9 @@ export default function Privacy() {
                 A daily count, so we know how many Macs run the app. Once a day it tells us it ran: the app version, the
                 macOS version, and whether this is the Mac&apos;s first count. Nothing else: no name, no ID that ties one
                 day to the next, nothing about your sessions, projects or code. It goes through agentvalley.app to
-                PostHog, which works out the country from your IP address and then drops the address. You can turn it
-                off in Settings, About.
+                PostHog, which works out the country from your IP address and then drops the address. Once, the panel
+                also asks where you heard about us. If you pick an answer, the same way sends that answer and the app
+                version, one time. Skip sends nothing. You can turn it all off in Settings, About.
               </li>
               <li>
                 Plan limits, only if you turn it on. The app reads your Claude Code login from the Keychain and sends it to

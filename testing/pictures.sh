@@ -19,6 +19,7 @@
 #     reader    what a screen reader is told: open, with the ring, in the settings, and shut
 #     oldcopy   the line and the settings when Homebrew left our 0.1 installed
 #     update    a new version came in: the green dot on the gear, the About tab and its line
+#     heard     a release asks where you heard about us, over the list, then answered
 #     tokens    the token line at the foot of the list, and what a screen reader is told of it
 #     history          the History page in the panel over a made-up month
 #     history-project  the same, one project deep
@@ -34,7 +35,7 @@ ROOT="/Users/Shared/pt"
 FAKE_HOME="$ROOT/pictures"
 OUT="$PWD/build/pictures"
 SCENES=("$@")
-[ ${#SCENES[@]} -gt 0 ] || SCENES=(list roomy handback crew status keys idle intro legend settings request reader oldcopy update tokens history history-project fishing fishing-week away)
+[ ${#SCENES[@]} -gt 0 ] || SCENES=(list roomy handback crew status keys idle intro legend settings request reader oldcopy update heard tokens history history-project fishing fishing-week away)
 
 # Every account on this Mac can write to /Users/Shared, so ROOT has to be this user's own
 # folder, closed to the others, before anything under it is removed: were it a link someone

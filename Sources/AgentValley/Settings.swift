@@ -196,6 +196,17 @@ final class Settings: ObservableObject {
         set { defaults.set(newValue, forKey: Key.countedAt) }
     }
 
+    /// Where the person heard about us, or `HeardFrom.skipped`; nil while the panel still asks.
+    @Published var heardFrom: String? {
+        didSet { defaults.set(heardFrom, forKey: Key.heardFrom) }
+    }
+
+    /// Whether that answer has gone out.
+    var heardSent: Bool {
+        get { defaults.bool(forKey: Key.heardSent) }
+        set { defaults.set(newValue, forKey: Key.heardSent) }
+    }
+
     private let defaults: UserDefaults
 
     /// True until `markLaunched`: the app has never run on this Mac.
@@ -241,6 +252,7 @@ final class Settings: ObservableObject {
         tokenUse = defaults.object(forKey: Key.tokenUse) as? Bool ?? true
         display = defaults.string(forKey: Key.display) ?? DisplayChoice.automatic.id
         dailyCount = defaults.object(forKey: Key.dailyCount) as? Bool ?? true
+        heardFrom = defaults.string(forKey: Key.heardFrom)
         crewNames = defaults.object(forKey: Key.crewNames) as? Bool ?? true
     }
 
@@ -283,5 +295,7 @@ final class Settings: ObservableObject {
         static let loginItemPath = "loginItemPath"
         static let dailyCount = "dailyCount"
         static let countedAt = "countedAt"
+        static let heardFrom = "heardFrom"
+        static let heardSent = "heardSent"
     }
 }

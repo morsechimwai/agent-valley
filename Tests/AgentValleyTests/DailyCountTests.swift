@@ -30,6 +30,52 @@ final class DailyCountTests: XCTestCase {
         XCTAssertNotEqual(id(request), id(again))
     }
 
+    // Where the person heard about us goes out once: the answer and the version, nothing else.
+    func testTheHeardAnswerCarriesOnlyTheAnswerAndVersion() throws {
+        let request = DailyCount.heardRequest(answer: "Facebook", version: "0.3.23")
+        XCTAssertEqual(request.url?.absoluteString, "https://agentvalley.app/ingest/i/v0/e/")
+        XCTAssertEqual(request.httpMethod, "POST")
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any])
+        XCTAssertEqual(Set(body.keys), ["api_key", "event", "distinct_id", "properties"])
+        XCTAssertEqual(body["event"] as? String, "app heard from")
+        let properties = try XCTUnwrap(body["properties"] as? [String: Any])
+        XCTAssertEqual(Set(properties.keys), ["answer", "version", "$process_person_profile"])
+        XCTAssertEqual(properties["answer"] as? String, "Facebook")
+        XCTAssertEqual(properties["version"] as? String, "0.3.23")
+        XCTAssertEqual(properties["$process_person_profile"] as? Bool, false)
+    }
+
+    // Asked by a release that counts, until it has an answer or a skip. A build to work on the
+    // app sends nothing, and with the daily count off the person has said no to sending us anything.
+    func testAskedOnlyByAReleaseThatCountsAndOnlyOnce() {
+        XCTAssertTrue(HeardFrom.asks(release: true, counting: true, answer: nil))
+        XCTAssertFalse(HeardFrom.asks(release: false, counting: true, answer: nil))
+        XCTAssertFalse(HeardFrom.asks(release: true, counting: false, answer: nil))
+        XCTAssertFalse(HeardFrom.asks(release: true, counting: true, answer: "X"))
+        XCTAssertFalse(HeardFrom.asks(release: true, counting: true, answer: HeardFrom.skipped))
+    }
+
+    func testAPickedAnswerWaitsToGoOutAndASkipNeverDoes() {
+        XCTAssertFalse(HeardFrom.due(answer: nil, sent: false))
+        XCTAssertTrue(HeardFrom.due(answer: "Reddit", sent: false))
+        XCTAssertFalse(HeardFrom.due(answer: "Reddit", sent: true))
+        XCTAssertFalse(HeardFrom.due(answer: HeardFrom.skipped, sent: false))
+    }
+
+    func testRemembersTheAnswerAndWhetherItWent() {
+        let suite = "DailyCountTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = Settings(defaults: defaults)
+        XCTAssertNil(settings.heardFrom)
+        XCTAssertFalse(settings.heardSent)
+        settings.heardFrom = "Google"
+        settings.heardSent = true
+        let again = Settings(defaults: defaults)
+        XCTAssertEqual(again.heardFrom, "Google")
+        XCTAssertTrue(again.heardSent)
+    }
+
     func testOnFromTheStartAndRemembersTheSwitch() {
         let suite = "DailyCountTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

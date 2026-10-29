@@ -271,7 +271,7 @@ final class PanelPicturesTests: XCTestCase {
             : scene.hasPrefix("history") ? try madeUpLedger(in: home + "/history")
             : UsageLedger(root: root, database: URL(fileURLWithPath: home + "/history.sqlite"))
         // For the update scene, a release's: its About page has the Updates box. Never started.
-        let updates = scene == "update" ? Updates(info: ["SUFeedURL": "https://example.invalid/appcast.xml", "SUPublicEDKey": "k"], starts: false)
+        let updates = scene == "update" || scene == "heard" ? Updates(info: ["SUFeedURL": "https://example.invalid/appcast.xml", "SUPublicEDKey": "k"], starts: false)
             : Updates(info: [:])
         // For the fishing scenes, a plan limit that has run out: the 5-hour one, or the weekly one.
         // Their signs' pictures from the repo: here there is no app bundle to find them in.
@@ -603,6 +603,14 @@ final class PanelPicturesTests: XCTestCase {
             // Looked at: every dot goes.
             updates.waiting = nil
             picture("about-looked")
+        case "heard":
+            // A release that counts asks once where the person heard about us. Answered, it goes.
+            open()
+            picture("ask")
+            spoken("ask")
+            settings.heardFrom = "Facebook"
+            picture("answered")
+            spoken("answered")
         case "tokens":
             // The sessions put away, so that the line at the foot of the list is in sight.
             for card in store.sessions { state.hidden[card.id] = Date() }

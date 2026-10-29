@@ -666,7 +666,10 @@ enum Format {
     static let updatesTitle = "Check for updates"
     static let updatesCaption = "Once an hour we look on GitHub. Nothing gets installed until you say so."
     static let dailyCountTitle = "Send a daily count"
-    static let dailyCountCaption = "Once a day: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. It's how we know anyone's out there."
+    static let dailyCountCaption = "Once a day: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. It's how we know anyone's out there. If you tell the panel where you heard about us, that goes once too."
+    static let heardQuestion = "Quick one from the crew: where did you hear about us?"
+    static let heardThanks = "Thanks. Back to work."
+    static let heardSkip = "Skip"
     static let checkNow = "Check now"
     static func updateWaiting(version: String) -> String { "Version \(version) came in." }
     static let updateLook = "Have a look"
@@ -957,6 +960,8 @@ struct PanelView: View {
     @State private var scrollTarget: ScrollTarget?
     /// A key that was pressed to answer and did not count, for the request it was meant for.
     @State private var keyNote: KeyNote?
+    /// An answer to where the person heard about us was just picked: the box says thanks a moment.
+    @State private var heardThanks = false
     /// Where each request sits in the list, as last laid out. Outside the view's state on
     /// purpose: it changes on every scrolled frame, and nothing is drawn from it.
     @State private var spans = RequestSpans()
@@ -1769,12 +1774,14 @@ struct PanelView: View {
         let headers: [String: String] = !grouped ? [:] : byProject
             ? AgentStore.projectHeaders(of: list.cards).mapValues(Format.projectHeader)
             : AgentStore.headers(of: list.cards, by: settings.grouping).mapValues(Format.groupHeader)
+        // The question of where the person heard about us, over the list until it is answered.
+        let asking = HeardFrom.asks(release: updates.isAvailable, counting: settings.dailyCount, answer: settings.heardFrom) || heardThanks
         // The lines under the list, which take room from it.
         let under = ListFit.under(idle: !list.folded.isEmpty, hidden: putAway.count, plain: [
             settings.tokenUse && usage.summary.map { !$0.isEmpty } ?? false, answers.pluginLost, updates.oldCopyLeft, updates.waiting != nil,
             // The line about the keys sits over the list, not under it, but takes as much room.
             state.keyboard,
-        ].filter { $0 }.count)
+        ].filter { $0 }.count + (asking ? HeardBox.lines : 0))
         // Sessions drawn as one line, so the list fits the panel without a scroll.
         let folded = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
         let showsDone = bookOpen
@@ -1791,6 +1798,15 @@ struct PanelView: View {
             ForEach(desk.leftOver) { item in
                 LeftOverRow(item: item) { desk.dismiss(item.id) }
                     .modifier(Reveal(shown: state.expanded, index: 0, motion: motion))
+            }
+            if asking {
+                HeardBox(thanked: heardThanks, pick: { choice in
+                    settings.heardFrom = choice
+                    // A moment to say thanks, then the box goes for good.
+                    heardThanks = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { heardThanks = false }
+                }, skip: { settings.heardFrom = HeardFrom.skipped })
+                .modifier(Reveal(shown: state.expanded, index: 0, motion: motion))
             }
             if state.introducing {
                 notice(Format.intro(shortcut: settings.shortcut && !state.shortcutTaken ? settings.shortcutKey : nil), motion, dim: false, lines: 6)
@@ -2516,6 +2532,45 @@ struct LeftOverRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// Where the person heard about us: the owner's answers, one tap each, and Skip. Over the list,
+/// in a box like a phone message left over, until it is answered.
+struct HeardBox: View {
+    /// About as tall as this many of the lines under the list: the question and two rows of answers.
+    static let lines = 4
+    let thanked: Bool
+    let pick: (String) -> Void
+    let skip: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if thanked {
+                Text(verbatim: Format.heardThanks).foregroundStyle(.white.opacity(0.6))
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(verbatim: Format.heardQuestion).foregroundStyle(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(Format.heardSkip, action: skip)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                ForEach(HeardFrom.rows, id: \.self) { row in
+                    HStack(spacing: 6) {
+                        ForEach(row, id: \.self) { choice in
+                            Button { pick(choice) } label: { Text(verbatim: choice).panelButton() }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10).padding(.vertical, 8)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .contain)
     }

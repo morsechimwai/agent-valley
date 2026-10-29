@@ -63,6 +63,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings.$dailyCount
                 .sink { [dailyCount] on in dailyCount.setEnabled(on) }
                 .store(in: &watches)
+            // The panel's answer to where the person heard about us goes as soon as it is picked.
+            // On the next turn: the published value is set only after the sink is told.
+            settings.$heardFrom
+                .receive(on: RunLoop.main)
+                .sink { [dailyCount] _ in dailyCount.sendHeard() }
+                .store(in: &watches)
         }
         wireSending()
         store.start()
