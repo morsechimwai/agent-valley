@@ -391,6 +391,8 @@ final class AgentStore: ObservableObject {
     private lazy var marks: [String: Date] = library?.seenMarks() ?? [:]
     /// The sub-agent folders whose git place the library was given this run. Only touched on `queue`.
     private var learned = Set<String>()
+    /// Folders to the checkout git named for each, while it stood. Only touched on `queue`.
+    private lazy var checkoutOf: [String: String] = library?.places().checkouts ?? [:]
     /// When the library was last told the app is running. Only touched on `queue`.
     private var aliveAt = Date.distantPast
     /// The launch's catch-up has run. Until then no stamp: a quit mid catch-up must not skip what it had left to read.
@@ -1178,8 +1180,21 @@ final class AgentStore: ObservableObject {
     /// The cards as of `now`, from everything the store has read. Only called on `queue`.
     func cards(now: Date) -> [SessionCard] {
         // ponytail: the disk is asked again for every card on every publish, a stat or two each; keep the answers by folder if that ever shows.
-        Self.cards(from: files, now: now, visibleFor: visibleFor, states: states, owners: owners, worktree: Self.isWorktree, git: Self.gitPlace(of:),
+        Self.cards(from: files, now: now, visibleFor: visibleFor, states: states, owners: owners, worktree: Self.isWorktree, git: place(of:),
                     running: keepsRecords ? runningSince : nil)
+    }
+
+    /// Where git says a folder sits; once the folder is gone, where it said while it stood. A
+    /// worktree removed under a listed session keeps the card under its checkout's project.
+    /// Only called on `queue`.
+    private func place(of folder: String) -> GitPlace? {
+        if let place = Self.gitPlace(of: folder) {
+            // Told to the library too, so a relaunch still knows.
+            if checkoutOf.updateValue(place.checkout, forKey: folder) != place.checkout { library?.learn(gitFolder: folder) }
+            return place
+        }
+        guard !FileManager.default.fileExists(atPath: folder) else { return nil }
+        return checkoutOf[folder].map { GitPlace(worktree: folder, checkout: $0) }
     }
 
     /// Whether someone is at a session, by id: held by a live record of Claude Code's. A Claude

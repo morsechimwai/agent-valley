@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.29 — 2026-10-30
+
+- A session whose worktree folder was removed while it was still listed stays under its project. It used to get a project line of its own, so one project could show up twice.
+
 ## 0.3.28 — 2026-10-30
 
 - Settings pages in a new order: General, Claude Code, Sounds, Shortcuts, Symbols, About. Setting up Claude Code comes right after General, and About, with its update dot, is always last.

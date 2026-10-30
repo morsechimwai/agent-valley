@@ -108,6 +108,28 @@ final class AgentStoreTests: XCTestCase {
         XCTAssertEqual(cards.map(\.git), [place])
     }
 
+    // A worktree removed while its session is still listed: the card stays under its checkout's
+    // project, not under Superset's name for the project, and still does after a relaunch.
+    func testACardStaysUnderItsCheckoutAfterItsWorktreeIsRemoved() throws {
+        try FileManager.default.createDirectory(atPath: store.root + "/agent-valley/.git/worktrees/ws", withIntermediateDirectories: true)
+        try write("gitdir: \(store.root)/agent-valley/.git/worktrees/ws\n", to: "AgentValley/ws/.git")
+        let cwd = store.root + "/AgentValley/ws", checkout = store.root + "/agent-valley"
+        let at = stamp(Date())
+        let path = try write(#"{"type":"user","timestamp":"\#(at)","cwd":"\#(cwd)","gitBranch":"ws","message":{"role":"user","content":"Hi"}}"# + "\n"
+            + #"{"type":"assistant","timestamp":"\#(at)","cwd":"\#(cwd)","gitBranch":"ws","message":{"model":"claude-opus-5-5","stop_reason":"end_turn","content":[{"type":"text","text":"Hello."}]}}"# + "\n",
+            to: "proj/s1.jsonl")
+        let library = try library()
+        let first = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        first.ingest(path: path)
+        func project(_ store: AgentStore) -> [String] { store.cards(now: Date()).flatMap { [$0.projectKey, $0.belongsTo] } }
+        XCTAssertEqual(project(first), [checkout, "agent-valley"])
+        try FileManager.default.removeItem(atPath: cwd)
+        XCTAssertEqual(project(first), [checkout, "agent-valley"])
+        let second = newStore(like: first, library: library)
+        second.ingest(path: path)
+        XCTAssertEqual(project(second), [checkout, "agent-valley"])
+    }
+
     // A home folder kept in git, for the settings in it, is no project: a folder in it that is
     // no checkout of its own is named by its path.
     func testAHomeFolderInGitIsNoProject() {
