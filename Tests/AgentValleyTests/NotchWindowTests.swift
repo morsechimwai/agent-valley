@@ -706,7 +706,7 @@ final class NotchWindowTests: XCTestCase {
     // button made one too many at the top of the panel.
     func testTheSettingsOpenOnGeneralAndAreSixPages() {
         XCTAssertEqual(NotchState().settingsTab, .general)
-        XCTAssertEqual(SettingsTab.allCases.map(\.label), ["General", "Sounds", "Shortcuts", "Claude Code", "About", "Symbols"])
+        XCTAssertEqual(SettingsTab.allCases.map(\.label), ["General", "Claude Code", "Sounds", "Shortcuts", "Symbols", "About"])
     }
 
     // The legend is three short pages. The pointer finds the page it last read. The key that is

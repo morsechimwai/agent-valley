@@ -6,19 +6,23 @@ import SwiftUI
 /// twenty rows; four pages, until 2026-10-15, left two of them a row or two; two pages then grew
 /// to fifteen rows on one. Five since 2026-10-21, each on one subject, and none of them bare: a
 /// row that hangs on a switch is dimmed while it is off, not taken away.
+///
+/// In the order a Mac app's settings run (2026-10-30): General first, then the setup the app
+/// needs to do its work, the person's own sounds and keys, what the pictures mean, and About
+/// last, where its update dot is always found.
 enum SettingsTab: String, CaseIterable {
     /// What the list shows and counts, and opening at login.
     case general
+    /// What is put into Claude Code by hand: the plugin that answers, and the crew in the terminal.
+    case claudeCode
     /// The sounds, and the hours they keep still.
     case sounds
     /// The key that opens the panel, and where a session leads.
     case shortcuts
-    /// What is put into Claude Code by hand: the plugin that answers, and the crew in the terminal.
-    case claudeCode
-    /// Which app this is and what it will not do, its updates, and the way out at the end.
-    case about
     /// What the pictures and the bar's numbers mean: the legend, once a button of its own.
     case symbols
+    /// Which app this is and what it will not do, its updates, and the way out at the end.
+    case about
 
     /// The word on its tab.
     var label: String { self == .claudeCode ? "Claude Code" : rawValue.capitalized }

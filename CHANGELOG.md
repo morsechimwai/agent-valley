@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.28 — 2026-10-30
+
+- Settings pages in a new order: General, Claude Code, Sounds, Shortcuts, Symbols, About. Setting up Claude Code comes right after General, and About, with its update dot, is always last.
+- At the top of the panel, History now comes before the Library. With Token use off, History's button goes and the Library and the gear stay where they were.
+
 ## 0.3.27 — 2026-10-30
 
 - On a Mac with the Dynamic Island, the open panel grows out of Apple's island, its top edge where the island's is, so it no longer drops a few points as it opens. Its top row has more room over it and beside it, and its corners are a little less round, to sit around the cards inside.

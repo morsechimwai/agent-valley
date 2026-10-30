@@ -1558,17 +1558,11 @@ struct PanelView: View {
                 .help(Format.pinHelp(pinned: state.pinned))
                 .accessibilityLabel(Text(verbatim: "Keep the panel open"))
                 .accessibilityValue(Text(verbatim: state.pinned ? "On" : "Off"))
-                // The Library, always: its books are kept whatever the Token use switch says.
-                Button { state.toggleLibrary() } label: {
-                    Image(systemName: "books.vertical").font(.system(size: 11))
-                        .frame(width: 26, height: 26).contentShape(Rectangle()).hoverFill()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(state.showingLibrary ? 1 : 0.6))
-                .help(Format.libraryHelp(showing: state.showingLibrary))
-                .accessibilityLabel(Text(verbatim: Format.libraryHelp(showing: state.showingLibrary)))
-                // History, beside the other pages. The token line at the end of the list opens it
-                // too, but it reads as numbers rather than a button, and a long list scrolls it away.
+                // The switches above, the pages from here: History, the Library, the settings.
+                // History first of them: it is there only with Token use on, and when it goes the
+                // Library and the gear stay where the hand knows them. The token line at the end of
+                // the list opens it too, but it reads as numbers rather than a button, and a long
+                // list scrolls it away.
                 if settings.tokenUse {
                     Button { state.toggleHistory() } label: {
                         Image(systemName: "chart.bar.xaxis").font(.system(size: 11))
@@ -1579,6 +1573,15 @@ struct PanelView: View {
                     .help(Format.historyHelp(showing: state.showingHistory))
                     .accessibilityLabel(Text(verbatim: Format.historyHelp(showing: state.showingHistory)))
                 }
+                // The Library, always: its books are kept whatever the Token use switch says.
+                Button { state.toggleLibrary() } label: {
+                    Image(systemName: "books.vertical").font(.system(size: 11))
+                        .frame(width: 26, height: 26).contentShape(Rectangle()).hoverFill()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(state.showingLibrary ? 1 : 0.6))
+                .help(Format.libraryHelp(showing: state.showingLibrary))
+                .accessibilityLabel(Text(verbatim: Format.libraryHelp(showing: state.showingLibrary)))
                 Button { state.showingSettings.toggle() } label: {
                     Image(systemName: "gearshape").frame(width: 26, height: 26)
                         .overlay(alignment: .topTrailing) { if updates.waiting != nil { UpdateDot().padding(4) } }
