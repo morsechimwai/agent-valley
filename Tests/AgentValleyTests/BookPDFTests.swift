@@ -109,7 +109,8 @@ final class BookPDFTests: XCTestCase {
             for mark in ["**", "## ", "```", "|---"] { XCTAssertFalse(page.contains(mark), "\(mark) on page \(index + 1)") }
         }
         let all = try XCTUnwrap(pdf.string)
-        XCTAssertTrue(all.contains("สรุปงานวันนี้"), all)
+        // On macOS 26 PDFKit reads it back as "สรุ ปงานวันนี้", with a space after the vowel below.
+        XCTAssertTrue(all.filter { !$0.isWhitespace }.contains("สรุปงานวันนี้"), all)
         XCTAssertTrue(all.contains("never closed"), all)
     }
 
