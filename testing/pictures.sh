@@ -6,6 +6,7 @@
 #
 #   testing/pictures.sh [scene ...]   Every scene when none is named. Results in build/pictures.
 #     list      the list as it opens
+#     shut      each project with several sessions shut by a click on its line, then open again
 #     roomy     few sessions: full cards and their crew lines
 #     handback  the book: shut with 1 new, opened to Plan's document, an Asked box, Read all, then shut and opened again; both pages
 #     crew      a sub-agent waits: its line red, the rest folded to fit
@@ -26,9 +27,12 @@
 #     history-project  the same, one project deep
 #     fishing          the 5-hour limit run out: the fish on the bar, the sign over the list
 #     fishing-week     the same for the weekly limit
+#     island           a Mac with an island instead of the notch: the notch, then the island shut, alerting and open
 #     away             the Away button on, the yellow band, and a phone message that was not sent
 #     motion           frames of the crew lines moving: a sub-agent starts, then one finishes.
 #                      Slow, so only when named. Also motion.mp4 and motion.gif out of the frames.
+#     island-motion    the island shut, its alert, shut, open, shut, 30 frames a second. Slow, so only when
+#                      named. Also island.mp4 out of the frames.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -36,7 +40,7 @@ ROOT="/Users/Shared/pt"
 FAKE_HOME="$ROOT/pictures"
 OUT="$PWD/build/pictures"
 SCENES=("$@")
-[ ${#SCENES[@]} -gt 0 ] || SCENES=(list roomy handback crew status keys idle intro legend settings request reader oldcopy update heard tokens history history-project fishing fishing-week away)
+[ ${#SCENES[@]} -gt 0 ] || SCENES=(list shut roomy handback crew status keys idle intro legend settings request reader oldcopy update heard tokens history history-project fishing fishing-week island away)
 
 # Every account on this Mac can write to /Users/Shared, so ROOT has to be this user's own
 # folder, closed to the others, before anything under it is removed: were it a link someone
@@ -75,5 +79,11 @@ if [[ " ${SCENES[*]} " == *" motion "* ]] && [ -f "$OUT/motion.ffconcat" ]; then
         -r 30 -c:v libx264 -movflags +faststart "$OUT/motion.mp4"
     ffmpeg -loglevel error -y -f concat -i "$OUT/motion.ffconcat" \
         -vf "split[a][b];[a]palettegen[p];[b][p]paletteuse=dither=none" "$OUT/motion.gif"
+fi
+if [[ " ${SCENES[*]} " == *" island-motion "* ]] && [ -f "$OUT/island-motion.ffconcat" ]; then
+    # The frames are see-through: laid on the menu bar's grey, or the black pill vanishes into black.
+    size=$(ffprobe -v error -show_entries stream=width,height -of csv=s=x:p=0 "$OUT/island-motion-0000.png")
+    ffmpeg -loglevel error -y -f concat -i "$OUT/island-motion.ffconcat" -f lavfi -i "color=c=0xE8E8E8:s=$size:r=30" \
+        -filter_complex "[1:v][0:v]overlay=shortest=1,format=yuv420p" -r 30 -c:v libx264 -movflags +faststart "$OUT/island.mp4"
 fi
 echo "Pictures in $OUT"

@@ -39,7 +39,7 @@ brew install --cask morsechimwai/tap/agent-valley
 
 **3. Point at the notch.** The panel opens with a row for every agent. When one needs you, a red count appears beside the notch and its programmer waves. Click a row to jump to that agent's app. From any app, ⌃⌥⌘A opens the panel too: arrows to pick, Return to jump.
 
-Signed, and Apple checked our papers. Needs macOS 15 or later and Claude Code. Made for the MacBook notch. No notch? We sit at the top of your main display.
+Signed, and Apple checked our papers. Needs macOS 15 or later and Claude Code. Made for the MacBook notch. No notch? We sit at the top of your main display. A Dynamic Island? We float around it.
 
 Once an hour we check for a new version, and we ask before we install it. A green dot on the gear means one is waiting.
 
@@ -61,7 +61,7 @@ Then quit the app and move it from Applications to the Bin, or run `brew uninsta
 
 ### Every agent gets a row
 
-Sessions get a card, and the sub-agents they start get rows under it. Each row shows the task, the model and the latest step, and sub-agent rows count their steps too. Every session sits in one list, whichever terminal it runs in, grouped by project. Worktrees count as their project. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds. No guessed progress bars: if an agent goes quiet, AgentValley says so.
+Sessions get a card, and the sub-agents they start get rows under it. Each row shows the task, the model and the latest step, and sub-agent rows count their steps too. Every session sits in one list, whichever terminal it runs in, grouped by project. Worktrees count as their project. Click a project's line to fold its cards away. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds. No guessed progress bars: if an agent goes quiet, AgentValley says so.
 
 Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent's row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a green book on its session's row, which says how many are new. Click the book to open it: each sub-agent that handed something back is a document named like a .md file after its task, with who wrote it, how long ago and its first two lines. Read all shows what it was asked and everything it handed back, Markdown as written with its marks drawn faint. Shut the book and they all fold away.
 
@@ -95,6 +95,7 @@ Claude Code's status line gets the face of whoever runs the session, with the mo
 - **Token use.** Tokens for the last 5 hours and today, with a 12-hour chart.
 - **Task list.** When the lead keeps a task list, its card shows it under the step it's on, in Claude Code's own marks: ✓ done, ■ under way, □ to do. Past five tasks the done ones fold into one line. The list goes once everything is done.
 - **Jobs left running.** When an agent leaves something running in the background, a green screen sits beside the coffee on the bar until it ends. A dev server, or anything else serving on a port, gets a small server sending out waves instead. The session's card lists each one and how long it has run: a screen for a command, a server for a port, an eye for a Monitor. After half an hour they stop and dim.
+- **Library.** Every report a sub-agent hands back is kept, by project, until the project folder is gone. Open Library from the stack of books at the top of the panel, pick a project, then a book: it opens as a PDF that reads like a printed book, one chapter per report, each starting with a few plain lines anyone can read.
 - **Another display.** MacBook off to the side, big screen in front? Settings › General › Display moves us to the top of the big one, on any display plugged into your Mac. Unplug it and we go back to the notch. Asked for in [issue #1](https://github.com/morsechimwai/agent-valley/issues/1).
 
 <p align="center"><img src="docs/display.gif" alt="A big display with a MacBook in front of it. The notch, with one of us in it, lifts off the MacBook, glides to the top of the big display and settles there, then glides back." width="360"></p>
@@ -107,7 +108,7 @@ We're seven programmers from a computer room in 1969. We build things because we
 
 Sunny, Walt, Norm and Pearl run sessions: start Claude Code and one of them takes it. Each project gets a regular, the same one of us every session. Open a second session there at the same time and a colleague takes it, since nobody is in two places at once. Judy, Faye and Felix take the sub-agent jobs a session hands out.
 
-In Claude Code we call each other by name. Norm hands a search to Faye with “Faye takes the search. Sending it now.” and Faye brings it back with “Norm, two call sites, no surprises.” We each talk in our own voice, in the language you write in. Your code, commits and files stay exactly as they would be without us. It comes with the plugin, from your next session on. Crew names in Claude Code, in the Claude Code settings, turns it off.
+In Claude Code we call each other by name. Norm hands a search to Faye with “Faye takes the search. Sending it now.” and Faye brings it back with “Norm, two call sites, no surprises.” We each talk in our own voice, in the language you write in. Your code, commits and files stay exactly as they would be without us. With our font in your terminal, Claude writes our names as small tags with our faces. It comes with the plugin, from your next session on. Crew names in Claude Code, in the Claude Code settings, turns it off, and Name tags turns off just the tags.
 
 <table>
 <tr><td width="76"><img src="site/public/mascots/guru-wave0.svg" alt="" width="48"></td><td><b>Sunny</b>, the guru · runs a session<br>Yoga at sunrise, then code until the sun goes down again. He believes every bug came to teach him something. When he waves, an agent is waiting for you.</td></tr>
@@ -167,7 +168,7 @@ Eight more at [agentvalley.app/comics](https://agentvalley.app/comics/).
 - Sends us one count a day, so we know how many Macs run it: the app version, the macOS version, and whether it's this Mac's first day. No name, no ID, nothing about your sessions. Once, the panel asks where you heard about us; skip it and it asks once more a week later. Your answer, or that you skipped, goes one time. A week later it asks for one to five stars, and they go the same way; a written review leaves only from the review page on the site, when you send it. Turn it off in Settings.
 - Besides its own settings and its updates, it writes only in one folder: `~/Library/Application Support/AgentValley`. Nothing in `~/.claude` changes, unless you put the crew in your terminal.
 - You start that yourself, with a command from the app's settings. It sets the status line in `~/.claude/settings.json` and adds our font to `~/Library/Fonts`. With Ghostty, it also adds one line to Ghostty's config. From then on the app keeps the font and that line up to date. The command that takes the crew out undoes all of it.
-- The only hooks are the plugin's four, and only you put it in: Install the plugin runs Claude Code's own `claude plugin` command when you press it, never on its own. One brings Allow and Deny to the notch. Two add a short note when a session or a sub-agent starts, telling Claude which of us it is; Crew names in Claude Code stops the note. The last only waits, at the end of a turn, while you're Away with a phone paired.
+- The only hooks are the plugin's four, and only you put it in: Install the plugin runs Claude Code's own `claude plugin` command when you press it, never on its own. One brings Allow and Deny to the notch. Two add a short note when a session or a sub-agent starts, telling Claude which of us it is, and asking a sub-agent to open its report with a few plain lines for the Library; Crew names in Claude Code stops the names. The last only waits, at the end of a turn, while you're Away with a phone paired.
 - It reads `~/.claude/plugins/installed_plugins.json` to see whether the plugin is in, and while Answer from the notch is on, `~/.claude/plugins/known_marketplaces.json` to check that the plugin still finds the app.
 - Never answers for you. Allow happens only when you choose it.
 

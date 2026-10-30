@@ -24,7 +24,7 @@ export function Install() {
               <Terms needs={false} />
             </GetIt>
           </div>
-          <p className="small mx-auto">Needs macOS 15 or later and Claude Code. Made for the MacBook notch. No notch? We sit at the top of your main display.</p>
+          <p className="small mx-auto">Needs macOS 15 or later and Claude Code. Made for the MacBook notch. No notch? We sit at the top of your main display. A Dynamic Island? We float around it.</p>
         </div>
       </div>
       <div className="next mx-auto mt-14 max-w-[540px] text-left">

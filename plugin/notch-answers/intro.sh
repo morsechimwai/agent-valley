@@ -9,8 +9,10 @@ case "$CLAUDE_CODE_ENTRYPOINT" in ""|sdk-*) exit 0 ;; esac
 SOCK="$HOME/Library/Application Support/AgentValley/answers.sock"
 [ -S "$SOCK" ] || exit 0
 # -q first: the person's own ~/.curlrc must not add anything to what is printed here.
-# CLAUDE_PID lets the app tell, after /clear, which session this terminal ran until now.
+# CLAUDE_PID lets the app tell, after /clear, which session this terminal ran until now;
+# TERM_PROGRAM, whether this terminal's config lets it draw the crew's name tags.
 /usr/bin/curl -q --silent --fail --max-time 2 --unix-socket "$SOCK" \
-  --header 'Content-Type: application/json' --header "X-Claude-Pid: ${CLAUDE_PID:-}" --data-binary @- \
+  --header 'Content-Type: application/json' --header "X-Claude-Pid: ${CLAUDE_PID:-}" \
+  --header "X-Term-Program: ${TERM_PROGRAM:-}" --data-binary @- \
   http://notch/crew-intro 2>/dev/null
 exit 0

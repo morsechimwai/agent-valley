@@ -101,6 +101,21 @@ final class NotchWindowTests: XCTestCase {
         XCTAssertFalse(path.contains(CGPoint(x: 101, y: 199)))
     }
 
+    func testAnIslandShapeCanFloat() {
+        // No shoulders: all four corners are round, the top ones with radius `top`.
+        let path = IslandShape(radius: 14, shoulder: 0, top: 14).path(in: CGRect(x: 0, y: 0, width: 198, height: 28))
+        XCTAssertFalse(path.contains(CGPoint(x: 1, y: 1)))
+        XCTAssertFalse(path.contains(CGPoint(x: 197, y: 1)))
+        XCTAssertTrue(path.contains(CGPoint(x: 99, y: 1)))
+        XCTAssertTrue(path.contains(CGPoint(x: 14, y: 14)))
+        // Without `top` the shape is the same as before: the flare is still there.
+        let flared = IslandShape(radius: 10, shoulder: 6).path(in: CGRect(x: 0, y: 0, width: 198, height: 28))
+        XCTAssertEqual(flared.boundingRect, CGRect(x: -6, y: 0, width: 210, height: 28))
+        XCTAssertTrue(flared.contains(CGPoint(x: -3, y: 1)))
+        XCTAssertFalse(flared.contains(CGPoint(x: -7, y: 1)))
+        XCTAssertFalse(flared.contains(CGPoint(x: 1, y: 27)))
+    }
+
     // The list grows before the window does: the window is sized a turn later. For that turn the
     // island was taller than its window, which centred it: the bar went up past the top of the
     // screen, away from the notch, and sprang back. It stays flush with the top whatever its size.
@@ -575,6 +590,75 @@ final class NotchWindowTests: XCTestCase {
         state.tokenUse(true)
         XCTAssertTrue(state.showingHistory)
         state.tokenUse(false)
+        XCTAssertFalse(state.showingHistory)
+    }
+
+    // The Library stands where the list was, as History does: one page at a time, the legend goes
+    // as it opens, and it opens afresh on its shelves. The shelf picked stays while the page does.
+    func testLibraryIsAPageOfThePanel() {
+        let state = NotchState()
+        state.showingLegend = true
+        state.libraryShelf = "shop-web"
+        state.toggleLibrary()
+        XCTAssertTrue(state.showingLibrary)
+        XCTAssertTrue(state.showingPage)
+        XCTAssertFalse(state.showingLegend)
+        XCTAssertNil(state.libraryShelf)
+        state.libraryShelf = "api"
+        state.showingSettings = true
+        XCTAssertFalse(state.showingLibrary)
+        XCTAssertTrue(state.showingPage)
+        state.toggleLibrary()
+        XCTAssertTrue(state.showingLibrary)
+        XCTAssertFalse(state.showingSettings)
+        XCTAssertNil(state.libraryShelf)
+        state.toggleLegend()
+        XCTAssertTrue(state.showingLegend)
+        XCTAssertFalse(state.showingLibrary)
+        XCTAssertFalse(state.showingPage)
+        state.toggleLibrary()
+        state.libraryShelf = "api"
+        state.toggleLibrary()
+        XCTAssertFalse(state.showingLibrary)
+        XCTAssertFalse(state.showingPage)
+    }
+
+    // History and the Library share the list's place: opening either puts the other away.
+    func testLibraryAndHistoryPutEachOtherAway() {
+        let state = NotchState()
+        state.toggleLibrary()
+        state.openHistory()
+        XCTAssertTrue(state.showingHistory)
+        XCTAssertFalse(state.showingLibrary)
+        state.toggleLibrary()
+        XCTAssertTrue(state.showingLibrary)
+        XCTAssertFalse(state.showingHistory)
+        XCTAssertTrue(state.showingPage)
+    }
+
+    // The Library has a database of its own, open whatever the Token use switch says: turning
+    // it off takes History away, never the books.
+    func testTokenUseOffKeepsTheLibrary() {
+        let state = NotchState()
+        state.toggleLibrary()
+        state.tokenUse(false)
+        XCTAssertTrue(state.showingLibrary)
+    }
+
+    // Once the panel has stayed shut, or the shortcut walks the sessions, the pages go, the
+    // Library with History and the settings: the next opening is the agents.
+    func testClosingThePanelPutsTheLibraryAway() {
+        let state = NotchState()
+        state.toggleLibrary()
+        state.libraryShelf = "api"
+        state.putPagesAway()
+        XCTAssertFalse(state.showingLibrary)
+        XCTAssertFalse(state.showingPage)
+        state.showingSettings = true
+        state.putPagesAway()
+        XCTAssertFalse(state.showingSettings)
+        state.openHistory()
+        state.putPagesAway()
         XCTAssertFalse(state.showingHistory)
     }
 

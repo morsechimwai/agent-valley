@@ -74,6 +74,12 @@ enum NotchGeometry {
         frame.insetBy(dx: -1, dy: -1).contains(cursor)
     }
 
+    /// The welcome's island: a square as wide as the open panel, smaller on a screen too short for that.
+    static func welcomeFrame(screen: CGRect) -> CGRect {
+        let side = min(expandedWidth, screen.width, screen.height * maxHeightRatio)
+        return CGRect(x: screen.midX - side / 2, y: screen.maxY - side, width: side, height: side)
+    }
+
     static func collapsedFrame(screen: CGRect, notchWidth: CGFloat, barHeight: CGFloat) -> CGRect {
         let width = min(notchWidth + wing * 2, screen.width)
         return CGRect(x: screen.midX - width / 2, y: screen.maxY - barHeight, width: width, height: barHeight)
@@ -238,6 +244,12 @@ enum ExitWatch {
 final class NotchState: ObservableObject {
     @Published var expanded = false
     @Published var contentHeight: CGFloat = 0
+    /// Where Apple's Dynamic Island is on the screen the panel sits on. Nil on a notch or a plain screen.
+    @Published var appleIsland: CGRect?
+    /// The island is showing its alert pill for a moment.
+    @Published var alerting = false
+    /// Counts the times someone starts waiting. The island answers each with an alert.
+    @Published var alerts = 0
     @Published var barHeight: CGFloat = 32
     @Published var notchWidth: CGFloat = 180
     @Published var screenFrame = CGRect.zero
@@ -251,23 +263,32 @@ final class NotchState: ObservableObject {
     /// The settings stand where the list was. The legend at the head of the list goes as they
     /// open, by whichever of the four ways in: left up, it was still there on the way back,
     /// and "← Agents" had to be pressed a second time to reach the agents. History goes too:
-    /// one page at a time.
+    /// one page at a time, and the Library with it.
     @Published var showingSettings = false {
-        didSet { if showingSettings { showingLegend = false; showingHistory = false } }
+        didSet { if showingSettings { showingLegend = false; showingHistory = false; showingLibrary = false } }
     }
     /// History stands where the list was, as the settings do.
     @Published var showingHistory = false {
-        didSet { if showingHistory { showingLegend = false; showingSettings = false } }
+        didSet { if showingHistory { showingLegend = false; showingSettings = false; showingLibrary = false } }
     }
+    /// The Library too: the books the sub-agents handed back, by project.
+    @Published var showingLibrary = false {
+        didSet { if showingLibrary { showingLegend = false; showingSettings = false; showingHistory = false } }
+    }
+    /// The shelf open on the Library page, or nil for every shelf. Kept while the page is, as
+    /// History's pick is; the page opened anew starts on its shelves.
+    @Published var libraryShelf: String?
     /// What is picked on the History page. Kept while the page is, so that a pointer that
     /// strayed finds it again; a page opened anew starts afresh.
     @Published var historyPick = HistoryPick()
     /// A page stands where the list was: the keys and the bands about sessions are put away.
-    var showingPage: Bool { showingSettings || showingHistory }
+    var showingPage: Bool { showingSettings || showingHistory || showingLibrary }
     /// The page of the settings last read. Remembered while the app runs.
     @Published var settingsTab = SettingsTab.general
     /// Whether the folded idle sessions are listed. Remembered while the app runs.
     @Published var idleExpanded = false
+    /// The projects whose line the person has clicked shut, by `projectKey`. Remembered while the app runs.
+    @Published var shutProjects: Set<String> = []
     /// The first opening ever, which the app does by itself to show where it lives.
     @Published var introducing = false
     /// When the panel last opened, or nil while it is shut. Answer buttons arm a moment after.
@@ -319,6 +340,7 @@ final class NotchState: ObservableObject {
         showingLegend = showingPage || !showingLegend
         showingSettings = false
         showingHistory = false
+        showingLibrary = false
         if byKey, showingLegend { legendTab = .keys }
     }
 
@@ -333,7 +355,26 @@ final class NotchState: ObservableObject {
         if showingHistory { showingHistory = false } else { openHistory() }
     }
 
-    /// The "Token use" switch. Off, History has nothing to show and goes.
+    /// Its button: the Library opens on its shelves, or from the Library back to the list.
+    func toggleLibrary() {
+        if showingLibrary {
+            showingLibrary = false
+        } else {
+            libraryShelf = nil
+            showingLibrary = true
+        }
+    }
+
+    /// Every page goes and the list is back: once the panel has stayed shut, or the keys walk
+    /// the sessions.
+    func putPagesAway() {
+        showingSettings = false
+        showingHistory = false
+        showingLibrary = false
+    }
+
+    /// The "Token use" switch. Off, History has nothing to show and goes. The Library stays: it
+    /// keeps its own books.
     func tokenUse(_ on: Bool) {
         if !on { showingHistory = false }
     }
@@ -469,12 +510,18 @@ final class NotchWindowController: NSObject {
     private var heightWatch: AnyCancellable?
     /// What the window is sized for. `state.expanded` follows one run-loop turn later and drives the animation.
     private var isExpanded = false
+    /// Like `isExpanded`: what the window is sized for while the island's alert shows.
+    private var isAlerting = false
+    private var alertWatch: AnyCancellable?
+    private var waitWatch: AnyCancellable?
+    private var alertEnd: DispatchWorkItem?
     /// The bar beside the notch, and the island as it will be once it settles, in screen coordinates.
     private var barFrame = CGRect.zero
     private var islandFrame = CGRect.zero
     private var settle: DispatchWorkItem?
     private let limits: PlanLimitsClient
     private let answers: AnswerStore
+    private let store: AgentStore
     /// For the "Token use" switch, which History hangs on.
     private let settings: Settings
     private let updates: Updates
@@ -501,12 +548,14 @@ final class NotchWindowController: NSObject {
          away: AwayWatch = AwayWatch(desk: StopDesk(), lastInput: { .distantPast }), desk: StopDesk = StopDesk()) {
         self.limits = limits
         self.answers = answers
+        self.store = store
         self.settings = settings
         self.updates = updates
         let state = self.state
         cards = {
             let shown = AgentStore.ordered(AgentStore.showing(answers.overlay(store.sessions), hidden: state.hidden), by: settings.grouping)
-            return AgentStore.arrange(shown, idle: settings.idleSessions, keeping: answers.settledSessions.union(HandBack.holding(shown, openedAt: state.openedAt)))
+            return AgentStore.arrange(shown, idle: settings.idleSessions, keeping: answers.settledSessions.union(HandBack.holding(shown, openedAt: state.openedAt)),
+                                      shut: settings.grouping == .projects ? state.shutProjects : [])
                 .walked(idleExpanded: state.idleExpanded)
         }
         super.init()
@@ -550,6 +599,7 @@ final class NotchWindowController: NSObject {
         heightWatch = state.$contentHeight.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] _ in
             self?.layout()
         }
+        alertWatch = state.$alerts.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.alert() }
         NotificationCenter.default.addObserver(self, selector: #selector(layout), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         // On the next turn of the loop: a @Published value is sent before it is stored.
         displayWatch = settings.$display.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in self?.layout() }
@@ -573,6 +623,10 @@ final class NotchWindowController: NSObject {
             guard let self, let hotkey = self.hotkey else { return }
             let had = hotkey.setEnabled(on, key: key)
             self.state.shortcutTaken = on && !had
+        }
+        // Nobody waits any more: an island's alert has nobody left to name, and goes at once.
+        waitWatch = store.$sessions.combineLatest(answers.$pending).receive(on: DispatchQueue.main).sink { [weak self] _ in
+            if self?.anyoneWaiting == false { self?.endAlert() }
         }
         if firstLaunch, !pinnedAtLaunch {
             held = true
@@ -600,8 +654,42 @@ final class NotchWindowController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + EntryWatch.dwell, execute: work)
     }
 
+    /// Someone waits on the person, held requests of the answer plugin included.
+    private var anyoneWaiting: Bool { AgentStore.barState(answers.overlay(store.sessions)).waiting > 0 }
+
+    /// Shows the alert pill for `IslandGeometry.alertShown`; a newer alert starts the time over.
+    private func alert() {
+        guard IslandGeometry.shouldAlert(island: state.appleIsland != nil, expanded: isExpanded, welcoming: false) else { return }
+        alertEnd?.cancel()
+        isAlerting = true
+        layout()
+        // Unless something ended the alert in this same turn.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isAlerting else { return }
+            self.state.alerting = true
+        }
+        let end = DispatchWorkItem { [weak self] in self?.endAlert() }
+        alertEnd = end
+        DispatchQueue.main.asyncAfter(deadline: .now() + IslandGeometry.alertShown, execute: end)
+    }
+
+    private func clearAlert() {
+        alertEnd?.cancel()
+        alertEnd = nil
+        isAlerting = false
+        state.alerting = false
+    }
+
+    private func endAlert() {
+        guard isAlerting || state.alerting else { return }
+        clearAlert()
+        layout()
+    }
+
     private func setExpanded(_ expanded: Bool) {
         isExpanded = expanded
+        // Opening answers the alert: it ends now, before the window takes the open size.
+        if expanded { clearAlert() }
         // The plugin list and the old 0.1 may have changed since: the person may just have run the command.
         if expanded { answers.checkPlugin(); updates.lookForOldCopy() }
         openings += expanded ? 1 : 0
@@ -632,11 +720,10 @@ final class NotchWindowController: NSObject {
             guard let self, !self.isExpanded else { return }
             self.state.finishedClosing()
         }
-        // The settings and History stay a little longer, for a pointer that only strayed.
+        // The pages stay a little longer, for a pointer that only strayed.
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.isExpanded else { return }
-            self.state.showingSettings = false
-            self.state.showingHistory = false
+            self.state.putPagesAway()
         }
         leaveSettings = work
         DispatchQueue.main.asyncAfter(deadline: .now() + EntryWatch.settingsLinger, execute: work)
@@ -651,8 +738,7 @@ final class NotchWindowController: NSObject {
         entering = nil
         state.keyboard = true
         // The sessions are what the keys walk.
-        state.showingSettings = false
-        state.showingHistory = false
+        state.putPagesAway()
         state.selected = KeyCommand.start(in: cards())
         if !isExpanded {
             setExpanded(true)
@@ -754,22 +840,35 @@ final class NotchWindowController: NSObject {
         if state.displays != displays { state.displays = displays }
         guard let index = NotchGeometry.screenIndex(notchHeights: screens.map(\.safeAreaInsets.top), ids: ids, chosen: settings.display) else { return }
         let screen = screens[index]
+        let apple = IslandGeometry.appleIsland(safeAperture: screen.safeAperture, cutout: screen.cutout, screen: screen.frame)
+        if state.appleIsland != apple { state.appleIsland = apple }
+        // No island on this screen (say, an external display was picked): an alert showing has nothing to sit on.
+        if apple == nil, isAlerting || state.alerting { clearAlert() }
         let hasNotch = screen.safeAreaInsets.top > 0
-        let barHeight = hasNotch ? screen.safeAreaInsets.top : max(24, screen.frame.maxY - screen.visibleFrame.maxY)
-        var notchWidth: CGFloat = 180
-        if hasNotch, let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+        let barHeight = apple?.height ?? (hasNotch ? screen.safeAreaInsets.top : max(24, screen.frame.maxY - screen.visibleFrame.maxY))
+        var notchWidth: CGFloat = apple?.width ?? 180
+        if apple == nil, hasNotch, let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
             notchWidth = screen.frame.width - left.width - right.width
         }
         if state.barHeight != barHeight { state.barHeight = barHeight }
         if state.notchWidth != notchWidth { state.notchWidth = notchWidth }
         if state.screenFrame != screen.frame { state.screenFrame = screen.frame }
 
-        barFrame = NotchGeometry.collapsedFrame(screen: screen.frame, notchWidth: notchWidth, barHeight: barHeight)
-        islandFrame = isExpanded
-            ? NotchGeometry.openFrame(screen: screen.frame, barHeight: barHeight, contentHeight: state.contentHeight)
-            : barFrame
-        // Shut, the window is the bar and the shoulders it flares out into on either side.
-        let target = isExpanded ? NotchGeometry.stageFrame(around: islandFrame) : barFrame.insetBy(dx: -NotchGeometry.shoulder, dy: 0)
+        let target: CGRect
+        if let apple {
+            let frames = IslandGeometry.frames(screen: screen.frame, apple: apple, expanded: isExpanded, alerting: isAlerting,
+                                               welcoming: false, contentHeight: state.contentHeight)
+            barFrame = frames.bar
+            islandFrame = frames.island
+            target = frames.window
+        } else {
+            barFrame = NotchGeometry.collapsedFrame(screen: screen.frame, notchWidth: notchWidth, barHeight: barHeight)
+            islandFrame = isExpanded
+                ? NotchGeometry.openFrame(screen: screen.frame, barHeight: barHeight, contentHeight: state.contentHeight)
+                : barFrame
+            // Shut, the window is the bar and the shoulders it flares out into on either side.
+            target = isExpanded ? NotchGeometry.stageFrame(around: islandFrame) : barFrame.insetBy(dx: -NotchGeometry.shoulder, dy: 0)
+        }
 
         // Grow at once so the island never draws outside its window; shrink only after it has settled.
         settle?.cancel()
@@ -792,5 +891,22 @@ extension NSScreen {
         guard let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
               let uuid = CGDisplayCreateUUIDFromDisplayID(number)?.takeRetainedValue() else { return nil }
         return CFUUIDCreateString(nil, uuid) as String
+    }
+
+    /// How the top edge is cut, from AppKit's private `_notchFrame` and `_isSafeAperture`. Asked only
+    /// where the screen answers to them; a missing one reads as nil, never as a crash. Asked by
+    /// their own names, so that KVC calls the very methods checked for.
+    var cutout: CGRect? {
+        responds(to: NSSelectorFromString("_notchFrame")) ? NSScreen.rect(from: value(forKey: "_notchFrame")) : nil
+    }
+
+    var safeAperture: Bool? {
+        responds(to: NSSelectorFromString("_isSafeAperture")) ? value(forKey: "_isSafeAperture") as? Bool : nil
+    }
+
+    /// `rectValue` throws on a value that holds anything but a rectangle: checked first.
+    static func rect(from value: Any?) -> CGRect? {
+        guard let value = value as? NSValue, String(cString: value.objCType).hasPrefix("{CGRect") else { return nil }
+        return value.rectValue
     }
 }

@@ -32,6 +32,7 @@ enum CrewSetup {
 
     private static func fontURL(_ home: URL) -> URL { home.appendingPathComponent("Library/Fonts/" + CrewFont.fileName) }
 
+
     private static func configDir(_ environment: [String: String]) -> URL? {
         environment["CLAUDE_CONFIG_DIR"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
     }

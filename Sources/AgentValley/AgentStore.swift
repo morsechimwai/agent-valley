@@ -239,17 +239,22 @@ extension SessionCard {
 struct SessionList: Equatable {
     var cards: [SessionCard]
     var folded: [SessionCard]
+    /// Cards under a project's line the person has shut, by id: the line stays, they are not drawn.
+    var shut: Set<String> = []
 }
 
 extension SessionList {
     /// The cards the arrow keys walk, in the order drawn: the full cards, and after them the
     /// idle ones while they are unfolded. Unfolded they are cards like the rest, and Return
     /// on one is the only way to its app that needs no pointer.
-    func walked(idleExpanded: Bool) -> [SessionCard] { cards + (idleExpanded ? folded : []) }
+    func walked(idleExpanded: Bool) -> [SessionCard] { drawn + (idleExpanded ? folded : []) }
 
     /// Whether the sessions run in more than one app. Only then does naming a card's app tell
     /// it from the others: the name and the "Go to" button reach the app either way.
-    var showsApps: Bool { Set((cards + folded).compactMap { $0.owner?.name }).count > 1 }
+    var showsApps: Bool { Set((drawn + folded).compactMap { $0.owner?.name }).count > 1 }
+
+    /// The full cards that are drawn: those under a shut project's line are not.
+    var drawn: [SessionCard] { cards.filter { !shut.contains($0.id) } }
 
     /// The first row that needs the person, in the order the list is drawn, and its card:
     /// where every way into the panel leads.
@@ -262,7 +267,7 @@ extension SessionList {
 
     /// The one row that carries the line explaining "quiet": the first quiet one in the list.
     /// The line says the same thing each time, and once is enough.
-    var hintRow: String? { cards.lazy.flatMap(\.rows).first { $0.status == .quiet }?.id }
+    var hintRow: String? { drawn.lazy.flatMap(\.rows).first { $0.status == .quiet }?.id }
 }
 
 /// What a session is doing, for the list that groups by it. In the order the groups are shown.
@@ -354,6 +359,8 @@ final class AgentStore: ObservableObject {
     /// Where the roster is kept, or nil to keep it in memory only.
     private let rosterFile: URL?
     private let owner: (Int32) -> OwnerApp?
+    /// Whether the terminal a Claude Code process runs in can draw the name tags, so the notes can hand them over.
+    private let drawsTags: (CrewIntroRequest) -> Bool
     /// Finds the tab of a session's process in its app.
     private let tab: (Int32, OwnerApp) -> TabPlace?
     /// Whether the person has asked for a click to reach a session's own tab. While they have
@@ -378,6 +385,16 @@ final class AgentStore: ObservableObject {
     private var visibleFor = AgentStore.defaultVisibleFor
     /// Hand-backs older than this launch are not news.
     private let launchedAt = Date()
+    /// Every hand-back kept for good, and when each was last seen. Nil when the database would not open.
+    let library: LibraryStore?
+    /// The seen marks the library held when first asked, kept current by `saw`. Only touched on `queue`.
+    private lazy var marks: [String: Date] = library?.seenMarks() ?? [:]
+    /// The sub-agent folders whose git place the library was given this run. Only touched on `queue`.
+    private var learned = Set<String>()
+    /// When the library was last told the app is running. Only touched on `queue`.
+    private var aliveAt = Date.distantPast
+    /// The launch's catch-up has run. Until then no stamp: a quit mid catch-up must not skip what it had left to read.
+    private var caughtUp = false
 
     init(root: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects"),
          visibleFor: TimeInterval = AgentStore.defaultVisibleFor,
@@ -385,8 +402,12 @@ final class AgentStore: ObservableObject {
          processStart: @escaping (Int32) -> Date? = AgentStore.startTime(ofProcess:),
          owner: @escaping (Int32) -> OwnerApp? = AgentStore.ownerApp(ofProcess:),
          tab: @escaping (Int32, OwnerApp) -> TabPlace? = AgentStore.tabPlace(ofProcess:in:),
-         roster: URL? = nil) {
+         roster: URL? = nil,
+         library: LibraryStore? = nil,
+         drawsTags: @escaping (CrewIntroRequest) -> Bool = { AgentStore.terminalDrawsTags($0) }) {
+        self.library = library
         self.rosterFile = roster
+        self.drawsTags = drawsTags
         self.roster = roster.map(Roster.load) ?? Roster()
         self.owner = owner
         self.tab = tab
@@ -423,13 +444,19 @@ final class AgentStore: ObservableObject {
         self.timer = timer
     }
 
-    /// The person has looked at the hand-backs of these rows (file paths).
-    func saw(_ ids: Set<String>, at time: Date) {
+    /// The person has looked at the hand-backs of these rows (file paths). `then` runs on the main
+    /// thread once the library has it too, for a page that reads the library again.
+    func saw(_ ids: Set<String>, at time: Date, then: (() -> Void)? = nil) {
         // Each look and each rest on a pinned panel calls this, mostly with nothing seen.
         guard !ids.isEmpty else { return }
         queue.async { [self] in
-            for id in ids { files[id]?.seenAt = time }
+            for id in ids {
+                files[id]?.seenAt = time
+                marks[id] = max(marks[id] ?? .distantPast, time)
+            }
+            library?.saw(agents: ids, at: time)
             publish()
+            if let then { DispatchQueue.main.async(execute: then) }
         }
     }
 
@@ -497,6 +524,12 @@ final class AgentStore: ObservableObject {
         sessions.flatMap(\.rows).filter { $0.status == .needsYou }.map(\.quietFor).max()
     }
 
+    /// The row that started waiting last, with its card: the one the island's alert is about.
+    static func newestWait(_ sessions: [SessionCard]) -> (card: SessionCard, row: AgentRow)? {
+        sessions.flatMap { card in card.rows.filter { $0.status == .needsYou }.map { (card: card, row: $0) } }
+            .min { $0.row.quietFor < $1.row.quietFor }
+    }
+
     /// How many rows wait on the person in each session that has any.
     static func waiting(_ sessions: [SessionCard]) -> [String: Int] {
         Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.rows.filter { $0.status == .needsYou }.count) }.filter { $0.1 > 0 })
@@ -550,13 +583,21 @@ final class AgentStore: ObservableObject {
     /// `keeping`: sessions, by the name of their transcript, that keep their card although
     /// idle. Each has a line on it that says how a request ended, and a folded card has no
     /// place for it.
-    static func arrange(_ sessions: [SessionCard], idle: IdleSessions, keeping: Set<String> = []) -> SessionList {
+    /// `shut`: the projects, by `projectKey`, whose line the person has clicked shut.
+    static func arrange(_ sessions: [SessionCard], idle: IdleSessions, keeping: Set<String> = [], shut projects: Set<String> = []) -> SessionList {
         func folds(_ card: SessionCard) -> Bool { card.isIdle && card.jobs.isEmpty && !keeping.contains(AnswerStore.sessionID(of: card)) }
+        var list: SessionList
         switch idle {
-        case .show: return SessionList(cards: sessions, folded: [])
-        case .hide: return SessionList(cards: sessions.filter { !folds($0) }, folded: [])
-        case .fold: return SessionList(cards: sessions.filter { !folds($0) }, folded: sessions.filter(folds))
+        case .show: list = SessionList(cards: sessions, folded: [])
+        case .hide: list = SessionList(cards: sessions.filter { !folds($0) }, folded: [])
+        case .fold: list = SessionList(cards: sessions.filter { !folds($0) }, folded: sessions.filter(folds))
         }
+        // A shut project never hides what needs the person. One session alone has no line, and
+        // so nothing to open it again with: it is never shut.
+        if list.cards.count + list.folded.count >= 2 {
+            list.shut = Set(list.cards.filter { projects.contains($0.projectKey) && $0.group != .needsYou }.map(\.id))
+        }
+        return list
     }
 
     /// The sessions in the order the panel lists them. By project, each project's sessions
@@ -637,8 +678,14 @@ final class AgentStore: ObservableObject {
             files[path] = nil
             return
         }
-        var file = files[path] ?? TrackedFile(session: session, isMain: isMain)
-        if size < file.offset { file = TrackedFile(session: session, isMain: isMain) }
+        func fresh() -> TrackedFile {
+            var file = TrackedFile(session: session, isMain: isMain)
+            file.seenAt = marks[path]
+            return file
+        }
+        var file = files[path] ?? fresh()
+        if size < file.offset { file = fresh() }
+        let titled = file.info.title
         file.modified = modified
         // ponytail: the first read parses the whole transcript, a piece at a time; seek to a tail
         // window if a huge main transcript ever makes launch slow.
@@ -655,7 +702,20 @@ final class AgentStore: ObservableObject {
             // A meta file caught half-written is read again on the next event.
             file.metaLoaded = TranscriptReader.applyMeta(meta, to: &file.info)
         }
-        files[path] = HandBack.seenBeforeLaunch(file, launchedAt: launchedAt)
+        var held = false
+        if let library {
+            let book = (session as NSString).lastPathComponent
+            if isMain {
+                if !file.info.title.isEmpty, file.info.title != titled { library.title(session: book, file.info.title) }
+            } else if !file.info.records.isEmpty {
+                // A write that fails keeps them for the next read to try again.
+                held = !library.add(Chapter.from(file.info, agent: path, session: book))
+                // Asked while the folder stands: a worktree removed later still sits on its checkout's shelf.
+                if !held, learned.insert(file.info.cwd).inserted { library.learn(gitFolder: file.info.cwd) }
+            }
+        }
+        if !held { file.info.records = [] }
+        files[path] = HandBack.seenBeforeLaunch(file, launchedAt: library?.since ?? launchedAt)
         // A subagent can keep writing long after its parent's last write; the card header needs the parent.
         if !isMain, files[session + ".jsonl"] == nil { ingest(path: session + ".jsonl") }
     }
@@ -995,6 +1055,11 @@ final class AgentStore: ObservableObject {
         forget(now: Date())
         readSessions()
         publish()
+        // The next launch reads what was handed back after this, while the app was not running.
+        if let library, caughtUp, Date().timeIntervalSince(aliveAt) >= 60 {
+            aliveAt = Date()
+            library.markAlive(at: aliveAt)
+        }
     }
 
     /// Reads what FSEvents did not report. An append that lands right behind another can go
@@ -1047,6 +1112,7 @@ final class AgentStore: ObservableObject {
         let held = Set(runningSince.keys)
         let heldCutoff = now.addingTimeInterval(-Self.forgetAfter)
         let keys: [URLResourceKey] = [.contentModificationDateKey]
+        var walked = Set<String>()
         guard let walker = FileManager.default.enumerator(at: URL(fileURLWithPath: root), includingPropertiesForKeys: keys) else { return }
         for case let url as URL in walker where url.pathExtension == "jsonl" {
             guard let modified = try? url.resourceValues(forKeys: Set(keys)).contentModificationDate else { continue }
@@ -1061,6 +1127,26 @@ final class AgentStore: ObservableObject {
             }
             guard modified > cutoff || isHeld else { continue }
             ingest(path: url.path)
+            walked.insert(url.path)
+        }
+        readUnread(now: now, except: walked)
+    }
+
+    /// Reads the files of the hand-backs the library holds unread, as `rescan` does at launch: for
+    /// those the launch's catch-up found after it.
+    func readUnread() {
+        queue.async { [self] in
+            caughtUp = true
+            readUnread(now: Date())
+            publish()
+        }
+    }
+
+    /// A hand-back nobody has opened is news however old its file: the library knows where to look.
+    /// Only called on `queue`.
+    private func readUnread(now: Date, except walked: Set<String> = []) {
+        for path in library?.unseenAgents(since: now.addingTimeInterval(-HandBack.hold)) ?? [] where !walked.contains(path) {
+            ingest(path: path)
         }
     }
 
@@ -1108,14 +1194,28 @@ final class AgentStore: ObservableObject {
     /// For the plugin's SessionStart and SubagentStart hooks: seats a session Claude Code is
     /// starting and tells it who it is, or tells a sub-agent of an introduced session who it and
     /// its lead are. `reply` gets the hook's output, or nil for none, on the main thread.
-    func introduce(_ request: CrewIntroRequest, reply: @escaping (Data?) -> Void) {
+    /// `names` is the Crew names setting: off, a sub-agent still gets the In short request.
+    /// `tags`: whether the person has the name tags switched on.
+    func introduce(_ request: CrewIntroRequest, names: Bool = true, tags: Bool = true, reply: @escaping (Data?) -> Void) {
         queue.async { [self] in
-            let body = introduction(request, now: Date())
+            let body = introduction(request, names: names, tags: tags, now: Date())
             DispatchQueue.main.async { reply(body) }
         }
     }
 
-    private func introduction(_ request: CrewIntroRequest, now: Date) -> Data? {
+    /// Whether the terminal the request's Claude Code runs in can draw the name tags: the font
+    /// `crew install` put in place is this app's, the terminal opened after it did and, in
+    /// Ghostty, the config has our font line, as the status line asks before it draws the newest faces.
+    // ponytail: the app's own XDG_CONFIG_HOME, not the terminal's: a Ghostty config kept there reads as no font line, so plain names. Send it in the hook too if anyone keeps one there.
+    // ponytail: inside tmux TERM_PROGRAM is "tmux", so a Ghostty without our line under it still gets tags, and a tmux server started after the font counts as a new terminal; ask tmux for its client's terminal if that bites.
+    static func terminalDrawsTags(_ request: CrewIntroRequest, home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                                  bundled: URL = CrewCommand.bundledFont) -> Bool {
+        guard let claude = request.pid else { return false }
+        return CrewSetup.drawsThingsInHand(home: home, environment: request.terminal.map { ["TERM_PROGRAM": $0] } ?? [:],
+                                           bundled: bundled, terminalStart: CrewCommand.terminalStart(of: claude))
+    }
+
+    private func introduction(_ request: CrewIntroRequest, names: Bool, tags withTags: Bool, now: Date) -> Data? {
         switch request.event {
         case "SessionStart":
             guard !request.cwd.isEmpty else { return nil }
@@ -1136,11 +1236,16 @@ final class AgentStore: ObservableObject {
             if roster != before, let rosterFile { try? roster.save(rosterFile) }
             // The terminal's status line gets the face before the first prompt.
             publish()
-            return CrewIntro.body(event: request.event, note: CrewIntro.leadNote(Crew.lead(look)))
+            let tags = withTags && drawsTags(request) ? CrewIntro.tags(lead: look) : [:]
+            return CrewIntro.body(event: request.event, note: CrewIntro.leadNote(Crew.lead(look), tags: tags))
         case "SubagentStart":
             // A lead that was never told its name would hear it first from its sub-agent.
-            guard let seat = roster.seats[request.session], seat.named == true else { return nil }
-            return CrewIntro.body(event: request.event, note: CrewIntro.subNote(Crew.sub(type: request.agentType), lead: Crew.lead(seat.look)))
+            guard names, let seat = roster.seats[request.session], seat.named == true else {
+                return CrewIntro.body(event: request.event, note: CrewIntro.inShortNote)
+            }
+            let tags = withTags && drawsTags(request) ? CrewIntro.tags(sub: request.agentType, lead: seat.look) : [:]
+            let note = CrewIntro.subNote(Crew.sub(type: request.agentType), lead: Crew.lead(seat.look), tags: tags)
+            return CrewIntro.body(event: request.event, note: note + "\n\n" + CrewIntro.inShortNote)
         default:
             return nil
         }

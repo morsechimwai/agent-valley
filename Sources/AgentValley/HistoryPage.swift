@@ -48,8 +48,8 @@ struct HistoryPage: View {
                     pick = HistoryPick(span: span, anchor: pick.day ?? pick.anchor, project: pick.project)
                 }))
             }
-            if let problem = ledger.problem { problemLine(problem) }
-            if let exportProblem { problemLine(exportProblem) }
+            if let problem = ledger.problem { ProblemLine(text: problem) }
+            if let exportProblem { ProblemLine(text: exportProblem) }
             if let reading = ledger.reading {
                 Text(verbatim: Format.readingHistory(reading)).foregroundStyle(.white.opacity(0.6))
             } else {
@@ -84,14 +84,6 @@ struct HistoryPage: View {
 
     private func rebuild() {
         report = HistoryReport.make(slice, pick: pick, calendar: calendar, home: home)
-    }
-
-    // Not orange: orange is what is picked.
-    private func problemLine(_ problem: String) -> some View {
-        Label { Text(verbatim: problem).foregroundStyle(.white.opacity(0.8)) } icon: {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LimitMeter.color(.critical))
-        }
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - The report
@@ -257,6 +249,18 @@ struct HistoryPage: View {
         }
         SplitLine(lines: report.models)
         SplitLine(lines: report.agents)
+    }
+}
+
+/// What went wrong on a page, as History and the Library say it. Not orange: orange is what is picked.
+struct ProblemLine: View {
+    let text: String
+
+    var body: some View {
+        Label { Text(verbatim: text).foregroundStyle(.white.opacity(0.8)) } icon: {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LimitMeter.color(.critical))
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

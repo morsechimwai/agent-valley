@@ -61,7 +61,7 @@ enum ListFit {
     static let readAllBox: CGFloat = 8 * 2 + textLine + CardStyle.line + HandBackBox.maxHeight + CardStyle.line + textLine + CardStyle.block
     /// A line of the panel's own text.
     private static let textLine: CGFloat = 15
-    private static let header: CGFloat = 28
+    static let header: CGFloat = 28
     private static let jobLine: CGFloat = 17
 
     /// The ids to fold: quiet ones from the bottom up, then working ones from the bottom up,

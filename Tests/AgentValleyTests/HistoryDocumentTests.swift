@@ -135,7 +135,7 @@ final class HistoryDocumentTests: XCTestCase {
         let week = HistoryReport.interval(of: .week, around: wednesday, calendar: monday)
         let weekly = LedgerSlice(answers: [answer("1", "2026-10-14T10:00:00.000Z", output: 50_000)], interval: week)
         let every = try XCTUnwrap(document(HistoryPick(span: .week, anchor: wednesday), weekly, calendar: monday))
-        XCTAssertEqual(every.fileName(calendar: monday), "AgentValley Oct 12 – 18, 2026.pdf")
+        XCTAssertEqual(every.fileName(calendar: monday), "All projects Oct 12 – 18, 2026.pdf")
     }
 
     func testReportWords() throws {

@@ -98,11 +98,12 @@ private struct Rule: View {
     var body: some View { Rectangle().fill(color).frame(height: weight) }
 }
 
-/// The block-letter name of the website's logo, drawn from its own pixels.
-private struct Wordmark: View {
+/// The block-letter name of the website's logo, drawn from its own pixels. A book's pages draw
+/// the same cells (`BookPDF`).
+struct Wordmark: View {
     let height: CGFloat
 
-    private static let rows = [
+    static let rows = [
         "d.LLLLLLd.LLLLLLd.LLLLLLd.LLLLLLd.LLLLLLd.LLd.LLd.LLLLLLd.LLd.d.d.LLd.d.d.LLLLLLd.LLd.LL",
         "..LLLLLL..LLLLLL..LLLLLL..LLLLLL..LLLLLL..LL..LL..LLLLLL..LL......LL......LLLLLL..LL..LL",
         ".dLL..LL.dLL.....dLL.....dLL..LL.d..LL...dLL.dLL.dLL..LL.dLL.d.d.dLL.d.d.dLL.....dLL.dLL",
@@ -118,14 +119,56 @@ private struct Wordmark: View {
     ].map(Array.init)
 
     var body: some View {
-        Pixels(cells: Self.rows, size: height * 88 / 12) { cell in
-            switch cell {
-            case "L": rgb(0x23190F)
-            case "d": rgb(0xB8A685)
-            default: nil
+        Pixels(cells: Self.rows, size: height * 88 / 12) { Self.hex($0).map(rgb) }
+        .accessibilityLabel(Text(verbatim: "AgentValley"))
+    }
+
+    /// The letters, and the shadow they cast.
+    static func hex(_ cell: Character) -> UInt32? {
+        switch cell {
+        case "L": 0x23190F
+        case "d": 0xB8A685
+        default: nil
+        }
+    }
+}
+
+/// The block-letter logo, small, slanted and faint, in staggered rows over the whole sheet, under
+/// the words: two to a row, then three around them, fifteen to a page. A book's pages draw the
+/// same marks (`BookPDF`).
+struct Watermark: View {
+    private static let spots: [CGPoint] = (0..<6).flatMap { row in
+        let columns: [CGFloat] = row.isMultiple(of: 2) ? [195, 455] : [65, 325, 585]
+        return columns.map { CGPoint(x: $0, y: 32 + CGFloat(row) * 150) }
+    }
+
+    /// The letters as one shape, 132 wide and centred on the origin, a run of cells in a row to a
+    /// box: drawn a cell at a time, fifteen marks made the file six times the size.
+    static let letters: Path = {
+        let cell: CGFloat = 1.5
+        var path = Path()
+        for (y, row) in Wordmark.rows.enumerated() {
+            var x = 0
+            while x < row.count {
+                guard row[x] == "L" else { x += 1; continue }
+                let start = x
+                while x < row.count, row[x] == "L" { x += 1 }
+                path.addRect(CGRect(x: CGFloat(start - 44) * cell, y: CGFloat(y - 6) * cell, width: CGFloat(x - start) * cell, height: cell))
             }
         }
-        .accessibilityLabel(Text(verbatim: "AgentValley"))
+        return path
+    }()
+
+    /// Where each mark goes, slanted up to the right, on a page whose top left is the origin.
+    static let places = spots.map { CGAffineTransform(rotationAngle: -.pi / 6).concatenating(CGAffineTransform(translationX: $0.x, y: $0.y)) }
+    static let opacity = 0.045
+
+    var body: some View {
+        Canvas { context, _ in
+            for place in Self.places {
+                context.fill(Self.letters.applying(place), with: .color(rgb(0x23190F).opacity(Self.opacity)))
+            }
+        }
     }
 }
 
@@ -153,6 +196,7 @@ private struct ReportPage: View {
         .padding(.bottom, 32)
         .foregroundStyle(Ink.type)
         .font(.paperText)
+        .background { Watermark() }
         .background(Ink.paper)
     }
 

@@ -114,6 +114,13 @@ final class TranscriptReaderTests: XCTestCase {
         XCTAssertEqual(TranscriptReader.elapsed(of: info, lastActivity: date("2026-10-12T03:00:00.000Z"), now: now, session: .busy), 120)
     }
 
+    /// The name tags Claude writes are the terminal's: the panel shows the names.
+    func testNameTagsReadAsNames() {
+        let tagged = read(#"{"type":"assistant","message":{"id":"m","stop_reason":"end_turn","content":[{"type":"text","text":"\#(CrewFont.Tag.text(.general)) is back. Next, \#(CrewFont.Tag.text(.explore))."}]}}"#)
+        XCTAssertEqual(tagged.thought, "Felix is back. Next, Faye.")
+        XCTAssertEqual(tagged.handedBack, "Felix is back. Next, Faye.")
+    }
+
     // "> Thinking" told the person nothing. Between calls a row says where the agent is headed:
     // the first line of what it last thought or wrote this turn, else the step it just finished.
     func testBetweenCallsARowSaysWhereItIsHeaded() {
@@ -659,5 +666,53 @@ final class TranscriptReaderTests: XCTestCase {
         XCTAssertEqual(cut.count, 8193)
         XCTAssertTrue(cut.hasSuffix("…"))
         XCTAssertEqual(HandBack.kept("  one\ntwo \n", limit: 10), "one\ntwo")
+    }
+
+    private func meta(_ kind: String, _ content: String, at time: String) -> String {
+        #"{"type":"user","isMeta":true,"origin":{"kind":"\#(kind)"},"timestamp":"\#(time)","message":{"role":"user","content":"\#(content)"}}"#
+    }
+    private func endTurn(_ text: String, at time: String) -> String {
+        #"{"type":"assistant","timestamp":"\#(time)","message":{"id":"m","stop_reason":"end_turn","content":[{"type":"text","text":"\#(text)"}]}}"#
+    }
+    private func promptLine(_ text: String) -> String {
+        #"{"type":"user","timestamp":"2026-10-12T02:00:00.000Z","message":{"role":"user","content":"\#(text)"}}"#
+    }
+
+    // The Library stores each hand-back as a chapter, so none may be cut or lost when the lead continues the agent.
+    func testEachHandBackIsRecordedWhole() {
+        let big = String(repeating: "x", count: 10_000)
+        let msg = "The coordinator sent a message while you were working:\\nNow check tests."
+        let info = read(promptLine("Find calls"), endTurn(big, at: "2026-10-12T02:03:00.000Z"),
+                        meta("coordinator", msg, at: "2026-10-12T02:04:00.000Z"), endTurn("done", at: "2026-10-12T02:05:00.000Z"))
+        XCTAssertEqual(info.records.count, 2)
+        XCTAssertEqual(info.records[0].asked, "Find calls")
+        XCTAssertEqual(info.records[0].text.count, 10_000)
+        XCTAssertEqual(info.records[1].asked, "The coordinator sent a message while you were working:\nNow check tests.")
+        XCTAssertEqual(info.records[1].at, date("2026-10-12T02:05:00.000Z"))
+    }
+
+    // A wake-up after background work is a second ask too.
+    func testATaskNotificationWakeUpBecomesTheAsk() {
+        let note = "[SYSTEM NOTIFICATION - NOT USER INPUT]\\nBuild finished."
+        let info = read(promptLine("Build it"), endTurn("a", at: "2026-10-12T02:03:00.000Z"),
+                        meta("task-notification", note, at: "2026-10-12T02:04:00.000Z"), endTurn("b", at: "2026-10-12T02:05:00.000Z"))
+        XCTAssertEqual(info.records.map(\.asked), ["Build it", "[SYSTEM NOTIFICATION - NOT USER INPUT]\nBuild finished."])
+    }
+
+    // A result handed in with no words has no chapter to store.
+    func testAResultHandedInWithNoTextIsNotRecorded() {
+        let call = #"{"type":"assistant","timestamp":"2026-10-13T08:00:00.000Z","message":{"role":"assistant","stop_reason":"tool_use","content":[{"type":"tool_use","id":"t9","name":"StructuredOutput","input":{"result":"ok"}}]}}"#
+        let info = read(promptLine("Go"), call)
+        XCTAssertTrue(info.records.isEmpty)
+        XCTAssertNotNil(info.handedBackAt)
+    }
+
+    // The panel cuts the task to one short line; the Library keeps the description whole.
+    func testFullTaskKeepsTheWholeDescription() {
+        var info = AgentInfo()
+        let long = String(repeating: "a", count: 300)
+        TranscriptReader.applyMeta(Data(#"{"agentType":"Explore","description":"\#(long)"}"#.utf8), to: &info)
+        XCTAssertEqual(info.fullTask.count, 300)
+        XCTAssertLessThanOrEqual(info.task.count, 120)
     }
 }

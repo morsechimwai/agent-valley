@@ -243,6 +243,53 @@ final class PanelPicturesTests: XCTestCase {
         print("motion frames every \(String(format: "%.1f", mean * 1000))ms on average, \(String(format: "%.1f", (gaps.min() ?? 0) * 1000))-\(String(format: "%.1f", (gaps.max() ?? 0) * 1000))ms")
     }
 
+    /// The island moving: shut, the alert, shut, open, shut again, a frame every 30th of a
+    /// second as the springs run. `island-motion.ffconcat` lists them for pictures.sh.
+    private func islandMotion(state: NotchState, window: NSWindow, islandOn: () -> Void, open: () -> Void, shut: () -> Void) throws {
+        let fm = FileManager.default
+        for file in (try? fm.contentsOfDirectory(atPath: out)) ?? [] where file.hasPrefix("island-motion") {
+            try? fm.removeItem(atPath: "\(out)/\(file)")
+        }
+        window.backgroundColor = NSColor(white: 0.91, alpha: 1)
+        islandOn()
+        pump(1.2)
+        // The top of the window only: the pill and the card hang from it. Even sizes for the video.
+        let crop = CGRect(x: 0, y: 0, width: 600, height: 640)
+        let rect = host.isFlipped ? crop : CGRect(x: 0, y: host.bounds.height - crop.height, width: crop.width, height: crop.height)
+        var concat = ["ffconcat version 1.0"]
+        var n = 0
+        var last = Date()
+        func film(_ seconds: Double) throws {
+            let start = Date()
+            for i in 0..<Int(seconds * 30) {
+                RunLoop.main.run(until: start.addingTimeInterval(Double(i) / 30))
+                host.layoutSubtreeIfNeeded()
+                guard let image = host.bitmapImageRepForCachingDisplay(in: rect) else { continue }
+                host.cacheDisplay(in: rect, to: image)
+                let file = String(format: "island-motion-%04d.png", n)
+                try image.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "\(out)/\(file)"))
+                let now = Date()
+                if n > 0 { concat.append("duration \(now.timeIntervalSince(last))") }
+                concat.append("file '\(file)'")
+                last = now
+                n += 1
+            }
+        }
+        try film(0.7)
+        state.alerting = true
+        try film(2.0)
+        state.alerting = false
+        try film(1.0)
+        open()
+        try film(2.0)
+        shut()
+        try film(1.2)
+        concat.append("duration 0.5")
+        // The last one again: the concat reader drops the last file's duration.
+        concat.append(concat[concat.count - 2])
+        try (concat.joined(separator: "\n") + "\n").write(toFile: "\(out)/island-motion.ffconcat", atomically: true, encoding: .utf8)
+    }
+
     func testDrawThePanelOffTheScreen() throws {
         let environment = ProcessInfo.processInfo.environment
         guard let home = environment["PANEL_PICTURES_HOME"], let out = environment["PANEL_PICTURES_OUT"] else {
@@ -309,13 +356,24 @@ final class PanelPicturesTests: XCTestCase {
             AgentStore.ordered(AgentStore.showing(answers.overlay(store.sessions), hidden: state.hidden), by: settings.grouping)
         }
         func list() -> SessionList {
-            AgentStore.arrange(shown(), idle: settings.idleSessions, keeping: answers.settledSessions.union(HandBack.holding(shown(), openedAt: state.openedAt)))
+            AgentStore.arrange(shown(), idle: settings.idleSessions, keeping: answers.settledSessions.union(HandBack.holding(shown(), openedAt: state.openedAt)),
+                               shut: settings.grouping == .projects ? state.shutProjects : [])
         }
         func walked() -> [String] { list().walked(idleExpanded: state.idleExpanded).map(\.id) }
         func open() {
             state.expanded = true
             state.openedAt = Date()
             state.opens += 1
+        }
+        func shut() {
+            state.expanded = false
+            state.openedAt = nil
+        }
+        /// The island's size on the 1512x982 screen, as the window code would set it.
+        func islandOn() {
+            state.appleIsland = CGRect(x: 701, y: 951, width: 110, height: 28)
+            state.barHeight = 28
+            state.notchWidth = 110
         }
 
         /// What the plugin's hook would send for one of the made-up sessions, handed straight to the store.
@@ -344,6 +402,10 @@ final class PanelPicturesTests: XCTestCase {
             ].filter { $0 }.count)
             let room = NotchGeometry.listRoom(screen: state.screenFrame, barHeight: state.barHeight)
             let fitted = list.cards.map { card in
+                if list.shut.contains(card.id) {
+                    let line: CGFloat = headers.contains(card.id) ? ListFit.header : 0
+                    return ListFit.Entry(id: card.id, full: line, row: line, keepsFull: true, quiet: false, header: headers.contains(card.id))
+                }
                 let session = AnswerStore.sessionID(of: card)
                 let open = state.doneShown[card.id] ?? false
                 return ListFit.Entry(
@@ -371,6 +433,15 @@ final class PanelPicturesTests: XCTestCase {
             open()
             picture("open")
             checkHeight()
+        case "shut":
+            // Each project with more than one session shut by its line: a line each is left.
+            open()
+            let byProject = Dictionary(grouping: shown(), by: \.projectKey)
+            state.shutProjects = Set(byProject.filter { $0.value.count > 1 }.keys)
+            picture("shut")
+            checkHeight()
+            state.shutProjects = []
+            picture("opened-again")
         case "roomy":
             // The checkout alone: room for its full card, so its crew lines are in sight. The
             // README's card has jobs now and stays listed, so it goes with the rest.
@@ -641,6 +712,23 @@ final class PanelPicturesTests: XCTestCase {
             open()
             picture("open")
             spoken("open")
+        case "island":
+            // A 14-inch notch as it is, then a Mac with an island in its place (the 2026 OLED
+            // MacBook Pro): a floating pill, its two-row alert, and the floating card. The window
+            // is the menu bar's grey here so that the gap above the pill shows.
+            state.barHeight = 32
+            state.notchWidth = 185
+            picture("notch")
+            window.backgroundColor = NSColor(white: 0.91, alpha: 1)
+            islandOn()
+            picture("shut")
+            state.alerting = true
+            picture("alert")
+            state.alerting = false
+            open()
+            picture("open")
+        case "island-motion":
+            try islandMotion(state: state, window: window, islandOn: islandOn, open: open, shut: shut)
         case "fishing", "fishing-week":
             // Everyone done for now, so that the bar has the fish and the sign hangs over an empty list.
             for card in store.sessions { state.hidden[card.id] = Date() }

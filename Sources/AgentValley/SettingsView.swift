@@ -198,6 +198,10 @@ struct SettingsView: View {
                     Switch(title: "Crew names in Claude Code", isOn: $settings.crewNames)
                 }
                 .disabled(!settings.answers)
+                SettingRow(title: "Name tags", caption: Format.nameTagsCaption) {
+                    Switch(title: "Name tags", isOn: $settings.nameTags)
+                }
+                .disabled(!settings.answers || !settings.crewNames)
                 // Shown with the switch off too while the plugin is not in: the cards that wait send people here.
                 if settings.answers || !answers.pluginInstalled { install }
             }
@@ -305,7 +309,7 @@ struct SettingsView: View {
             Button {
                 NSWorkspace.shared.open(Format.bugReport(
                     version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-                    macOS: ProcessInfo.processInfo.operatingSystemVersion, mac: Self.macModel))
+                    macOS: ProcessInfo.processInfo.operatingSystemVersion, mac: Self.macAndScreen))
             } label: {
                 quietLabel("Report a bug", symbol: "ladybug")
             }
@@ -356,6 +360,15 @@ struct SettingsView: View {
         var model = [CChar](repeating: 0, count: max(size, 1))
         sysctlbyname("hw.model", &model, &size, nil, 0)
         return String(cString: model)
+    }
+
+    /// The model and, when the Mac has a display of its own, how that display's top edge is cut.
+    private static var macAndScreen: String {
+        guard let screen = NSScreen.screens.first(where: {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID).map { CGDisplayIsBuiltin($0) != 0 } ?? false
+        }) else { return macModel }
+        let gap = screen.auxiliaryTopLeftArea.flatMap { left in screen.auxiliaryTopRightArea.map { screen.frame.width - left.width - $0.width } }
+        return macModel + ", " + Format.screenReport(frame: screen.frame, inset: screen.safeAreaInsets.top, gap: gap, cutout: screen.cutout, safeAperture: screen.safeAperture)
     }
 
     /// Why the limits are missing, under their switch: the status row only has room to say that they are.
@@ -580,6 +593,7 @@ struct Legend: View {
             mark("what one handed back") { DocIcon().frame(width: 14) }
             mark("Monitor job") { JobEye(size: 14) }
         }
+        mark("Library") { BookStack(size: 14) }
         HStack(spacing: 12) {
             mark("job left running") { JobScreen(size: 14) }
             mark("server left running") { JobServer(size: 14) }

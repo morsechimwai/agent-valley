@@ -72,6 +72,14 @@ struct AgentInfo: Equatable {
     var asked = ""
     /// The text of the latest line that ended a turn: what it handed back. Line breaks kept.
     var handedBack = ""
+    /// One hand-back kept whole, with what it answered.
+    struct HandBackRecord: Equatable { let asked: String; let text: String; let at: Date }
+    /// Every hand-back with words, uncut. The reader only appends; the caller drains it.
+    var records: [HandBackRecord] = []
+    /// The description from the meta file, uncut, line breaks kept. `task` is its one-line cut.
+    var fullTask = ""
+    /// What the next hand-back answers: the first prompt, then each message the lead or a wake-up sends.
+    fileprivate var pendingAsk = ""
     /// When it last handed back, by a closing answer or by a result handed in.
     var handedBackAt: Date?
     /// The agent's work is over, by a closing answer or by a result handed in. The model writes
@@ -226,7 +234,13 @@ enum TranscriptReader {
                 info.handedBackAt = nil
                 info.thought = ""
                 if let date { info.turnStartedAt = date }
+                if info.pendingAsk.isEmpty { info.pendingAsk = text(of: object["message"] as? [String: Any]) }
                 if info.asked.isEmpty { info.asked = HandBack.kept(text(of: object["message"] as? [String: Any]), limit: HandBack.askedLimit) }
+            }
+            // The lead's message or a wake-up continues the agent: the next hand-back answers it.
+            if type == "user", object["isMeta"] as? Bool == true,
+               ["coordinator", "task-notification"].contains((object["origin"] as? [String: Any])?["kind"] as? String ?? "") {
+                info.pendingAsk = text(of: object["message"] as? [String: Any])
             }
             if info.turnEnded {
                 info.openTools = []
@@ -280,11 +294,12 @@ enum TranscriptReader {
                 info.lastStepAsRun = stepLabel(tool: tool, input: block["input"] as? [String: Any] ?? [:], asRun: true)
             case "text":
                 hasText = true
-                if let text = block["text"] as? String { words.append(text) }
-                if let line = firstLine(block["text"]) { info.thought = line }
+                let text = (block["text"] as? String).map(CrewFont.untagged)
+                if let text { words.append(text) }
+                if let line = firstLine(text) { info.thought = line }
             case "thinking":
                 // Claude Code keeps the words of only some thoughts; the rest come empty.
-                if let line = firstLine(block["thinking"]) { info.thought = line }
+                if let line = firstLine((block["thinking"] as? String).map(CrewFont.untagged)) { info.thought = line }
             default:
                 break
             }
@@ -300,6 +315,7 @@ enum TranscriptReader {
         if info.turnEnded {
             info.handedBack = HandBack.kept(words.joined(separator: "\n"), limit: HandBack.resultLimit)
             info.handedBackAt = date
+            if let date { info.records.append(.init(asked: info.pendingAsk, text: words.joined(separator: "\n"), at: date)) }
         } else if returned {
             info.handedBackAt = date
         }
@@ -331,7 +347,7 @@ enum TranscriptReader {
     static func applyMeta(_ data: Data, to info: inout AgentInfo) -> Bool {
         guard let object = SafeJSON.object(data) else { return false }
         if let type = object["agentType"] as? String, !type.isEmpty { info.type = clipped(type) }
-        if let task = object["description"] as? String { info.task = clipped(task) }
+        if let task = object["description"] as? String { info.task = clipped(task); info.fullTask = task }
         return true
     }
 

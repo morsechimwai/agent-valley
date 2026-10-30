@@ -183,18 +183,95 @@ enum CrewFont {
         }
     }
 
+    /// `text` with each name tag back to the name it shows and every other character of the font
+    /// taken out: Claude writes the tags for the terminal, and the panel and the phone draw no such font.
+    static func untagged(_ text: String) -> String {
+        let block = firstScalar...lastScalar
+        guard text.unicodeScalars.contains(where: { block.contains($0.value) }) else { return text }
+        var kept = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if !block.contains(scalar.value) {
+                kept.append(scalar)
+            } else if let who = Tag.who(head: scalar.value) {
+                kept.append(contentsOf: who.name.unicodeScalars)
+            }
+        }
+        return String(kept)
+    }
+
+    /// A name tag for Claude's chat: the person's face and name on a pill in their shirt's pale
+    /// dye, three wide characters long. After the marks: the head (the pill's left end and the
+    /// face) of each look in the order of `place`, then the two name parts of each name in each
+    /// shirt in the order of `dress`. The colours are the font's, not the terminal's.
+    enum Tag {
+        static var firstScalar: UInt32 { Mark.worktree.scalar + 1 }
+        static var lastScalar: UInt32 { firstScalar + UInt32(kinds.count + dresses.count * 2) - 1 }
+        /// The letters.
+        static let ink: UInt32 = 0x111111
+
+        /// Every look a head is drawn for, at its `place`.
+        static let kinds: [MascotKind] = crew + (0..<Person.leads.count).flatMap { face in
+            (0..<Person.leadHair.count).flatMap { hair in
+                (0..<Person.leadShirts.count).map { MascotKind.lead(LeadLook(face: face, hair: hair, shirt: $0)) }
+            }
+        }
+
+        /// One look for each name in each shirt, at its `dress`: the crew's own, then each lead in each shirt.
+        static let dresses: [MascotKind] = crew + (0..<Person.leads.count).flatMap { face in
+            (0..<Person.leadShirts.count).map { MascotKind.lead(LeadLook(face: face, shirt: $0)) }
+        }
+
+        private static func dress(_ kind: MascotKind) -> Int {
+            guard case .lead(let look) = kind else { return place(kind) }
+            return crew.count + (look.face % Person.leads.count) * Person.leadShirts.count + look.shirt % Person.leadShirts.count
+        }
+
+        /// The three characters that draw `kind`'s tag.
+        static func text(_ kind: MascotKind) -> String {
+            let parts = firstScalar + UInt32(kinds.count + dress(kind) * 2)
+            return [firstScalar + UInt32(place(kind)), parts, parts + 1].map { String(UnicodeScalar($0)!) }.joined()
+        }
+
+        /// Whose name the tag shows.
+        static func who(_ kind: MascotKind) -> Crew {
+            switch kind {
+            case .lead(let look): Crew.lead(look)
+            case .plan: .judy
+            case .explore: .faye
+            case .general, .other: .felix
+            }
+        }
+
+        /// Whose tag a head character begins; nil for any other character.
+        static func who(head scalar: UInt32) -> Crew? {
+            guard scalar >= firstScalar, scalar < firstScalar + UInt32(kinds.count) else { return nil }
+            return who(kinds[Int(scalar - firstScalar)])
+        }
+
+        /// Behind the letters, and the line around them.
+        static func colours(_ kind: MascotKind) -> (fill: UInt32, edge: UInt32) {
+            let shirt = kind.person.shirt
+            return (paler(shirt, by: 0.78), paler(shirt, by: 0.55))
+        }
+    }
+
+    /// Where `kind` stands among the looks: the crew first, then every lead look.
+    private static func place(_ kind: MascotKind) -> Int {
+        switch kind {
+        case .general: 0
+        case .explore: 1
+        case .plan: 2
+        case .other(let shirt): 3 + shirt % Person.otherShirts.count
+        case .lead(let look):
+            crew.count + (look.face % Person.leads.count) * Person.leadHair.count * Person.leadShirts.count
+                + (look.hair % Person.leadHair.count) * Person.leadShirts.count + look.shirt % Person.leadShirts.count
+        }
+    }
+
     /// The one character that draws `kind` in `pose`, holding what `holding` names while it works.
     /// A session's own agent has working faces only.
     static func character(_ kind: MascotKind, _ pose: CrewPose, holding: Activity? = nil) -> String {
-        let place: Int
-        switch kind {
-        case .general: place = 0
-        case .explore: place = 1
-        case .plan: place = 2
-        case .other(let shirt): place = 3 + shirt % Person.otherShirts.count
-        case .lead(let look):
-            place = crew.count + (look.face % Person.leads.count) * 42 + (look.hair % Person.leadHair.count) * 7 + look.shirt % Person.leadShirts.count
-        }
+        let place = place(kind)
         let index: Int
         if let holding, pose == .working {
             index = crew.count * 3 + leadCount + place * Activity.allCases.count + Activity.allCases.firstIndex(of: holding)!
@@ -228,10 +305,31 @@ enum CrewFont {
             let contours = mark.contours.map { "[" + $0.map { "\($0.x),\($0.y)" }.joined(separator: ",") + "]" }
             return "{\"codepoint\":\(mark.scalar),\"contours\":[\(contours.joined(separator: ","))]}"
         }
-        return Data("{\"family\":\"\(family)\",\"faces\":[\((faces + pictures).joined(separator: ","))],\"marks\":[\(marks.joined(separator: ","))]}".utf8)
+        // Each tag part with its colours and name; the head carries the face too.
+        let heads = Tag.kinds.map { kind in
+            tag(Tag.text(kind).unicodeScalars.first!.value, part: 0, kind,
+                rects: runs(MascotView.pose(kind.person, status: .working, callsOut: false, blink: false, wave: 0), kind.person.hex))
+        }
+        let parts = Tag.dresses.flatMap { kind in
+            Tag.text(kind).unicodeScalars.dropFirst().enumerated().map { tag($0.element.value, part: $0.offset + 1, kind, rects: []) }
+        }
+        return Data(("{\"family\":\"\(family)\",\"faces\":[\((faces + pictures).joined(separator: ","))],\"marks\":[\(marks.joined(separator: ","))],"
+            + "\"tags\":[\((heads + parts).joined(separator: ","))]}").utf8)
+    }
+
+    private static func tag(_ scalar: UInt32, part: Int, _ kind: MascotKind, rects: [String]) -> String {
+        let (fill, edge) = Tag.colours(kind)
+        let hex = { (colour: UInt32) in String(format: "%06X", colour) }
+        return "{\"codepoint\":\(scalar),\"part\":\(part),\"name\":\"\(Tag.who(kind).name)\",\"fill\":\"\(hex(fill))\",\"edge\":\"\(hex(edge))\","
+            + "\"ink\":\"\(hex(Tag.ink))\",\"rects\":[\(rects.joined(separator: ","))]}"
     }
 
     private static func entry(_ scalar: UInt32, opacity: Double, cells: [[Character]], hex colour: (Character) -> UInt32?) -> String {
+        "{\"codepoint\":\(scalar),\"opacity\":\(String(format: "%.2f", opacity)),\"rects\":[\(runs(cells, colour).joined(separator: ","))]}"
+    }
+
+    /// Runs of one colour along each row, as `[x0, x1, y, "RRGGBB"]`, `x1` not included.
+    private static func runs(_ cells: [[Character]], _ colour: (Character) -> UInt32?) -> [String] {
         var rects: [String] = []
         for (y, row) in cells.enumerated() {
             var x = 0
@@ -243,7 +341,7 @@ enum CrewFont {
                 x = end
             }
         }
-        return "{\"codepoint\":\(scalar),\"opacity\":\(String(format: "%.2f", opacity)),\"rects\":[\(rects.joined(separator: ","))]}"
+        return rects
     }
 
     /// Says which faces a font was built from, so a font that is behind the code can be told.

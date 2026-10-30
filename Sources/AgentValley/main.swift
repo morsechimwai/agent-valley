@@ -10,7 +10,12 @@ if CommandLine.arguments.count > 1, CommandLine.arguments[1] == "crew" {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings()
     private let store = AgentStore(roster: CrewSetup.folder(FileManager.default.homeDirectoryForCurrentUser)
-        .appendingPathComponent(CrewSetup.rosterName))
+        .appendingPathComponent(CrewSetup.rosterName), library: {
+            do { return try LibraryStore() } catch {
+                NSLog("AgentValley: the library would not open: \(error)")
+                return nil
+            }
+        }())
     private let limits = PlanLimitsClient()
     private let answers = AnswerStore()
     private let usage = UsageLedger()
@@ -77,6 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         wireSending()
         store.start()
+        if let library = store.library {
+            // What was handed back while the app was closed shows as new once the catch-up has it.
+            LibraryBackfill.run(root: URL(fileURLWithPath: store.root), into: library) { [store] in store.readUnread() }
+        }
         notch = NotchWindowController(store: store, settings: settings, limits: limits, answers: answers, sound: SoundPlayer(settings: settings), usage: usage, updates: updates,
                                       away: awayWatch, desk: desk)
     }
@@ -120,8 +129,8 @@ extension AppDelegate {
                 SendLog.write(id: id, route: store.reach[session]?.route.kind ?? "none", status: status, to: logFile)
             })
         answers.onIntro = { [store, settings] request, connection in
-            guard settings.crewNames else { connection.reply(nil); return }
-            store.introduce(request) { connection.reply($0) }
+            guard CrewIntro.reachesStore(event: request.event, names: settings.crewNames) else { connection.reply(nil); return }
+            store.introduce(request, names: settings.crewNames, tags: settings.nameTags) { connection.reply($0) }
         }
         answers.onStop = { [desk] stop, connection in
             let hook = desk.arrived(stop) { connection.reply($0) }

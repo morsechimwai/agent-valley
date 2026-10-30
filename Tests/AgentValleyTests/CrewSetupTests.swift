@@ -285,6 +285,22 @@ final class CrewSetupTests: XCTestCase {
         XCTAssertEqual(read(appSupportConfig), "theme = x\n" + CrewSetup.ghosttyLines.joined(separator: "\n") + "\nfont-size = 13")
     }
 
+    // The name tags ask Ghostty's config by the terminal the hook names: a Ghostty without our
+    // font line would draw each tag as boxes, so its sessions get plain names.
+    func testNameTagsAskGhosttysConfigByTheTerminalTheHookNames() throws {
+        try write("the font", to: "Library/Fonts/AgentValleyCrew.ttf")
+        try files.setAttributes([.modificationDate: Date(timeIntervalSince1970: 0)], ofItemAtPath: installedFont.path)
+        func tags(_ terminal: String?, pid: Int32? = getpid()) -> Bool {
+            AgentStore.terminalDrawsTags(CrewIntroRequest(event: "SessionStart", session: "s", cwd: "/", agentType: "", pid: pid, terminal: terminal),
+                                         home: home, bundled: font)
+        }
+        XCTAssertTrue(tags("Apple_Terminal"))
+        XCTAssertFalse(tags("ghostty"))
+        try write(CrewSetup.ghosttyLines.joined(separator: "\n") + "\n", to: ".config/ghostty/config")
+        XCTAssertTrue(tags("ghostty"))
+        XCTAssertFalse(tags(nil, pid: nil), "no Claude Code process to find the terminal by")
+    }
+
     // A terminal keeps the fonts it has seen until it quits: a face the old font lacks would be
     // an empty box. Things in hand wait for this app's font and a terminal opened after it.
     func testThingsInHandWaitForTheFontAndATerminalOpenedAfterIt() throws {

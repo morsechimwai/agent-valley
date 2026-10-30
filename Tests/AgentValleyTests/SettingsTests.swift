@@ -80,6 +80,13 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(Settings(defaults: defaults).crewNames)
     }
 
+    // So are the name tags; someone who copies Claude's replies out of the terminal turns them off.
+    func testNameTagsStartOnAndRememberTheChoice() {
+        XCTAssertTrue(Settings(defaults: defaults).nameTags)
+        Settings(defaults: defaults).nameTags = false
+        XCTAssertFalse(Settings(defaults: defaults).nameTags)
+    }
+
     // The crew talks from the start; one switch turns it off.
     func testSoundsStartOnWithBothMomentsReady() {
         let settings = Settings(defaults: defaults)

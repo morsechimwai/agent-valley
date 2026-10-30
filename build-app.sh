@@ -49,8 +49,10 @@ cp AgentValleyCrew.ttf "$APP/Contents/Resources/"
 cp signs/*.png "$APP/Contents/Resources/"
 # The crew's voices: what each says when someone waits, when work is done, and on the way out and back.
 cp -R sounds/crew "$APP/Contents/Resources/crew"
-# Ours and Sparkle's licenses, which MIT asks to travel with every copy; Settings, About opens it.
-{ cat LICENSE; printf '\n\n---\n\nSparkle (https://sparkle-project.org), bundled for updates:\n\n'; cat .build/artifacts/sparkle/Sparkle/LICENSE; } > "$APP/Contents/Resources/Licenses.txt"
+# Ours, Sparkle's and IBM Plex's licenses, which MIT and the OFL ask to travel with every copy;
+# Settings, About opens it. The crew's font draws its name tags' letters from IBM Plex Mono.
+{ cat LICENSE; printf '\n\n---\n\nSparkle (https://sparkle-project.org), bundled for updates:\n\n'; cat .build/artifacts/sparkle/Sparkle/LICENSE
+  printf '\n\n---\n\nAgentValleyCrew.ttf, the crew font, has the letters of its name tags from IBM Plex Mono and is licensed under the SIL Open Font License 1.1:\n\n'; cat testing/fonts/OFL.txt; } > "$APP/Contents/Resources/Licenses.txt"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -68,9 +70,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.24</string>
+	<string>0.3.25</string>
 	<key>CFBundleVersion</key>
-	<string>43</string>
+	<string>44</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
 	<key>LSUIElement</key>

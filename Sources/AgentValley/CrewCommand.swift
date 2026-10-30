@@ -55,7 +55,7 @@ enum CrewCommand {
         }
     }
 
-    private static var bundledFont: URL {
+    static var bundledFont: URL {
         (Bundle.main.resourceURL ?? Bundle.main.bundleURL).appendingPathComponent(CrewFont.fileName)
     }
 
@@ -63,12 +63,12 @@ enum CrewCommand {
         CrewSetup.drawsThingsInHand(home: home, environment: environment, bundled: bundledFont, terminalStart: terminalStart())
     }
 
-    /// When the terminal this runs in opened: the start of the last process up the parent chain
-    /// before launchd. nil when the chain can't be read.
+    /// When the terminal `pid` runs in opened (this process's, by default): the start of the last
+    /// process up the parent chain before launchd. nil when the chain can't be read.
     /// ponytail: under tmux this finds the tmux server, which can outlive a font update; things
     /// in hand then wait for the server to restart.
-    static func terminalStart() -> Date? {
-        var pid = getppid()
+    static func terminalStart(of start: pid_t = getppid()) -> Date? {
+        var pid = start
         for _ in 0..<64 {
             var info = kinfo_proc(), size = MemoryLayout<kinfo_proc>.stride
             var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]

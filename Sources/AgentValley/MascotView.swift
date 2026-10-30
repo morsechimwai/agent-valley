@@ -726,3 +726,43 @@ struct DoneBook: View {
             .accessibilityHidden(true)
     }
 }
+
+/// The Library's mark: three books lying one on another, as on a desk. On the button that opens
+/// it and before each shelf.
+struct BookStack: View {
+    var size: CGFloat
+
+    static let cells: [String] = [
+        "............",
+        "............",
+        "..BBBBBBBp..",
+        "..bbbbbbbp..",
+        "............",
+        ".pYYYYYYYY..",
+        ".pyyyyyyyy..",
+        "............",
+        "..RRRRRRRRp.",
+        "..RRllllRRp.",
+        "..rrrrrrrrp.",
+        "............",
+    ]
+
+    static func hex(_ cell: Character) -> UInt32? {
+        switch cell {
+        case "B": 0x4A6FA5  // the blue book
+        case "b": 0x3A5A8A  // its shade
+        case "Y": 0xD9A441  // the yellow one
+        case "y": 0xB48530
+        case "R": 0xC0563B  // the red one at the bottom
+        case "r": 0x8C3B22
+        case "l": 0xF0B8A0  // its label
+        case "p": 0xF2EAD8  // the pages' edge
+        default: nil
+        }
+    }
+
+    var body: some View {
+        Pixels(cells: Self.cells.map(Array.init), size: size, colour: { Self.hex($0).map(rgb) })
+            .accessibilityHidden(true)
+    }
+}

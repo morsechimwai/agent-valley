@@ -109,6 +109,29 @@ enum Projects {
         return at(path)
     }
 
+    /// Shown names by place key. A key goes by the name of the folder last used in it (`lastUsed`,
+    /// by folder; `places`, folder to place), else by the first of `also`. Of the keys in `among`
+    /// (all, when nil), those of one name say the folder each is in: "app · work".
+    static func names(_ places: [String: Place], lastUsed: [String: Date], also: [Place] = [], among: Set<String>? = nil) -> [String: String] {
+        var newest: [String: (at: Date, place: Place)] = [:]
+        // Folders in ascending order, as the ledger lists them: a tie goes to the first.
+        for (folder, place) in places.sorted(by: { $0.key < $1.key }) {
+            let at = lastUsed[folder] ?? .distantPast
+            if newest[place.key].map({ at > $0.at }) ?? true { newest[place.key] = (at, place) }
+        }
+        var named = newest.mapValues(\.place)
+        for place in also where named[place.key] == nil { named[place.key] = place }
+        var names = named.mapValues(\.name)
+        // ponytail: two of one name in one parent's name stay alike; the parent's parent would tell them apart.
+        let alike = Dictionary(grouping: among ?? Set(named.keys), by: { named[$0]?.name ?? "" })
+        for (_, keys) in alike where keys.count > 1 {
+            for key in keys {
+                if let place = named[key], !place.parent.isEmpty { names[key] = place.name + " · " + place.parent }
+            }
+        }
+        return names
+    }
+
     /// The address of a checkout's remote, origin's else the first one's, from its own config.
     static func remote(of checkout: String) -> String? {
         remote(inConfig: AgentStore.head(ofPlainFile: checkout + "/.git/config", limit: 1 << 16))

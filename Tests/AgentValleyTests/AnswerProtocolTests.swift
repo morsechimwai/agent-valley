@@ -48,11 +48,19 @@ final class AnswerProtocolTests: XCTestCase {
     // terminal's session before it was.
     func testCrewIntroCarriesThePid() {
         XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nContent-Length: 2\r\nx-claude-pid: 4321", body: "{}")),
-                       .complete(path: .crewIntro(pid: 4321), body: Data("{}".utf8)))
+                       .complete(path: .crewIntro(pid: 4321, terminal: nil), body: Data("{}".utf8)))
         XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nContent-Length: 2", body: "{}")),
-                       .complete(path: .crewIntro(pid: nil), body: Data("{}".utf8)))
+                       .complete(path: .crewIntro(pid: nil, terminal: nil), body: Data("{}".utf8)))
         XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nX-Claude-Pid: abc\r\nContent-Length: 2", body: "{}")),
-                       .complete(path: .crewIntro(pid: nil), body: Data("{}".utf8)))
+                       .complete(path: .crewIntro(pid: nil, terminal: nil), body: Data("{}".utf8)))
+    }
+
+    // It says which terminal too, so the app can ask Ghostty's config whether it draws the name tags.
+    func testCrewIntroCarriesTheTerminal() {
+        XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nX-Term-Program: ghostty\r\nX-Claude-Pid: 4321\r\nContent-Length: 2", body: "{}")),
+                       .complete(path: .crewIntro(pid: 4321, terminal: "ghostty"), body: Data("{}".utf8)))
+        XCTAssertEqual(AnswerProtocol.parse(request("POST /crew-intro HTTP/1.1\r\nX-Term-Program: \r\nContent-Length: 2", body: "{}")),
+                       .complete(path: .crewIntro(pid: nil, terminal: nil), body: Data("{}".utf8)))
     }
 
     // The SubagentStart input as Claude Code 2.1.311 sent it: the session is the parent's.

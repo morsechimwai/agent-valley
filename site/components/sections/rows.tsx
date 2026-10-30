@@ -84,7 +84,7 @@ export function Rows() {
         <p className="lead">
           Sessions get a <Word id="panel">card</Word>. <Word id="sub-agent">Sub-agents</Word> get rows under it. Each row shows the task, the <Word id="model">model</Word> and the latest <Word id="step">step</Word>. Sub-agent rows count their steps too.
         </p>
-        <p>Every session in one list, whichever terminal it runs in, grouped by project. <Word id="worktree">Worktrees</Word> count as their project. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds.</p>
+        <p>Every session in one list, whichever terminal it runs in, grouped by project. <Word id="worktree">Worktrees</Word> count as their project. Click a project&apos;s line to fold its cards away. Run more sessions than the panel fits and they fold to one line each, quiet ones first. One that needs you never folds.</p>
         <p>
           Pixel lines run from the lead to each sub-agent, and turn red when one waits on you. The triangle on a working sub-agent&apos;s row opens Asked: the whole prompt its lead gave it. When one finishes, it goes into a green book on its session&apos;s row, which says how many are new. Click the book to open it: each sub-agent that handed something back is a document named like a .md file after its task, with who wrote it, how long ago and its first two lines. Read all shows what it was asked and everything it handed back, Markdown as written with its marks drawn faint. Shut the book and they all fold away.
         </p>

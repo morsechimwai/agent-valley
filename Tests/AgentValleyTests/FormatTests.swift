@@ -318,6 +318,13 @@ final class FormatTests: XCTestCase {
         XCTAssertNil(Format.waited(nil))
     }
 
+    // The island's alert says whose work waits and on what, in one line.
+    func testTheAlertNamesTheWorkAndItsStep() {
+        XCTAssertEqual(Format.alertLine(name: "Deploy preview build", step: "Bash git push origin preview"),
+                       "Deploy preview build · Bash git push origin preview")
+        XCTAssertEqual(Format.alertLine(name: "Fix login", step: ""), "Fix login")
+    }
+
     // Read out in words: "4m" is read as four metres.
     func testTheWaitIsReadOutInWords() {
         XCTAssertEqual(Format.waitedAloud(1), "waiting 1 second")
@@ -576,6 +583,16 @@ final class FormatTests: XCTestCase {
                        "https://github.com/morsechimwai/agent-valley/issues/new?template=bug_report.yml&macos=macOS%2026.0.1,%20Mac15,6")
     }
 
+    // The report also says how the built-in display's top edge is cut, so a Mac with an island
+    // instead of a notch tells us its numbers. What AppKit does not give is left out.
+    func testReportABugDescribesTheTopOfTheScreen() {
+        XCTAssertEqual(Format.screenReport(frame: CGRect(x: 0, y: 0, width: 1512, height: 982), inset: 32, gap: 185,
+                                           cutout: CGRect(x: 663.5, y: 950, width: 185, height: 32), safeAperture: false),
+                       "screen 1512x982 at 0,0 inset 32 gap 185 cutout 663.5,950 185x32 aperture no")
+        XCTAssertEqual(Format.screenReport(frame: CGRect(x: -1728, y: 120, width: 1728, height: 1117), inset: 0, gap: nil, cutout: nil, safeAperture: nil),
+                       "screen 1728x1117 at -1728,120 inset 0")
+    }
+
     // A session can wait on a question it wrote down, or on a prompt in its terminal that leaves
     // no trace. Only the first has words to show; the second says where to look, and its last
     // step is not dressed up as the question.
@@ -628,6 +645,8 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(Format.pluginWhat, "The plugin is inside this app, and installing it points Claude Code at it. It adds hooks to Claude Code: each permission prompt and question is handed to this app, each new session and sub-agent learns which of us it is, and while you're Away with your phone paired, a finished turn waits here for your next message. All on this Mac only. With the app closed or this switch off, Claude Code asks in the terminal and ends its turns as before.")
         // Crew names ride on the same socket, and only a new session hears them.
         XCTAssertEqual(Format.crewNamesCaption, "Your sessions hand work to Judy, Faye and Felix by name and get it back the same way. Needs Answer from the notch. Starts with the next session you open.")
+        // The tags say what copying does to them, and that a terminal opened before the font shows none.
+        XCTAssertEqual(Format.nameTagsCaption, "Claude writes our names as small tags with our faces. Copied out of the terminal, each tag turns into three boxes. Needs Crew in the terminal. Starts with the next terminal you open.")
         XCTAssertEqual(Format.installButton, "Install the plugin")
         XCTAssertEqual(Format.installSteps.run, "Install runs this command for you. Or copy it and run it in a terminal yourself: the Terminal app, or wherever you start Claude Code.")
         XCTAssertEqual(Format.installSteps.restart, "Then start Claude Code again. Sessions that were already open do not have the plugin.")
@@ -1048,5 +1067,42 @@ final class FormatTests: XCTestCase {
         XCTAssertTrue(runs(code, "now").contains { $0.backgroundColor != nil })
         let names = Format.markdown(samples[4])
         XCTAssertFalse(names.runs.contains { $0.inlinePresentationIntent != nil || $0.foregroundColor != nil })
+    }
+
+    // The foot of the Library says since when its books are kept. The owner's Mac counts years
+    // the Buddhist way; the panel speaks English, so the year is the common era's.
+    func testLibraryFootSaysSinceWhen() {
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = TimeZone(identifier: "Asia/Bangkok")!
+        let since = ISO8601DateFormatter().date(from: "2026-09-29T03:00:00Z")!
+        XCTAssertEqual(Format.libraryFoot(since: since, calendar: HistoryReport.calendar(from: buddhist)),
+                       "Kept since Sep 29, 2026 · until the project folder is gone")
+    }
+
+    // A book's line says how many chapters it has and the day of the last, near days in words and
+    // this year's without the year. Chapters nobody has read yet say so instead, in its place.
+    func testBookMetaSaysCountAndDay() {
+        var calendar = HistoryReport.calendar(from: Calendar(identifier: .buddhist))
+        calendar.timeZone = TimeZone(identifier: "Asia/Bangkok")!
+        let now = ISO8601DateFormatter().date(from: "2026-10-30T05:00:00Z")!  // noon in Bangkok
+        func meta(_ chapters: Int, _ new: Int, _ last: String) -> String {
+            Format.bookMeta(chapters: chapters, newCount: new, last: ISO8601DateFormatter().date(from: last)!, now: now, calendar: calendar)
+        }
+        XCTAssertEqual(meta(2, 0, "2026-10-29T17:30:00Z"), "2 · today")  // just past midnight in Bangkok
+        XCTAssertEqual(meta(1, 0, "2026-10-29T16:30:00Z"), "1 · yesterday")
+        XCTAssertEqual(meta(3, 0, "2026-10-27T05:00:00Z"), "3 · Oct 27")
+        XCTAssertEqual(meta(4, 0, "2025-12-30T05:00:00Z"), "4 · Dec 30, 2025")
+        XCTAssertEqual(meta(5, 2, "2026-10-30T04:00:00Z"), "2 new")
+        XCTAssertEqual(Format.openPDF, "Open PDF")
+    }
+
+    // A shelf counts its books; the page names itself on the button that opens it, and says what
+    // will come when it has nothing yet.
+    func testShelfMetaSaysBooks() {
+        XCTAssertEqual(Format.shelfMeta(books: 1), "1 book")
+        XCTAssertEqual(Format.shelfMeta(books: 12), "12 books")
+        XCTAssertEqual(Format.libraryHelp(showing: false), "Library")
+        XCTAssertEqual(Format.libraryHelp(showing: true), "Back to agents")
+        XCTAssertEqual(Format.noBooks, "No books yet. When a sub-agent hands work back, it lands here.")
     }
 }

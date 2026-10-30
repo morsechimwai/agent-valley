@@ -173,12 +173,8 @@ struct HistoryReport: Equatable {
             Projects.place(of: folder, start: start, home: home, known: known, checkouts: slice.checkouts, remotes: slice.remotes,
                            moves: slice.moves)
         }
-        var newest: [String: (at: Date, place: Projects.Place)] = [:]
-        for folder in slice.folders {
-            let place = place(folder, start: nil)
-            let at = slice.lastUsed[folder] ?? .distantPast
-            if newest[place.key].map({ at > $0.at }) ?? true { newest[place.key] = (at, place) }
-        }
+        var folderPlaces: [String: Projects.Place] = [:]
+        for folder in slice.folders { folderPlaces[folder] = place(folder, start: nil) }
         var places: [String: Projects.Place] = [:]
         var items: [(answer: LedgerAnswer, place: Projects.Place)] = []
         for answer in slice.answers where stretch.start <= answer.at && answer.at < stretch.end {
@@ -188,16 +184,7 @@ struct HistoryReport: Equatable {
             places[id] = found
             items.append((answer, found))
         }
-        var named = newest.mapValues(\.place)
-        for item in items where named[item.place.key] == nil { named[item.place.key] = item.place }
-        var names = named.mapValues(\.name)
-        // ponytail: two of one name in one parent's name stay alike; the parent's parent would tell them apart.
-        let alike = Dictionary(grouping: Set(items.map(\.place.key)), by: { named[$0]?.name ?? "" })
-        for (_, keys) in alike where keys.count > 1 {
-            for key in keys {
-                if let place = named[key], !place.parent.isEmpty { names[key] = place.name + " · " + place.parent }
-            }
-        }
+        let names = Projects.names(folderPlaces, lastUsed: slice.lastUsed, also: items.map(\.place), among: Set(items.map(\.place.key)))
         let priced = items.map { Priced(answer: $0.answer, cost: Pricing.cost(of: $0.answer), project: $0.place.key, name: names[$0.place.key] ?? $0.place.name) }
         return (priced, names)
     }

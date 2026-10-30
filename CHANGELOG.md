@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.25 — 2026-10-30
+
+- Library: every report a sub-agent hands back is kept until its project folder is gone. Open it from the stack of books at the top of the panel, pick a project, then a book. A book is one Claude Code session and opens as a PDF, one chapter per report, with what the sub-agent was asked at the end of each. The first time, the Library reads every report still on your Mac.
+- The green book on a lead's row survives a restart: what you haven't read is still new, and what you have read stays read. Right after this update it starts empty.
+- Sub-agents now open their report with a short "In short" paragraph in plain words, for whoever reads the Library later. It comes with the note the app adds when a sub-agent starts, also when Crew names in Claude Code is off.
+- In Claude Code's chat, Claude writes our names as small name tags with our faces, drawn by the crew font, when the terminal can show them. A Name tags switch under Crew names in Settings turns them off: copied out of the terminal, a tag turns into three boxes. Ghostty gets tags only when its config has the font's line.
+- Click a project's line on the All page to fold its cards away, and again to bring them back. A card that needs you stays out. The fold lasts until the app quits.
+- Ready for the new MacBook Pro with the Dynamic Island: there the bar is a floating pill around Apple's island, a short "needs you" pill drops down when someone waits, and the panel opens as a floating card. Macs with a notch, or without one, look as before. Nobody here has one of those Macs yet: if something looks off on yours, Report a bug sends your screen's numbers with it.
+- Every page of a PDF, from History or from the Library, carries a faint slanted logo. A report of all projects is named "All projects", not after the app.
+
 ## 0.3.24 — 2026-10-29
 
 - Skip on "where did you hear about us?" puts the question away for a week, not for good. It asks once more, and then your answer, or that you skipped again, goes out once, the same way as the daily count: the answer, the app's version and whether it came on the second ask. A Skip pressed in 0.3.23 stays as it was: nothing goes out, and the question doesn't come back.

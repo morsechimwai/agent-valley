@@ -1,3 +1,4 @@
+import Combine
 import CoreServices
 import XCTest
 @testable import AgentValley
@@ -171,10 +172,10 @@ final class AgentStoreTests: XCTestCase {
 
     // MARK: crew names for the plugin's SessionStart and SubagentStart hooks
 
-    private func introduce(_ request: CrewIntroRequest, on other: AgentStore? = nil) -> Data? {
+    private func introduce(_ request: CrewIntroRequest, names: Bool = true, on other: AgentStore? = nil, tags: Bool = true) -> Data? {
         let replied = expectation(description: "introduce replied")
         var body: Data?
-        (other ?? store).introduce(request) { body = $0; replied.fulfill() }
+        (other ?? store).introduce(request, names: names, tags: tags) { body = $0; replied.fulfill() }
         wait(for: [replied], timeout: 2)
         return body
     }
@@ -184,8 +185,8 @@ final class AgentStoreTests: XCTestCase {
         return (object?["hookSpecificOutput"] as? [String: Any])?["additionalContext"] as? String
     }
 
-    private func start(_ session: String, in cwd: String? = nil, pid: Int32? = nil) -> CrewIntroRequest {
-        CrewIntroRequest(event: "SessionStart", session: session, cwd: cwd ?? store.root + "/work", agentType: "", pid: pid)
+    private func start(_ session: String, in cwd: String? = nil, pid: Int32? = nil, terminal: String? = nil) -> CrewIntroRequest {
+        CrewIntroRequest(event: "SessionStart", session: session, cwd: cwd ?? store.root + "/work", agentType: "", pid: pid, terminal: terminal)
     }
 
     func testSessionStartSeatsAndNamesTheLead() throws {
@@ -194,14 +195,57 @@ final class AgentStoreTests: XCTestCase {
         XCTAssertTrue(text.contains("draws this session as \(Crew.lead(look).name)"), text)
     }
 
+    // The tags go in only where the session's terminal can draw them, asked by its Claude Code
+    // process and the terminal it names.
+    func testTheNotesCarryTagsOnlyWhereTheTerminalDrawsThem() throws {
+        for draws in [true, false] {
+            var asked: [CrewIntroRequest] = []
+            let other = AgentStore(root: URL(fileURLWithPath: store.root), drawsTags: { asked.append($0); return draws })
+            let lead = try XCTUnwrap(note(introduce(start("f1", pid: 4321, terminal: "ghostty"), on: other)))
+            let sub = try XCTUnwrap(note(introduce(CrewIntroRequest(event: "SubagentStart", session: "f1", cwd: store.root + "/work", agentType: "Plan", pid: 4321, terminal: "ghostty"), on: other)))
+            let judy = CrewFont.Tag.text(.plan) + " = Judy"
+            XCTAssertEqual(lead.contains(judy), draws, lead)
+            XCTAssertEqual(sub.contains(judy), draws, sub)
+            XCTAssertEqual(asked.map(\.pid), [4321, 4321])
+            XCTAssertEqual(asked.map(\.terminal), ["ghostty", "ghostty"])
+        }
+    }
+
+    // With the name tags switched off the names stay plain, and the terminal is not even asked.
+    func testNoTagsWhenTheyAreSwitchedOff() throws {
+        var asked = 0
+        let other = AgentStore(root: URL(fileURLWithPath: store.root), drawsTags: { _ in asked += 1; return true })
+        let lead = try XCTUnwrap(note(introduce(start("f1", pid: 4321), on: other, tags: false)))
+        let sub = try XCTUnwrap(note(introduce(CrewIntroRequest(event: "SubagentStart", session: "f1", cwd: store.root + "/work", agentType: "Plan", pid: 4321), on: other, tags: false)))
+        XCTAssertFalse(lead.contains("name tag"), lead)
+        XCTAssertFalse(sub.contains("name tag"), sub)
+        XCTAssertEqual(asked, 0)
+    }
+
     // A sub-agent names its lead only once the lead knows its own name.
     func testASubAgentIsNamedOnlyAfterItsLead() throws {
         let faye = CrewIntroRequest(event: "SubagentStart", session: "s1", cwd: store.root + "/work", agentType: "Explore", pid: nil)
-        XCTAssertNil(introduce(faye))
+        XCTAssertEqual(note(introduce(faye)), CrewIntro.inShortNote)
         _ = introduce(start("s1"))
         let text = try XCTUnwrap(note(introduce(faye)))
         XCTAssertTrue(text.contains("draws you as Faye"), text)
         XCTAssertTrue(text.contains("Hand your report back to \(Crew.lead(try XCTUnwrap(store.looks["s1"])).name)"), text)
+    }
+
+    // The library wants a plain summary from every sub-agent, so a named seat gets it after the names.
+    func testSubagentStartCarriesInShortWithNames() throws {
+        _ = introduce(start("s1"))
+        let faye = CrewIntroRequest(event: "SubagentStart", session: "s1", cwd: store.root + "/work", agentType: "Explore", pid: nil)
+        let text = try XCTUnwrap(note(introduce(faye)))
+        XCTAssertTrue(text.hasSuffix("\n\n" + CrewIntro.inShortNote), text)
+        XCTAssertTrue(text.contains("draws you as Faye"), text)
+    }
+
+    // With the names switched off the sub-agent still opens with In short, and hears no names.
+    func testSubagentStartCarriesInShortWithoutNames() {
+        _ = introduce(start("s1"))
+        let faye = CrewIntroRequest(event: "SubagentStart", session: "s1", cwd: store.root + "/work", agentType: "Explore", pid: nil)
+        XCTAssertEqual(note(introduce(faye, names: false)), CrewIntro.inShortNote)
     }
 
     // A session that started while the app was closed is seated from its card, but its lead
@@ -215,7 +259,7 @@ final class AgentStoreTests: XCTestCase {
         DispatchQueue.main.async { published.fulfill() }
         wait(for: [published], timeout: 2)
         XCTAssertNotNil(store.looks["s5"])
-        XCTAssertNil(introduce(CrewIntroRequest(event: "SubagentStart", session: "s5", cwd: "/w", agentType: "Explore", pid: nil)))
+        XCTAssertEqual(note(introduce(CrewIntroRequest(event: "SubagentStart", session: "s5", cwd: "/w", agentType: "Explore", pid: nil))), CrewIntro.inShortNote)
     }
 
     // Superset opens several worktrees of one checkout at once, before their records are read.
@@ -707,6 +751,21 @@ final class AgentStoreTests: XCTestCase {
         XCTAssertNil(AgentStore.longestWait([sessions[1]]))
     }
 
+    // The alert is about the one who just started to wait: the shortest wait, not the longest.
+    func testTheNewestWaitIsTheAlertsOwn() {
+        func row(_ id: String, _ status: AgentStatus, _ waited: TimeInterval) -> AgentRow {
+            AgentRow(id: id, info: AgentInfo(), status: status, elapsed: 0, quietFor: waited)
+        }
+        let sessions = [
+            SessionCard(id: "a", project: "a", branch: "", main: row("old", .needsYou, 300), agents: [row("busy", .working, 2)], startedAt: now),
+            SessionCard(id: "b", project: "b", branch: "", main: row("new", .needsYou, 14), agents: [], startedAt: now),
+        ]
+        let newest = AgentStore.newestWait(sessions)
+        XCTAssertEqual(newest?.card.id, "b")
+        XCTAssertEqual(newest?.row.id, "new")
+        XCTAssertNil(AgentStore.newestWait([SessionCard(id: "c", project: "c", branch: "", main: row("busy", .working, 2), agents: [], startedAt: now)]))
+    }
+
     func testAGroupsLineStandsOverItsFirstCard() {
         let listed = AgentStore.ordered([
             card("working1", main: .working), card("waiting", main: .needsYou), card("working2", main: .working), card("idle", main: .done),
@@ -780,6 +839,24 @@ final class AgentStoreTests: XCTestCase {
             "w1": ProjectHeader(project: "web", worktrees: 2, sessions: 3),
             "a1": ProjectHeader(project: "api", worktrees: 1, sessions: 1),
         ])
+    }
+
+    // A click on a project's line shuts its cards away and the arrow keys pass them by. One
+    // that needs the person stays, and a session alone, with no line to click, is never shut.
+    func testAShutProjectKeepsItsLineAndWhatNeedsThePerson() {
+        let web = GitPlace(worktree: "/a/web", checkout: "/a/web")
+        let listed = [
+            card("w1", main: .working, git: web), card("w2", main: .needsYou, git: web),
+            card("a1", main: .working, git: GitPlace(worktree: "/a/api", checkout: "/a/api")),
+        ]
+        let list = AgentStore.arrange(listed, idle: .fold, shut: ["/a/web"])
+        XCTAssertEqual(list.cards.map(\.id), ["w1", "w2", "a1"])
+        XCTAssertEqual(list.shut, ["w1"])
+        XCTAssertEqual(list.walked(idleExpanded: false).map(\.id), ["w2", "a1"])
+        // The quiet line's hint goes to a row that is drawn.
+        let quiet = AgentStore.arrange([card("q1", main: .quiet, git: web), card("q2", main: .quiet)], idle: .fold, shut: ["/a/web"])
+        XCTAssertEqual(quiet.hintRow, "q2/main")
+        XCTAssertEqual(AgentStore.arrange([card("w1", main: .working, git: web)], idle: .fold, shut: ["/a/web"]).shut, [])
     }
 
     // Two checkouts that happen to share a folder name are two projects. A session in a folder
@@ -1855,5 +1932,185 @@ final class AgentStoreTests: XCTestCase {
         let row = AgentStore.cards(from: files, now: now, home: "/Users/me").flatMap(\.agents).first
         XCTAssertEqual(row?.status, .done)
         XCTAssertNil(row?.waitingOn)
+    }
+
+    // MARK: Library
+
+    private func library(since: Date = Date()) throws -> LibraryStore {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("agent-valley-lib-" + UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
+        return try LibraryStore(database: folder.appendingPathComponent("library.sqlite"), now: { since })
+    }
+
+    private func stamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
+    }
+
+    /// A sub-agent that was asked something and handed back at `back`, with its meta file and its parent's title.
+    @discardableResult
+    private func writeHandBack(at back: Date, in store: AgentStore, cwd: String = "/Users/me/web-app") throws -> String {
+        let prompt = #"{"type":"user","timestamp":"\#(stamp(back.addingTimeInterval(-60)))","cwd":"\#(cwd)","message":{"role":"user","content":"Find auth files"}}"#
+        let answer = #"{"type":"assistant","timestamp":"\#(stamp(back))","cwd":"\#(cwd)","message":{"model":"claude-haiku-5-5","stop_reason":"end_turn","content":[{"type":"text","text":"Found three."}]}}"#
+        let path = store.root + "/proj/s1/subagents/agent-a1.jsonl"
+        try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        try Data((prompt + "\n" + answer + "\n").utf8).write(to: URL(fileURLWithPath: path))
+        try Data(#"{"agentType":"Explore","description":"Find auth files in the web app"}"#.utf8)
+            .write(to: URL(fileURLWithPath: store.root + "/proj/s1/subagents/agent-a1.meta.json"))
+        try Data((#"{"type":"ai-title","aiTitle":"Fix the login"}"# + "\n").utf8).write(to: URL(fileURLWithPath: store.root + "/proj/s1.jsonl"))
+        for file in [path, store.root + "/proj/s1.jsonl"] {
+            try FileManager.default.setAttributes([.modificationDate: back], ofItemAtPath: file)
+        }
+        return path
+    }
+
+    private func newStore(like old: AgentStore, library: LibraryStore) -> AgentStore {
+        AgentStore(root: URL(fileURLWithPath: old.root), library: library)
+    }
+
+    // A hand-back must reach the library whole, filed under its session's book, or it is lost when the panel forgets it.
+    func testAHandBackBecomesAChapter() throws {
+        let library = try library()
+        let store = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        let path = try writeHandBack(at: Date(), in: store)
+        store.ingest(path: path)
+        let chapters = library.chapters(session: "s1")
+        XCTAssertEqual(chapters.count, 1)
+        XCTAssertEqual(chapters.first?.agent, path)
+        XCTAssertEqual(chapters.first?.title, "Find auth files in the web app")
+        XCTAssertEqual(chapters.first?.asked, "Find auth files")
+        XCTAssertEqual(chapters.first?.text, "Found three.")
+        XCTAssertEqual(chapters.first?.folder, "/Users/me/web-app")
+        XCTAssertEqual(chapters.first?.type, "Explore")
+        XCTAssertEqual(library.books().first?.title, "Fix the login")
+    }
+
+    // The person must still be told of a hand-back they never opened, though the app was closed and reopened since.
+    func testAnUnreadHandBackIsStillNewAfterARelaunch() throws {
+        let library = try library(since: Date().addingTimeInterval(-3 * 3600))
+        let first = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        // Two hours old: past the walk's window, inside the hold, so only the library can lead rescan to it.
+        let path = try writeHandBack(at: Date().addingTimeInterval(-7200), in: first)
+        first.ingest(path: path)
+        let second = newStore(like: first, library: library)
+        second.rescan()
+        let row = second.cards(now: Date()).flatMap(\.agents).first
+        XCTAssertEqual(row?.awaitsLook, true)
+    }
+
+    // A look must outlive the app, or every relaunch would call the same hand-back new again.
+    func testASeenMarkSurvivesARelaunch() throws {
+        let library = try library(since: Date().addingTimeInterval(-3 * 3600))
+        let first = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        let path = try writeHandBack(at: Date().addingTimeInterval(-3600), in: first)
+        first.ingest(path: path)
+        let looked = Date().addingTimeInterval(-60)
+        library.saw(agents: [path], at: looked)
+        let second = newStore(like: first, library: library)
+        second.ingest(path: path)
+        XCTAssertEqual(second.files[path]?.seenAt?.timeIntervalSince1970 ?? 0, looked.timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    // What was handed back before the library existed was there before anyone could look, so it is not news.
+    func testHandBacksFromBeforeTheLibraryCountAsSeen() throws {
+        // The library's clock is ahead of the app's launch, so only the library's date can call this old.
+        let library = try library(since: Date().addingTimeInterval(3600))
+        let store = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        let path = try writeHandBack(at: Date(), in: store)
+        store.ingest(path: path)
+        XCTAssertNotNil(store.files[path]?.seenAt)
+    }
+
+    // A look at a row the store no longer tracks still counts, or its chapter stays new forever.
+    func testSeeingAnUntrackedAgentStillMarksTheLibrary() throws {
+        let library = try library(since: Date().addingTimeInterval(-3 * 3600))
+        let first = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        let path = try writeHandBack(at: Date().addingTimeInterval(-3600), in: first)
+        first.ingest(path: path)
+        let fresh = newStore(like: first, library: library)
+        fresh.saw([path], at: Date())
+        // The store's queue is serial: this callback runs after the block `saw` queued.
+        let settled = expectation(description: "store settled")
+        fresh.introduce(start("s3")) { _ in settled.fulfill() }
+        wait(for: [settled], timeout: 2)
+        XCTAssertTrue(library.unseenAgents(since: Date().addingTimeInterval(-86400)).isEmpty)
+    }
+
+    /// Runs git in `folder`, cut off from the person's own git settings.
+    private func git(_ arguments: [String], in folder: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", folder.path, "-c", "user.name=Test", "-c", "user.email=test@example.com"] + arguments
+        process.environment = ["GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "PATH": "/usr/bin:/bin"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0, "git \(arguments.joined(separator: " "))")
+    }
+
+    // A removed worktree is routine; the project it belonged to still stands, so its shelf must stay, and nothing may count down to delete it.
+    func testALiveWorktreesShelfOutlivesTheWorktree() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("agent-valley-git-" + UUID().uuidString).resolvingSymlinksInPath()
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: base) }
+        try git(["init", "-q", "app"], in: base)
+        let repo = base.appendingPathComponent("app"), side = base.appendingPathComponent("side")
+        try git(["commit", "-q", "--allow-empty", "-m", "start"], in: repo)
+        try git(["remote", "add", "origin", "https://github.com/me/app"], in: repo)
+        try git(["worktree", "add", "-q", side.path], in: repo)
+        let library = try library()
+        let live = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        live.ingest(path: try writeHandBack(at: Date(), in: live, cwd: side.path))
+        try FileManager.default.removeItem(at: side)
+        let places = library.places()
+        let shelves = Library.shelves(library.books(), home: "/Users/me", checkouts: places.checkouts, remotes: places.remotes)
+        let swept = Library.sweep(shelves, missing: library.missing(), now: Date(), exists: FileManager.default.fileExists(atPath:))
+        XCTAssertEqual(swept.shown.map(\.key), ["git:github.com/me/app"])
+        XCTAssertTrue(swept.set.isEmpty)
+        XCTAssertTrue(swept.delete.isEmpty)
+    }
+
+    // A hand-back the library could not write must stay in hand and go in on the next read, or it is lost for good.
+    func testAHandBackTheLibraryCouldNotTakeIsTriedAgain() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("agent-valley-lib-" + UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
+        let library = try LibraryStore(database: folder.appendingPathComponent("library.sqlite"))
+        let live = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        let path = try writeHandBack(at: Date(), in: live)
+        // No room for the journal a write needs: the folder is closed to writing.
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder.path)
+        live.ingest(path: path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path)
+        XCTAssertTrue(library.chapters(session: "s1").isEmpty)
+        live.ingest(path: path)
+        XCTAssertEqual(library.chapters(session: "s1").map(\.text), ["Found three."])
+    }
+
+    // A hand-back made while the app was closed never moves again, so the launch must go and read it: kept in the library, and new on the panel.
+    func testAHandBackMadeWhileClosedIsKeptAndNewAtLaunch() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("agent-valley-lib-" + UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("library.sqlite")
+        do {
+            // The last run: made four hours ago, backfilled, last seen running three hours ago.
+            let before = try LibraryStore(database: file, now: { Date().addingTimeInterval(-4 * 3600) })
+            before.markBackfilled()
+            before.markAlive(at: Date().addingTimeInterval(-3 * 3600))
+        }
+        let library = try LibraryStore(database: file)
+        let launched = AgentStore(root: URL(fileURLWithPath: store.root), library: library)
+        // An hour old: past the walk's window, and no store was running to see it.
+        try writeHandBack(at: Date().addingTimeInterval(-3600), in: launched)
+        let shown = expectation(description: "the row awaits a look")
+        let watch = launched.$sessions.sink { cards in
+            if cards.flatMap(\.agents).contains(where: \.awaitsLook) { shown.fulfill() }
+        }
+        defer { watch.cancel() }
+        LibraryBackfill.run(root: URL(fileURLWithPath: launched.root), into: library, ledger: nil) { launched.readUnread() }
+        wait(for: [shown], timeout: 10)
+        XCTAssertEqual(library.chapters(session: "s1").map(\.text), ["Found three."])
+        XCTAssertEqual(library.books().first?.title, "Fix the login")
     }
 }

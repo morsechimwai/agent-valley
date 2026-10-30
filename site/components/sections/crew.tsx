@@ -41,7 +41,7 @@ export function Crew() {
         Every agent is a programmer from the early days of computing. One of us runs your session and phones the others for help. Each project gets a <Word id="regular">regular</Word>: the same one of us, every session. Open a second session there at the same time and a colleague takes it, since nobody is in two places at once.
       </p>
       <p className="mt-4 max-w-[34em] text-[1.1875rem] leading-[1.55]">
-        In Claude Code we call each other by name. Norm hands a search to Faye with “Faye takes the search. Sending it now.” and Faye brings it back with “Norm, two call sites, no surprises.” We each talk in our own voice, in the language you write in. Your code, commits and files stay exactly as they would be without us. It comes with the plugin, from your next session on. Crew names in Claude Code, in the Claude Code settings, turns it off.
+        In Claude Code we call each other by name. Norm hands a search to Faye with “Faye takes the search. Sending it now.” and Faye brings it back with “Norm, two call sites, no surprises.” We each talk in our own voice, in the language you write in. Your code, commits and files stay exactly as they would be without us. With our font in your terminal, Claude writes our names as small tags with our faces. It comes with the plugin, from your next session on. Crew names in Claude Code, in the Claude Code settings, turns it off, and Name tags turns off just the tags.
       </p>
       <figure
         className="c-figure mt-10"

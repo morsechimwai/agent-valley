@@ -654,6 +654,19 @@ enum Format {
         return url.url!
     }
 
+    /// The built-in display's top edge, for a bug report: its size, the inset and the gap between
+    /// the menu bar's two sides that the panel is placed by, and the cutout and "safe aperture"
+    /// that AppKit keeps to itself. How a Mac with an island instead of a notch shows in these is
+    /// not known yet; its first reports will say.
+    static func screenReport(frame: CGRect, inset: CGFloat, gap: CGFloat?, cutout: CGRect?, safeAperture: Bool?) -> String {
+        func n(_ value: CGFloat) -> String { String(format: "%g", Double(value)) }
+        var parts = ["screen \(n(frame.width))x\(n(frame.height)) at \(n(frame.minX)),\(n(frame.minY))", "inset \(n(inset))"]
+        if let gap { parts.append("gap \(n(gap))") }
+        if let cutout { parts.append("cutout \(n(cutout.minX)),\(n(cutout.minY)) \(n(cutout.width))x\(n(cutout.height))") }
+        if let safeAperture { parts.append("aperture \(safeAperture ? "safe" : "no")") }
+        return parts.joined(separator: " ")
+    }
+
     /// The promise the app is built on, where a new owner will look for it. True with every
     /// switch on: it used to end "Changes nothing.", under a switch that answers Claude Code and
     /// another that reads the Keychain and goes online. What reaches further than reading is
@@ -796,6 +809,9 @@ enum Format {
     /// Under the crew-names switch: what it does, that it rides on answering from the notch, and
     /// that open sessions keep what they were told.
     static let crewNamesCaption = "Your sessions hand work to Judy, Faye and Felix by name and get it back the same way. Needs Answer from the notch. Starts with the next session you open."
+    /// Under the name-tags switch: what copying does to a tag, and that it needs the crew font and
+    /// a terminal opened since.
+    static let nameTagsCaption = "Claude writes our names as small tags with our faces. Copied out of the terminal, each tag turns into three boxes. Needs Crew in the terminal. Starts with the next terminal you open."
     /// Under the switch that turns answering on. Until the plugin is in, how to install is right below.
     static func answersCaption(installed: Bool) -> String {
         "Shows Claude Code's permission prompts and questions here, with buttons to answer. The terminal still asks too. You can allow a request here only when the panel can show all of it, such as a short command." + (installed ? "" : " Needs a plugin that comes with this app: install it below.")
@@ -862,6 +878,11 @@ enum Format {
         // Idle with jobs still running: the jobs are the news, not the word "idle".
         if main.status == .done, !card.jobs.isEmpty { return jobsRunning(card.jobs) }
         return statusLabel(main.status, isMain: true, quietFor: main.quietFor)
+    }
+
+    /// The island alert's second line: whose work waits, then its last step when it has one.
+    static func alertLine(name: String, step: String) -> String {
+        step.isEmpty ? name : "\(name) · \(step)"
     }
 
     /// "1 shell, 2 monitors running": how many of each kind, as Claude Code counts them.
@@ -1006,9 +1027,19 @@ struct PanelView: View {
         let motion = Motion(reduced: reduceMotion)
         let open = NotchGeometry.openFrame(screen: state.screenFrame, barHeight: state.barHeight, contentHeight: state.contentHeight).size
         let closed = NotchGeometry.collapsedFrame(screen: state.screenFrame, notchWidth: state.notchWidth, barHeight: state.barHeight).size
-        let island = state.expanded ? open : closed
-        let radius: CGFloat = state.expanded ? 20 : 10
-        let shoulder = state.expanded ? NotchGeometry.openShoulder : NotchGeometry.shoulder
+        // On a Mac with Apple's island: the taller alert pill, shut, and only while someone is
+        // still there to name in it.
+        let alertWait = AgentStore.newestWait(sessions)
+        let alertPill = state.appleIsland.flatMap { apple in
+            state.alerting && !state.expanded && alertWait != nil ? IslandGeometry.alert(screen: state.screenFrame, apple: apple).size : nil
+        }
+        let island = state.expanded ? open : alertPill ?? closed
+        // Floating, the island is round all over and has no shoulders to meet the screen's edge.
+        let floating = state.appleIsland != nil
+        let radius: CGFloat = floating ? IslandGeometry.radius(height: island.height, open: state.expanded, alerting: alertPill != nil)
+            : state.expanded ? 20 : 10
+        let shoulder = floating ? 0 : state.expanded ? NotchGeometry.openShoulder : NotchGeometry.shoulder
+        let float = state.appleIsland.map { IslandGeometry.top(screen: state.screenFrame, apple: $0, open: state.expanded) } ?? 0
         let waiting = AgentStore.barState(sessions).waiting > 0
         let chrome = state.barHeight + NotchGeometry.statusRowHeight
 
@@ -1028,7 +1059,7 @@ struct PanelView: View {
                     let quiet = AgentStore.count(.quiet, in: hidden)
                     let answerable = answerableBelow(drawn).count
                     let label = state.showingSettings ? Format.settingsBelow(state.settingsTab)
-                        : state.showingHistory ? Format.historyBelow : Format.below(sessions: hidden.count, quiet: quiet, needsYou: waiting.count, answerable: answerable)
+                        : state.showingHistory || state.showingLibrary ? Format.historyBelow : Format.below(sessions: hidden.count, quiet: quiet, needsYou: waiting.count, answerable: answerable)
                     // One height whatever it says: it used to jump as its words came and went.
                     let height: CGFloat = overflowing ? NotchGeometry.band : 0
                     // First to a request the edge cuts: it takes no click where it is. Else to
@@ -1129,6 +1160,8 @@ struct PanelView: View {
                 .accessibilityHidden(!state.expanded)
             VStack(spacing: 0) {
                 bar(motion, width: open.width)
+                    // Under the alert pill, which says more.
+                    .modifier(Reveal(shown: alertPill == nil, index: 0, motion: motion, travels: false))
                 // Redrawn twice a minute so the times until reset keep counting down while open.
                 TimelineView(.periodic(from: .now, by: 30)) { timeline in
                     StatusRow(working: AgentStore.count(.working, in: sessions), quiet: AgentStore.count(.quiet, in: sessions),
@@ -1145,6 +1178,13 @@ struct PanelView: View {
                     .allowsHitTesting(state.expanded)
                     .modifier(Reveal(shown: state.expanded, index: 0, motion: motion, travels: false))
             }
+            if let apple = state.appleIsland, let wait = alertWait {
+                let pill = IslandGeometry.alert(screen: state.screenFrame, apple: apple).size
+                IslandAlertView(card: wait.card, row: wait.row, gap: apple.width)
+                    .frame(width: pill.width, height: pill.height)
+                    .modifier(Reveal(shown: alertPill != nil, index: 0, motion: motion, travels: false))
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: island.width, height: island.height, alignment: .top)
         // While someone waits and the panel is shut, the whole bar glows red on every beat.
@@ -1160,13 +1200,16 @@ struct PanelView: View {
                         CubicKeyframe(0, duration: 0.7)
                     }
                 }
-                .opacity(waiting && !state.expanded ? 1 : 0)
+                // Not around a floating island: the alert pill says it there.
+                .opacity(waiting && !state.expanded && !floating ? 1 : 0)
                 // Gone the moment the panel opens, not faded out along with the island's growing.
                 .transaction { $0.animation = nil }
         }
         // Black out to the tips of the shoulders, which lie outside the island's own rectangle.
         .background(Color.black.padding(.horizontal, -shoulder))
-        .clipShape(IslandShape(radius: radius, shoulder: shoulder))
+        .clipShape(IslandShape(radius: radius, shoulder: shoulder, top: floating ? radius : 0))
+        // A floating island sits below the top of its window, which reaches the screen's edge.
+        .padding(.top, float)
         .animation(motion.resize(opening: state.expanded), value: island)
         // The window's size whatever the island's, with the island at its top. The list grows a
         // turn before the window does, and an island taller than its window was centred in it:
@@ -1230,8 +1273,7 @@ struct PanelView: View {
         let target = ScrollTarget.to(found.row, on: found.card)
         guard state.showingPage else { return scrollTarget = target }
         // From a page the list has to be drawn first: a turn later it has rows to scroll to.
-        state.showingSettings = false
-        state.showingHistory = false
+        state.putPagesAway()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { scrollTarget = target }
     }
 
@@ -1267,11 +1309,14 @@ struct PanelView: View {
     /// ponytail: a card that starts above the bottom edge counts whole, though a document in its book may lie past
     /// it; track document positions as `belowRows` does rows to tell.
     private func inSight() -> [SessionCard] {
-        AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).cards.filter { !below.contains($0.id) && !above.contains($0.id) }
+        AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping, shut: shutProjects).drawn.filter { !below.contains($0.id) && !above.contains($0.id) }
     }
 
     /// Sessions whose cards stay unfolded: a settled answer, or a hand-back box drawn in this opening.
     private var keeping: Set<String> { answers.settledSessions.union(HandBack.holding(sessions, openedAt: state.openedAt)) }
+
+    /// The projects shut by a click on their line, while the list is grouped by project: only then is there a line.
+    private var shutProjects: Set<String> { settings.grouping == .projects ? state.shutProjects : [] }
 
     /// The sessions as the panel counts and draws them: a row with a request waiting needs the person.
     /// In the order the list is in: everything that reads an order reads this one.
@@ -1511,6 +1556,15 @@ struct PanelView: View {
                 .help(Format.pinHelp(pinned: state.pinned))
                 .accessibilityLabel(Text(verbatim: "Keep the panel open"))
                 .accessibilityValue(Text(verbatim: state.pinned ? "On" : "Off"))
+                // The Library, always: its books are kept whatever the Token use switch says.
+                // Its picture keeps its colours, so the whole of it fades as the symbols do.
+                Button { state.toggleLibrary() } label: {
+                    BookStack(size: 13).opacity(state.showingLibrary ? 1 : 0.6)
+                        .frame(width: 26, height: 26).contentShape(Rectangle()).hoverFill()
+                }
+                .buttonStyle(.plain)
+                .help(Format.libraryHelp(showing: state.showingLibrary))
+                .accessibilityLabel(Text(verbatim: Format.libraryHelp(showing: state.showingLibrary)))
                 // History, beside the other pages. The token line at the end of the list opens it
                 // too, but it reads as numbers rather than a button, and a long list scrolls it away.
                 if settings.tokenUse {
@@ -1598,6 +1652,8 @@ struct PanelView: View {
                 let count = AgentStore.barState(sessions).waiting
                 guard count > 0 else { return }
                 arrivals += 1
+                // The window shows the island's alert, where there is an island.
+                state.alerts += 1
                 arrived = Date()
                 // And said, for someone who cannot see the bar: the app's own words alone.
                 NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
@@ -1689,7 +1745,7 @@ struct PanelView: View {
                     guard let id else { return }
                     // On the first session the list stays at its very top: the line about the
                     // keys stands above that card, and must not be scrolled out by it.
-                    let walked = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping).walked(idleExpanded: state.idleExpanded)
+                    let walked = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping, shut: shutProjects).walked(idleExpanded: state.idleExpanded)
                     scrollTarget = id == walked.first?.id ? .top : .selection(id)
                     // And said, for someone who cannot see the ring arrive.
                     if let card = walked.first(where: { $0.id == id }) {
@@ -1710,6 +1766,13 @@ struct PanelView: View {
                     scrollTarget = .top
                 }
                 .onChange(of: state.historyPick.project) { _, _ in
+                    scrollTarget = .top
+                }
+                // The Library as History, and a shelf of it.
+                .onChange(of: state.showingLibrary) { _, _ in
+                    scrollTarget = .top
+                }
+                .onChange(of: state.libraryShelf) { _, _ in
                     scrollTarget = .top
                 }
                 .onChange(of: state.settingsTab) { _, _ in
@@ -1752,6 +1815,8 @@ struct PanelView: View {
                                  tab: $state.settingsTab) { state.showingSettings = false }
                 } else if state.showingHistory {
                     HistoryPage(ledger: usage, pick: $state.historyPick) { state.showingHistory = false }
+                } else if state.showingLibrary {
+                    LibraryPage(store: store, state: state)
                 } else {
                     sessions(motion, viewport: viewport)
                 }
@@ -1771,7 +1836,7 @@ struct PanelView: View {
     }
 
     private func sessions(_ motion: Motion, viewport: CGFloat) -> some View {
-        let list = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping)
+        let list = AgentStore.arrange(sessions, idle: settings.idleSessions, keeping: keeping, shut: shutProjects)
         let looks = AgentStore.looks(sessions)
         let putAway = AgentStore.putAway(answers.overlay(store.sessions), hidden: state.hidden)
         // Past eight sub-agents each takes one line.
@@ -1798,7 +1863,7 @@ struct PanelView: View {
         let folded = foldedRows(list, headers: headers, oneLineAgents: compact, under: under)
         let showsDone = bookOpen
         let crew = CrewTree.snapshot(list.cards)
-        let leftOut = folded.union(below).union(above)
+        let leftOut = folded.union(below).union(above).union(list.shut)
         // A change in this very frame is already a packet on its way, before `.onChange` below
         // keeps it: the new row is hidden from its first frame, and the finished one held.
         let fresh = CrewTree.pulses(old: seen, new: crew, open: state.expanded, reduced: motion.reduced, leftOut: leftOut)
@@ -1886,11 +1951,35 @@ struct PanelView: View {
             }
             // With a hide button on any card, every card keeps its place for one: the columns
             // beside it then stand in line down the list.
-            let anyHide = list.cards.contains { card in card.canHide && !answers.pending.contains { $0.ask.session == AnswerStore.sessionID(of: card) } }
+            let anyHide = list.drawn.contains { card in card.canHide && !answers.pending.contains { $0.ask.session == AnswerStore.sessionID(of: card) } }
             ForEach(Array(list.cards.enumerated()), id: \.element.id) { index, card in
                 if let header = headers[card.id] {
                     // What the cards under it have in common, in the app's own word for it.
-                    Text(verbatim: header).foregroundStyle(.white.opacity(0.6))
+                    Group {
+                        if byProject {
+                            // A click shuts the project's cards away, and opens them again.
+                            let open = !state.shutProjects.contains(card.projectKey)
+                            Button { state.shutProjects.formSymmetricDifference([card.projectKey]) } label: {
+                                HStack(spacing: 6) {
+                                    FoldMark(open: open)
+                                    Text(verbatim: header)
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .contentShape(Rectangle())
+                                .hoverFill()
+                                .padding(.horizontal, -6)
+                                .padding(.vertical, -2)
+                            }
+                            .buttonStyle(.plain)
+                            .help(open ? "Hide this project's sessions" : "Show this project's sessions")
+                            .accessibilityValue(Text(verbatim: open ? "Shown" : "Hidden"))
+                        } else {
+                            Text(verbatim: header)
+                        }
+                    }
+                        .foregroundStyle(.white.opacity(0.6))
                         // Where the list goes to for the card under it: the line comes into
                         // view with its card, and is not left under the band at the top.
                         .overlay(alignment: .top) { Self.mark(above: card.id) }
@@ -1901,6 +1990,7 @@ struct PanelView: View {
                 }
                 let asked = answers.pending.contains { $0.ask.session == AnswerStore.sessionID(of: card) }
                 let hide: (() -> Void)? = card.canHide && !asked ? { state.hidden[card.id] = card.movedAt ?? Date() } : nil
+                if !list.shut.contains(card.id) {
                 Group {
                     if folded.contains(card.id) {
                         CompactSessionRow(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), hide: hide, reserveHide: anyHide)
@@ -1957,6 +2047,7 @@ struct PanelView: View {
                     .padding(.top, index > 0 && headers[card.id] == nil && folded.contains(card.id) && folded.contains(list.cards[index - 1].id) ? -6 : 0)
                     .modifier(Reveal(shown: state.expanded, index: index, motion: motion))
                     .transition(.opacity)
+                }
             }
             if !list.folded.isEmpty {
                 IdleRow(sessions: list.folded, expanded: state.idleExpanded) { state.idleExpanded.toggle() }
@@ -2018,7 +2109,7 @@ struct PanelView: View {
         .padding(12)
         // Also as a card grows or closes up with its agents: what is under it moves with it, in
         // step, rather than jumping to where it ends up.
-        .animation(motion.list, value: list.cards.map(\.id) + ["|"] + list.folded.map(\.id) + [state.idleExpanded ? "open" : "shut"] + headers.keys.sorted()
+        .animation(motion.list, value: list.cards.map(\.id) + ["|"] + list.folded.map(\.id) + ["|"] + list.shut.sorted() + [state.idleExpanded ? "open" : "shut"] + headers.keys.sorted()
             + list.cards.flatMap { card in card.agents.map { card.id + "/" + $0.id + ($0.status == .done ? " done" : "") } }
             + (pulses + fresh).filter { $0.up && !$0.arrived }.map { $0.card + "/" + $0.agent + " up" })
         // h and d, from the keys, on the session they are on.
@@ -2031,7 +2122,7 @@ struct PanelView: View {
                 for card in putAway { state.hidden[card.id] = nil }
                 return
             }
-            guard keyed.acts(on: state.selected, keyboard: state.keyboard), let card = list.cards.first(where: { $0.id == keyed.card }) else { return }
+            guard keyed.acts(on: state.selected, keyboard: state.keyboard), let card = list.drawn.first(where: { $0.id == keyed.card }) else { return }
             switch keyed.command {
             case .allow, .deny, .option:
                 let outcome = answers.answer(byKey: keyed.command, at: keyed.at, in: card, whole: { id in
@@ -2047,7 +2138,7 @@ struct PanelView: View {
             case .hide:
                 guard card.canHide, !answers.pending.contains(where: { $0.ask.session == AnswerStore.sessionID(of: card) }) else { return }
                 // The ring goes on to the next session, or back to the one before the last.
-                let ids = list.cards.map(\.id)
+                let ids = list.drawn.map(\.id)
                 let index = ids.firstIndex(of: card.id) ?? 0
                 state.selected = index + 1 < ids.count ? ids[index + 1] : index > 0 ? ids[index - 1] : nil
                 state.hidden[card.id] = card.movedAt ?? Date()
@@ -2116,6 +2207,11 @@ struct PanelView: View {
         // Once a pass: worked out per card, it read every card for each.
         let keeping = self.keeping
         let entries = list.cards.map { card in
+            // Shut away, only its project's line is left of it.
+            if list.shut.contains(card.id) {
+                let line: CGFloat = headers[card.id] != nil ? ListFit.header : 0
+                return ListFit.Entry(id: card.id, full: line, row: line, keepsFull: true, quiet: false, header: headers[card.id] != nil)
+            }
             let session = AnswerStore.sessionID(of: card)
             let open = bookOpen(card)
             return ListFit.Entry(
@@ -2282,20 +2378,27 @@ private struct Arrival {
 struct IslandShape: Shape {
     var radius: CGFloat
     var shoulder: CGFloat
+    /// Radius of the two top corners when the island floats. Meant for `shoulder == 0`.
+    var top: CGFloat = 0
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(radius, shoulder) }
-        set { (radius, shoulder) = (newValue.first, newValue.second) }
+    var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(radius, AnimatablePair(shoulder, top)) }
+        set { (radius, shoulder, top) = (newValue.first, newValue.second.first, newValue.second.second) }
     }
 
     func path(in rect: CGRect) -> Path {
+        // A floating island is round all over, in the continuous curve of Apple's own.
+        if top > 0 { return Path(roundedRect: rect, cornerRadius: min(top, rect.height / 2, rect.width / 2), style: .continuous) }
+        let corner = shoulder
+        let left = rect.minX - shoulder
+        let right = rect.maxX + shoulder
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX - shoulder, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX + shoulder, y: rect.minY))
-        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.maxY), radius: shoulder)
+        path.move(to: CGPoint(x: left, y: rect.minY))
+        path.addLine(to: CGPoint(x: right, y: rect.minY))
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.maxY), radius: corner)
         path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.maxY), radius: radius)
         path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.minY), radius: radius)
-        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY), tangent2End: CGPoint(x: rect.minX - shoulder, y: rect.minY), radius: shoulder)
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY), tangent2End: CGPoint(x: left, y: rect.minY), radius: corner)
         path.closeSubpath()
         return path
     }

@@ -86,7 +86,7 @@ struct HistoryDocument: Equatable {
 
     /// "agents-visualizer October 2026.pdf". No "/" or ":", which would make it a path.
     func fileName(calendar: Calendar) -> String {
-        let title = (project ?? "AgentValley") + " " + Format.spanTitle(span, interval, calendar: calendar)
+        let title = (project ?? "All projects") + " " + Format.spanTitle(span, interval, calendar: calendar)
         return title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-") + ".pdf"
     }
 }

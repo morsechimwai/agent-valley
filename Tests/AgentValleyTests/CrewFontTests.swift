@@ -14,6 +14,32 @@ final class CrewFontTests: XCTestCase {
         XCTAssertLessThanOrEqual(CrewFont.Mark.worktree.scalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
     }
 
+    func testUntaggedGivesEachTagBackItsName() {
+        let walt = CrewFont.Tag.text(.lead(LeadLook(face: 1, hair: 4, shirt: 6))), judy = CrewFont.Tag.text(.plan)
+        let felix = CrewFont.Tag.text(.other(shirt: 2)), mug = CrewFont.Picture.mug.character
+        XCTAssertEqual(CrewFont.untagged("\(walt) hands it to \(judy), then \(felix)\(mug)."), "Walt hands it to Judy, then Felix.")
+        XCTAssertEqual(CrewFont.untagged("No tags here."), "No tags here.")
+    }
+
+    // Three characters a tag, each its own: a head for every look, two name parts for every name in every shirt.
+    func testEveryTagHasItsOwnCharactersAfterTheMarks() {
+        let tags = CrewFont.Tag.kinds.map(CrewFont.Tag.text)
+        XCTAssertEqual(tags.count, 7 + 4 * 6 * 7)
+        XCTAssertTrue(tags.allSatisfy { $0.unicodeScalars.count == 3 })
+        XCTAssertEqual(tags.map { $0.unicodeScalars.first!.value }, Array(CrewFont.Tag.firstScalar..<CrewFont.Tag.firstScalar + UInt32(tags.count)))
+        XCTAssertEqual(CrewFont.Tag.firstScalar, CrewFont.Mark.worktree.scalar + 1)
+        let parts = Set(tags.flatMap { $0.unicodeScalars.dropFirst().map(\.value) })
+        XCTAssertEqual(parts, Set(CrewFont.Tag.firstScalar + UInt32(tags.count)...CrewFont.Tag.lastScalar))
+        XCTAssertLessThanOrEqual(CrewFont.Tag.lastScalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
+        // A lead's hair changes the face, not the name parts; its shirt changes both.
+        let one = CrewFont.Tag.text(.lead(LeadLook(face: 2, hair: 0, shirt: 3))), other = CrewFont.Tag.text(.lead(LeadLook(face: 2, hair: 5, shirt: 3)))
+        XCTAssertNotEqual(one.unicodeScalars.first, other.unicodeScalars.first)
+        XCTAssertEqual(Array(one.unicodeScalars.dropFirst()), Array(other.unicodeScalars.dropFirst()))
+        XCTAssertNotEqual(Array(one.unicodeScalars.dropFirst()), Array(CrewFont.Tag.text(.lead(LeadLook(face: 2, shirt: 4))).unicodeScalars.dropFirst()))
+        // Every head says whose it is.
+        XCTAssertEqual(CrewFont.Tag.kinds.map { CrewFont.Tag.who(head: CrewFont.Tag.text($0).unicodeScalars.first!.value) }, CrewFont.Tag.kinds.map(CrewFont.Tag.who))
+    }
+
     /// Each mark stands inside its two cells, from a little under the line to below the top.
     func testMarksFitTheirCells() {
         for mark in CrewFont.Mark.allCases {

@@ -289,12 +289,18 @@ final class Settings: ObservableObject {
         rating = defaults.object(forKey: Key.rating) as? Int
         ratingSkippedAt = defaults.object(forKey: Key.ratingSkippedAt) as? Date
         crewNames = defaults.object(forKey: Key.crewNames) as? Bool ?? true
+        nameTags = defaults.object(forKey: Key.nameTags) as? Bool ?? true
     }
 
     /// Whether a new session and its sub-agents are told which of the crew they are, through the
     /// plugin. Needs `answers`: its socket is the way in.
     @Published var crewNames: Bool {
         didSet { defaults.set(crewNames, forKey: Key.crewNames) }
+    }
+
+    /// Whether those names come as name tags in the crew font, where the terminal draws them.
+    @Published var nameTags: Bool {
+        didSet { defaults.set(nameTags, forKey: Key.nameTags) }
     }
 
     /// A stored hour of the day, or the default when it is missing or is not one. Read as an
@@ -314,6 +320,7 @@ final class Settings: ObservableObject {
         static let shortcutKey = "shortcutKey"
         static let sounds = "sounds"
         static let crewNames = "crewNames"
+        static let nameTags = "nameTags"
         static let soundNeedsYou = "soundNeedsYou"
         static let soundFinished = "soundFinished"
         static let soundStyle = "soundStyle"

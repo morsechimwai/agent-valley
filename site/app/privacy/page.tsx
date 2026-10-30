@@ -28,7 +28,7 @@ export default function Privacy() {
           <header className="grid gap-4">
             <h1>Privacy</h1>
             <p className="lead">The app sends us one anonymous count a day, and you can turn it off. The website counts visits without cookies, keeps your email only if you ask for news, and keeps a review with the name you put on it.</p>
-            <p className="font-mono text-sm text-muted-foreground">Last changed October 29, 2026</p>
+            <p className="font-mono text-sm text-muted-foreground">Last changed October 30, 2026</p>
           </header>
 
           <section>
@@ -43,7 +43,8 @@ export default function Privacy() {
             <p>
               AgentValley has no account and no crash reports, and it doesn&apos;t record what you do in it. It reads the
               files Claude Code writes in ~/.claude to show your sessions and count tokens. What it keeps, like your
-              History, stays on your Mac in ~/Library/Application Support/AgentValley.
+              History and a copy of every report a sub-agent hands back (until that project&apos;s folder is gone),
+              stays on your Mac in ~/Library/Application Support/AgentValley.
             </p>
             <p>It talks to the internet in four places:</p>
             <ul>
@@ -69,7 +70,8 @@ export default function Privacy() {
               </li>
               <li>
                 Report a bug and Sponsor the crew open GitHub in your browser. The bug form comes filled in with the app
-                version, macOS version and Mac model, and nothing is sent until you submit it there yourself.
+                version, macOS version, Mac model and the size of the built-in screen and its notch or island, and nothing
+                is sent until you submit it there yourself.
               </li>
             </ul>
           </section>
