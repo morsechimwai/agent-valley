@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.27 — 2026-10-30
+
+- On a Mac with the Dynamic Island, the open panel grows out of Apple's island, its top edge where the island's is, so it no longer drops a few points as it opens. Its top row has more room over it and beside it, and its corners are a little less round, to sit around the cards inside.
+
 ## 0.3.26 — 2026-10-30
 
 - The Library button at the top of the panel is a white symbol like the ones beside it, books on a shelf, and so is each shelf in the Library.

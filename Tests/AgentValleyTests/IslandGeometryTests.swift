@@ -44,11 +44,17 @@ final class IslandGeometryTests: XCTestCase {
         XCTAssertLessThanOrEqual(IslandGeometry.alert(screen: screen, apple: right).maxX, 1512)
     }
 
-    func testTheOpenCardFloatsUnderTheTop() {
+    // Like Apple's own island, the card grows out of it: its top where the island's is, and 16
+    // points over the tabs of its top row, as beside them. The 24 of the tabs in a row of 28 leave
+    // 2 above them, so 14 are added; a taller island leaves more and needs less.
+    func testTheOpenCardGrowsOutOfTheIsland() {
         let card = IslandGeometry.open(screen: screen, apple: apple, contentHeight: 200)
-        XCTAssertEqual(card.maxY, 976)
+        XCTAssertEqual(card.maxY, 979)
         XCTAssertEqual(card.width, 520)
-        XCTAssertEqual(card.height, NotchGeometry.openFrame(screen: screen, barHeight: 28, contentHeight: 200).height)
+        XCTAssertEqual(IslandGeometry.openRoom(apple: apple), 14)
+        XCTAssertEqual(card.height, NotchGeometry.openFrame(screen: screen, barHeight: 28, contentHeight: 200).height + 14)
+        XCTAssertEqual(IslandGeometry.openRoom(apple: CGRect(x: 700, y: 940, width: 120, height: 37)), 9.5)
+        XCTAssertEqual(IslandGeometry.welcome(screen: screen, apple: apple).maxY, 979)
     }
 
     func testTheTopEdgeStillReaches() {
@@ -75,10 +81,10 @@ final class IslandGeometryTests: XCTestCase {
     func testRoundness() {
         XCTAssertEqual(IslandGeometry.radius(height: 28, open: false, alerting: false), 14)
         XCTAssertEqual(IslandGeometry.radius(height: 28, open: false, alerting: true), 24)
-        XCTAssertEqual(IslandGeometry.radius(height: 28, open: true, alerting: true), 30)
-        XCTAssertEqual(IslandGeometry.radius(height: 28, open: true, alerting: false), 30)
-        XCTAssertEqual(IslandGeometry.top(screen: screen, apple: apple, open: false), 3)
-        XCTAssertEqual(IslandGeometry.top(screen: screen, apple: apple, open: true), 6)
+        // The 16 of room and the 10 of the cards inside: one curve within the other.
+        XCTAssertEqual(IslandGeometry.radius(height: 28, open: true, alerting: true), 26)
+        XCTAssertEqual(IslandGeometry.radius(height: 28, open: true, alerting: false), 26)
+        XCTAssertEqual(IslandGeometry.top(screen: screen, apple: apple), 3)
     }
 
     func testOnlyARectangleIsReadAsOne() {

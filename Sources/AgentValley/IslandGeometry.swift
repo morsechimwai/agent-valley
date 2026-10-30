@@ -1,12 +1,17 @@
 import AppKit
 
 /// Where the panel goes on a screen with Apple's Dynamic Island instead of a notch: a pill that floats
-/// around the camera, a taller pill for an alert, a card below the top edge. Every size here is a
+/// around the camera, a taller pill for an alert, a card grown down out of the island. Every size here is a
 /// guess, made before any such Mac was at hand, and waits to be measured on one.
 enum IslandGeometry {
-    /// How far the open card floats below the top of the screen.
-    static let openInset: CGFloat = 6
-    static let openRadius: CGFloat = 30
+    /// The room around the open card's top row, over it as beside it.
+    static let openPad: CGFloat = 16
+    /// What the card adds beside the top row, on top of the 8 the row keeps to its ends anyway.
+    static let openSide: CGFloat = openPad - 8
+    /// The room and the 10 of the cards inside it: one curve within the other.
+    static let openRadius: CGFloat = 26
+    /// The tabs, the tallest thing always drawn in the top row.
+    private static let rowItem: CGFloat = 24
     static let alertRadius: CGFloat = 24
     /// Room beside the island in the alert's first row, and the least width the alert has.
     static let alertSide: CGFloat = 115
@@ -47,14 +52,20 @@ enum IslandGeometry {
                 top: apple.maxY, screen: screen, apple: apple)
     }
 
+    /// What the open card adds above its top row, as tall as the island, for `openPad` over the tabs.
+    static func openRoom(apple: CGRect) -> CGFloat {
+        max(0, openPad - (apple.height - rowItem) / 2)
+    }
+
+    /// Grown out of the island, as Apple's own is: its top where the island's is.
     static func open(screen: CGRect, apple: CGRect, contentHeight: CGFloat) -> CGRect {
         let size = NotchGeometry.openFrame(screen: screen, barHeight: apple.height, contentHeight: contentHeight).size
-        return centred(width: size.width, height: size.height, top: screen.maxY - openInset, screen: screen, apple: apple)
+        return centred(width: size.width, height: size.height + openRoom(apple: apple), top: apple.maxY, screen: screen, apple: apple)
     }
 
     static func welcome(screen: CGRect, apple: CGRect) -> CGRect {
         let size = NotchGeometry.welcomeFrame(screen: screen).size
-        return centred(width: size.width, height: size.height, top: screen.maxY - openInset, screen: screen, apple: apple)
+        return centred(width: size.width, height: size.height, top: apple.maxY, screen: screen, apple: apple)
     }
 
     /// The frame grown upward to the top of the screen, so the pointer pushed against that edge is still over it.
@@ -74,9 +85,9 @@ enum IslandGeometry {
         return (bar, island, window)
     }
 
-    /// The gap between the top of the screen and the island's shape: the card floats, the pill sits where the island does.
-    static func top(screen: CGRect, apple: CGRect, open: Bool) -> CGFloat {
-        open ? openInset : screen.maxY - apple.maxY
+    /// The gap between the top of the screen and the island's shape, shut or open: it sits where the island does.
+    static func top(screen: CGRect, apple: CGRect) -> CGFloat {
+        screen.maxY - apple.maxY
     }
 
     static func radius(height: CGFloat, open: Bool, alerting: Bool) -> CGFloat {

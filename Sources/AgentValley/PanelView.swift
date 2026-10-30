@@ -1029,13 +1029,16 @@ struct PanelView: View {
         let alertPill = state.appleIsland.flatMap { apple in
             state.alerting && !state.expanded && alertWait != nil ? IslandGeometry.alert(screen: state.screenFrame, apple: apple).size : nil
         }
-        let island = state.expanded ? open : alertPill ?? closed
         // Floating, the island is round all over and has no shoulders to meet the screen's edge.
         let floating = state.appleIsland != nil
+        // Open and floating, the card has room over its top row and beside it.
+        let room = state.expanded ? state.appleIsland.map(IslandGeometry.openRoom) ?? 0 : 0
+        let side = floating ? IslandGeometry.openSide : 0
+        let island = state.expanded ? CGSize(width: open.width, height: open.height + room) : alertPill ?? closed
         let radius: CGFloat = floating ? IslandGeometry.radius(height: island.height, open: state.expanded, alerting: alertPill != nil)
             : state.expanded ? 20 : 10
         let shoulder = floating ? 0 : state.expanded ? NotchGeometry.openShoulder : NotchGeometry.shoulder
-        let float = state.appleIsland.map { IslandGeometry.top(screen: state.screenFrame, apple: $0, open: state.expanded) } ?? 0
+        let float = state.appleIsland.map { IslandGeometry.top(screen: state.screenFrame, apple: $0) } ?? 0
         let waiting = AgentStore.barState(sessions).waiting > 0
         let chrome = state.barHeight + NotchGeometry.statusRowHeight
 
@@ -1147,7 +1150,7 @@ struct PanelView: View {
                         }
                     }
                 }
-                .padding(.top, chrome)
+                .padding(.top, chrome + room)
                 .allowsHitTesting(state.expanded)
                 // Shut, nothing under the bar is there for a screen reader either. The list
                 // fades out and was gone already. The settings do not fade, and stay in the
@@ -1155,7 +1158,9 @@ struct PanelView: View {
                 // by a screen reader with nothing on the screen.
                 .accessibilityHidden(!state.expanded)
             VStack(spacing: 0) {
-                bar(motion, width: open.width)
+                bar(motion, width: open.width - side * 2)
+                    .padding(.horizontal, side)
+                    .padding(.top, room)
                     // Under the alert pill, which says more.
                     .modifier(Reveal(shown: alertPill == nil, index: 0, motion: motion, travels: false))
                 // Redrawn twice a minute so the times until reset keep counting down while open.
@@ -1337,7 +1342,8 @@ struct PanelView: View {
         let behind = Array(crowd.dropFirst().prefix(max(0, Int(room / Self.crowdStep))))
         let extra = max(0, crowd.count - 1 - behind.count)
         return ZStack {
-            // Stays beside the notch the whole time: the island grows around it. The mascot and
+            // Stays beside the notch the whole time: the island grows around it. (Around Apple's
+            // island, the open card's room takes it down with the rest of the row.) The mascot and
             // the one number there is room for on one wing, the limit's ring on the other.
             HStack(spacing: 3) {
                 // Flagged whenever any agent may need the person, whoever the mascot itself stands for.
