@@ -179,7 +179,7 @@ private struct ShelfLine: View {
         let books = Format.shelfMeta(books: shelf.books.count)
         Button(action: open) {
             HStack(spacing: 8) {
-                BookStack(size: 18).frame(width: 20)
+                Image(systemName: "books.vertical").font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).frame(width: 20)
                 // verbatim: folder names must never be read as Markdown.
                 Text(verbatim: shelf.name).lineLimit(1)
                 Spacer(minLength: 8)

@@ -25,10 +25,8 @@ final class HandBackTests: XCTestCase {
     func testReadingAllIsForOneOpening() {
         let state = NotchState()
         state.readingAll = ["c"]
-        state.showingLegend = true
         state.finishedClosing()
         XCTAssertEqual(state.readingAll, [])
-        XCTAssertFalse(state.showingLegend)
     }
 
     func testOnlyAPersonAtThePanelSeesAHandBackArrive() {

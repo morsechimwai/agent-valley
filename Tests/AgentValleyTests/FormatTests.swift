@@ -136,7 +136,7 @@ final class FormatTests: XCTestCase {
         XCTAssertTrue(Format.intro(shortcut: .n).contains("⌃ ⌥ ⌘ N"))
         XCTAssertFalse(Format.intro(shortcut: nil).contains("⌘"))
         // And where the marks are explained, in place of a page of them.
-        XCTAssertTrue(Format.intro(shortcut: nil).contains("The ? above explains the symbols."))
+        XCTAssertTrue(Format.intro(shortcut: nil).contains("Under the gear above, Symbols says what each picture means."))
         XCTAssertTrue(Format.intro(shortcut: nil).contains("mascot"))
     }
 
@@ -144,7 +144,7 @@ final class FormatTests: XCTestCase {
     // "It closes when you move away" stood on it meanwhile: four of thirteen testers watched
     // it not close. The line says what the panel does this once, then how to open it again.
     func testTheIntroSaysWhyThePanelIsStillOpen() {
-        XCTAssertEqual(Format.intro(shortcut: nil), "This panel shows what your Claude Code agents are doing, and when one needs you. It opened by itself this once: point at it, then move away, and it closes. To open it again, point at the mascot at the top of the screen. The ? above explains the symbols.")
+        XCTAssertEqual(Format.intro(shortcut: nil), "This panel shows what your Claude Code agents are doing, and when one needs you. It opened by itself this once: point at it, then move away, and it closes. To open it again, point at the mascot at the top of the screen. Under the gear above, Symbols says what each picture means.")
         // What the app is for comes first. It used to be said only on the last page of the
         // settings: five of thirteen testers went through the pages to find out.
         XCTAssertTrue(Format.intro(shortcut: .a).hasPrefix("This panel shows what your Claude Code agents are doing, and when one needs you."))
@@ -704,8 +704,6 @@ final class FormatTests: XCTestCase {
     func testTheAppsOwnWordsArePlainOnes() {
         // "marks" was taken for scores.
         XCTAssertEqual(Format.legendTitle, "What the symbols mean")
-        XCTAssertEqual(Format.legendHelp(showing: false), "What the symbols mean")
-        XCTAssertEqual(Format.legendHelp(showing: true), "Hide what the symbols mean")
         // "turn": how long it has worked, since when. Cut to what a reader needs on 2026-10-15.
         XCTAssertEqual(Format.timeCaption, "The time on a row is how long it has worked on its last task, or how long it has been quiet or waiting.")
         XCTAssertEqual(Format.timeHelp, "How long it has been working since it was last given something to do, or how long it has been quiet or waiting")

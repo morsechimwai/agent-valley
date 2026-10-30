@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.26 — 2026-10-30
+
+- The Library button at the top of the panel is a white symbol like the ones beside it, books on a shelf, and so is each shelf in the Library.
+- The ? button is gone from the top of the panel, which leaves five buttons there. What the symbols mean is now the Symbols page in Settings. The ? key still opens it, on its Keys page.
+
 ## 0.3.25 — 2026-10-30
 
 - Library: every report a sub-agent hands back is kept until its project folder is gone. Open it from the stack of books at the top of the panel, pick a project, then a book. A book is one Claude Code session and opens as a PDF, one chapter per report, with what the sub-agent was asked at the end of each. The first time, the Library reads every report still on your Mac.

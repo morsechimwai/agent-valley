@@ -265,15 +265,15 @@ final class NotchState: ObservableObject {
     /// and "← Agents" had to be pressed a second time to reach the agents. History goes too:
     /// one page at a time, and the Library with it.
     @Published var showingSettings = false {
-        didSet { if showingSettings { showingLegend = false; showingHistory = false; showingLibrary = false } }
+        didSet { if showingSettings { showingHistory = false; showingLibrary = false } }
     }
     /// History stands where the list was, as the settings do.
     @Published var showingHistory = false {
-        didSet { if showingHistory { showingLegend = false; showingSettings = false; showingLibrary = false } }
+        didSet { if showingHistory { showingSettings = false; showingLibrary = false } }
     }
     /// The Library too: the books the sub-agents handed back, by project.
     @Published var showingLibrary = false {
-        didSet { if showingLibrary { showingLegend = false; showingSettings = false; showingHistory = false } }
+        didSet { if showingLibrary { showingSettings = false; showingHistory = false } }
     }
     /// The shelf open on the Library page, or nil for every shelf. Kept while the page is, as
     /// History's pick is; the page opened anew starts on its shelves.
@@ -304,8 +304,8 @@ final class NotchState: ObservableObject {
     @Published var selected: String?
     /// The shortcut is switched on and the system would not give it, as when another app has it.
     @Published var shortcutTaken = false
-    /// The legend is shown at the head of the list. Put away again when the panel shuts.
-    @Published var showingLegend = false
+    /// The legend is the Symbols page of the settings.
+    var showingLegend: Bool { showingSettings && settingsTab == .symbols }
     /// The page of the legend last read. Remembered while the app runs.
     @Published var legendTab = LegendTab.mascots
     /// The last key the list has to act on itself, because only it knows what is on screen:
@@ -321,10 +321,9 @@ final class NotchState: ObservableObject {
     @Published var askedOpen: Set<String> = []
 
     /// Once the panel has finished closing, what was for that opening only is put away: the
-    /// first-launch words, the legend and the hand-backs left read whole.
+    /// first-launch words and the hand-backs left read whole.
     func finishedClosing() {
         introducing = false
-        showingLegend = false
         readingAll = []
     }
 
@@ -333,15 +332,13 @@ final class NotchState: ObservableObject {
         keyed = Keyed(serial: (keyed?.serial ?? 0) + 1, command: command, at: at, card: selected)
     }
 
-    /// Shows the legend or puts it away. From the settings it is shown, whatever it was left at:
-    /// putting away a legend nobody could see did nothing. By its key it opens on the keys:
-    /// that is what the key is said to list, and no key turns the pages.
+    /// The Symbols page of the settings, or back to the agents from it. By its key it opens on
+    /// the keys: that is what the key is said to list, and no key turns the pages.
     func toggleLegend(byKey: Bool = false) {
-        showingLegend = showingPage || !showingLegend
-        showingSettings = false
-        showingHistory = false
-        showingLibrary = false
-        if byKey, showingLegend { legendTab = .keys }
+        if showingLegend { return showingSettings = false }
+        settingsTab = .symbols
+        showingSettings = true
+        if byKey { legendTab = .keys }
     }
 
     /// History, opened afresh: this month, every project, nothing picked.

@@ -558,7 +558,7 @@ final class NotchWindowTests: XCTestCase {
     // page does, so a pointer that strayed finds it again.
     func testHistoryIsAPageOfThePanel() {
         let state = NotchState()
-        state.showingLegend = true
+        state.toggleLegend()
         state.historyPick.project = "shop-web"
         state.openHistory()
         XCTAssertTrue(state.showingHistory)
@@ -578,7 +578,7 @@ final class NotchWindowTests: XCTestCase {
         state.toggleLegend()
         XCTAssertTrue(state.showingLegend)
         XCTAssertFalse(state.showingHistory)
-        XCTAssertFalse(state.showingPage)
+        XCTAssertTrue(state.showingPage)
         state.openHistory()
         state.toggleHistory()
         XCTAssertFalse(state.showingHistory)
@@ -597,7 +597,7 @@ final class NotchWindowTests: XCTestCase {
     // as it opens, and it opens afresh on its shelves. The shelf picked stays while the page does.
     func testLibraryIsAPageOfThePanel() {
         let state = NotchState()
-        state.showingLegend = true
+        state.toggleLegend()
         state.libraryShelf = "shop-web"
         state.toggleLibrary()
         XCTAssertTrue(state.showingLibrary)
@@ -615,7 +615,7 @@ final class NotchWindowTests: XCTestCase {
         state.toggleLegend()
         XCTAssertTrue(state.showingLegend)
         XCTAssertFalse(state.showingLibrary)
-        XCTAssertFalse(state.showingPage)
+        XCTAssertTrue(state.showingPage)
         state.toggleLibrary()
         state.libraryShelf = "api"
         state.toggleLibrary()
@@ -702,10 +702,11 @@ final class NotchWindowTests: XCTestCase {
 
     // Five pages since 2026-10-21, the way a Mac app's settings are split: two had grown long,
     // a page of fifteen rows. The first is the general one, and the page last read is the one
-    // found again, until the app quits.
-    func testTheSettingsOpenOnGeneralAndAreFivePages() {
+    // found again, until the app quits. The legend is the sixth since 2026-10-30: its own
+    // button made one too many at the top of the panel.
+    func testTheSettingsOpenOnGeneralAndAreSixPages() {
         XCTAssertEqual(NotchState().settingsTab, .general)
-        XCTAssertEqual(SettingsTab.allCases.map(\.label), ["General", "Sounds", "Shortcuts", "Claude Code", "About"])
+        XCTAssertEqual(SettingsTab.allCases.map(\.label), ["General", "Sounds", "Shortcuts", "Claude Code", "About", "Symbols"])
     }
 
     // The legend is three short pages. The pointer finds the page it last read. The key that is
@@ -744,33 +745,24 @@ final class NotchWindowTests: XCTestCase {
         XCTAssertEqual(ScrollTarget.clearOfBand(viewport: 20).y, 1)
     }
 
-    // With the legend up, the gear opened the settings over it and left it standing. Back
-    // from the settings there was the legend, with a second "← Agents" of its own to press:
-    // five of thirteen testers pressed twice to get back to the agents.
-    func testOpeningTheSettingsPutsTheLegendAway() {
+    // The legend is the Symbols page of the settings: one press back is the agents, and from
+    // another page of the settings its key turns to it.
+    func testTheLegendIsTheSymbolsPageOfTheSettings() {
         let state = NotchState()
         state.toggleLegend()
-        state.showingSettings.toggle()
         XCTAssertTrue(state.showingSettings)
-        XCTAssertFalse(state.showingLegend)
+        XCTAssertEqual(state.settingsTab, .symbols)
+        XCTAssertTrue(state.showingPage)
         state.showingSettings = false
         XCTAssertFalse(state.showingLegend, "one press back is the agents")
-        // The legend's own way out is untouched, and so is its page.
-        state.legendTab = .bar
-        state.toggleLegend()
-        XCTAssertTrue(state.showingLegend)
-        state.showingSettings = false
-        XCTAssertTrue(state.showingLegend)
-        XCTAssertEqual(state.legendTab, .bar)
-    }
-
-    // From the settings the legend is shown, whatever it was left at, and the settings go.
-    func testFromTheSettingsTheLegendIsShown() {
-        let state = NotchState()
-        state.showingLegend = true
+        state.settingsTab = .sounds
         state.showingSettings = true
+        XCTAssertFalse(state.showingLegend)
         state.toggleLegend()
         XCTAssertTrue(state.showingLegend)
-        XCTAssertFalse(state.showingSettings)
+        XCTAssertTrue(state.showingSettings)
+        // History over it: the legend goes with the settings.
+        state.openHistory()
+        XCTAssertFalse(state.showingLegend)
     }
 }

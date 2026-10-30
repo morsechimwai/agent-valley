@@ -336,7 +336,7 @@ enum Format {
     /// Before any of that, what the panel is for: the one sentence that said so stood on the
     /// last page of the settings, and people handed the app went looking for it.
     static func intro(shortcut: ShortcutKey?) -> String {
-        "This panel shows what your Claude Code agents are doing, and when one needs you. It opened by itself this once: point at it, then move away, and it closes. To open it again, point at the mascot at the top of the screen\(shortcut.map { ", or press \(Format.shortcut($0))" } ?? ""). The ? above explains the symbols."
+        "This panel shows what your Claude Code agents are doing, and when one needs you. It opened by itself this once: point at it, then move away, and it closes. To open it again, point at the mascot at the top of the screen\(shortcut.map { ", or press \(Format.shortcut($0))" } ?? ""). Under the gear above, Symbols says what each picture means."
     }
 
     /// What an empty panel says, or nil when there is something to show or nothing has been read yet.
@@ -801,10 +801,6 @@ enum Format {
 
     /// The name of the setting for how long what has stopped stays in the list.
     static let keepTitle = "Keep idle and done listed for"
-
-    static func legendHelp(showing: Bool) -> String {
-        showing ? "Hide what the symbols mean" : legendTitle
-    }
 
     /// Under the crew-names switch: what it does, that it rides on answering from the notch, and
     /// that open sessions keep what they were told.
@@ -1557,12 +1553,12 @@ struct PanelView: View {
                 .accessibilityLabel(Text(verbatim: "Keep the panel open"))
                 .accessibilityValue(Text(verbatim: state.pinned ? "On" : "Off"))
                 // The Library, always: its books are kept whatever the Token use switch says.
-                // Its picture keeps its colours, so the whole of it fades as the symbols do.
                 Button { state.toggleLibrary() } label: {
-                    BookStack(size: 13).opacity(state.showingLibrary ? 1 : 0.6)
+                    Image(systemName: "books.vertical").font(.system(size: 11))
                         .frame(width: 26, height: 26).contentShape(Rectangle()).hoverFill()
                 }
                 .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(state.showingLibrary ? 1 : 0.6))
                 .help(Format.libraryHelp(showing: state.showingLibrary))
                 .accessibilityLabel(Text(verbatim: Format.libraryHelp(showing: state.showingLibrary)))
                 // History, beside the other pages. The token line at the end of the list opens it
@@ -1577,16 +1573,6 @@ struct PanelView: View {
                     .help(Format.historyHelp(showing: state.showingHistory))
                     .accessibilityLabel(Text(verbatim: Format.historyHelp(showing: state.showingHistory)))
                 }
-                // What the marks mean, beside the list they are on: the settings page that also
-                // holds it takes the list's place.
-                Button { state.toggleLegend() } label: {
-                    Image(systemName: "questionmark").font(.system(size: 11, weight: .semibold))
-                        .frame(width: 26, height: 26).contentShape(Rectangle()).hoverFill()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(state.showingLegend && !state.showingSettings ? 1 : 0.6))
-                .help(Format.legendHelp(showing: state.showingLegend && !state.showingSettings))
-                .accessibilityLabel(Text(verbatim: Format.legendHelp(showing: state.showingLegend && !state.showingSettings)))
                 Button { state.showingSettings.toggle() } label: {
                     Image(systemName: "gearshape").frame(width: 26, height: 26)
                         .overlay(alignment: .topTrailing) { if updates.waiting != nil { UpdateDot().padding(4) } }
@@ -1753,11 +1739,7 @@ struct PanelView: View {
                                              userInfo: [.announcement: Format.chosen(card), .priority: NSAccessibilityPriorityLevel.high.rawValue])
                     }
                 }
-                // The legend stands at the head of the list, and each page starts from its top:
-                // the list and the settings share one scroll.
-                .onChange(of: state.showingLegend) { _, shown in
-                    if shown { scrollTarget = .top }
-                }
+                // Each page starts from its top: the list and the settings share one scroll.
                 .onChange(of: state.showingSettings) { _, _ in
                     scrollTarget = .top
                 }
@@ -1812,7 +1794,7 @@ struct PanelView: View {
                 if state.showingSettings {
                     SettingsView(settings: settings, answers: answers, limits: limits, updates: updates,
                                  shortcutNote: state.shortcutTaken ? Format.shortcutTaken : nil, displays: state.displays,
-                                 tab: $state.settingsTab) { state.showingSettings = false }
+                                 tab: $state.settingsTab, legendTab: $state.legendTab) { state.showingSettings = false }
                 } else if state.showingHistory {
                     HistoryPage(ledger: usage, pick: $state.historyPick) { state.showingHistory = false }
                 } else if state.showingLibrary {
@@ -1924,14 +1906,6 @@ struct PanelView: View {
                 }
                 .buttonStyle(.plain)
                 .modifier(Reveal(shown: state.expanded, index: 0, motion: motion))
-            }
-            if state.showingLegend {
-                // Beside the list it explains.
-                Legend(tab: $state.legendTab) { state.showingLegend = false }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-                    .modifier(Reveal(shown: state.expanded, index: 0, motion: motion))
             }
             if state.keyboard {
                 // Said while the keys work, and only then: what they do, and so what they do not.
@@ -2187,8 +2161,8 @@ struct PanelView: View {
         .onChange(of: state.keyboard) { _, _ in
             answers.noteLayoutChange()
         }
-        // So do the first-launch words, the legend and the line about a shortcut that will not work.
-        .onChange(of: [state.introducing, state.showingLegend, settings.shortcut && state.shortcutTaken]) { _, _ in
+        // So do the first-launch words and the line about a shortcut that will not work.
+        .onChange(of: [state.introducing, settings.shortcut && state.shortcutTaken]) { _, _ in
             answers.noteLayoutChange()
         }
         // The pages of the legend are not one height: turning one moves every card under it.

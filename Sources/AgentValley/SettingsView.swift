@@ -17,6 +17,8 @@ enum SettingsTab: String, CaseIterable {
     case claudeCode
     /// Which app this is and what it will not do, its updates, and the way out at the end.
     case about
+    /// What the pictures and the bar's numbers mean: the legend, once a button of its own.
+    case symbols
 
     /// The word on its tab.
     var label: String { self == .claudeCode ? "Claude Code" : rawValue.capitalized }
@@ -33,6 +35,8 @@ struct SettingsView: View {
     var displays: [DisplayChoice] = []
     /// The page shown. Kept by the panel, which also sends the person to a row on one.
     @Binding var tab: SettingsTab
+    /// The legend's page shown on the Symbols page. Kept by the panel, which its key opens on the keys.
+    var legendTab: Binding<LegendTab> = .constant(.mascots)
     /// Back to the agents.
     let back: () -> Void
     /// The command last copied, so its button can say so for a moment.
@@ -48,10 +52,12 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 // The way back, in words: the gear that led here is the only other one.
-                BackToAgents(action: back)
+                // Both at their own width: six pages fit beside the way back a little closer together.
+                BackToAgents(action: back).fixedSize()
                 Spacer(minLength: 0)
-                PageTabs(title: "Settings pages", pages: SettingsTab.allCases, label: { $0.label }, selection: $tab,
+                PageTabs(title: "Settings pages", pages: SettingsTab.allCases, label: { $0.label }, selection: $tab, inset: 5,
                          note: { $0 == .about ? updates.waiting.map(Format.updateWaiting) : nil })
+                    .fixedSize()
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -78,6 +84,7 @@ struct SettingsView: View {
                 case .shortcuts: shortcuts
                 case .claudeCode: claudeCode
                 case .about: about
+                case .symbols: Legend(tab: legendTab)
                 }
             }
             .padding([.horizontal, .bottom], 14)
@@ -534,20 +541,9 @@ enum LegendTab: String, CaseIterable {
 struct Legend: View {
     /// The page shown. Kept by whoever shows the legend, so that its key can open it on the keys.
     @Binding var tab: LegendTab
-    /// Puts the legend away, where it stands at the head of the list. Nil on the settings page,
-    /// which has its own way back.
-    var back: (() -> Void)? = nil
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                // As on the settings page: the way back on the left, the pages on the right.
-                if let back {
-                    BackToAgents(action: back)
-                    Spacer(minLength: 0)
-                }
-                PageTabs(title: Format.legendTitle, pages: LegendTab.allCases, label: { $0.label }, selection: $tab)
-            }
+            PageTabs(title: Format.legendTitle, pages: LegendTab.allCases, label: { $0.label }, selection: $tab)
             switch tab {
             case .mascots: mascots
             case .bar: bar
@@ -593,7 +589,6 @@ struct Legend: View {
             mark("what one handed back") { DocIcon().frame(width: 14) }
             mark("Monitor job") { JobEye(size: 14) }
         }
-        mark("Library") { BookStack(size: 14) }
         HStack(spacing: 12) {
             mark("job left running") { JobScreen(size: 14) }
             mark("server left running") { JobServer(size: 14) }
@@ -766,6 +761,8 @@ struct PageTabs<Page: Hashable>: View {
     let pages: [Page]
     let label: (Page) -> String
     @Binding var selection: Page
+    /// The room either side of each name.
+    var inset: CGFloat = 8
     /// What waits on a page: a green dot after its name, and these words to a screen reader.
     var note: (Page) -> String? = { _ in nil }
 
@@ -775,13 +772,13 @@ struct PageTabs<Page: Hashable>: View {
                 Button { selection = page } label: {
                     Text(verbatim: label(page))
                         .foregroundStyle(page == selection ? Color.white : Color.white.opacity(0.6))
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal, inset)
                         .frame(height: 22)
                         .overlay(alignment: .bottom) {
-                            Rectangle().fill(page == selection ? Color.white : Color.clear).frame(height: 2).padding(.horizontal, 8)
+                            Rectangle().fill(page == selection ? Color.white : Color.clear).frame(height: 2).padding(.horizontal, inset)
                         }
                         // In the room after the name: the tabs keep their places as it comes and goes.
-                        .overlay(alignment: .topTrailing) { if note(page) != nil { UpdateDot().padding(.top, 2).padding(.trailing, -3) } }
+                        .overlay(alignment: .topTrailing) { if note(page) != nil { UpdateDot().padding(.top, 2).padding(.trailing, inset - 11) } }
                         .contentShape(Rectangle())
                         .hoverFill()
                 }

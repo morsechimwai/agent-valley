@@ -593,7 +593,7 @@ final class PanelPicturesTests: XCTestCase {
             picture("first-launch")
         case "legend":
             open()
-            state.showingLegend = true
+            state.toggleLegend()
             for tab in LegendTab.allCases {
                 state.legendTab = tab
                 picture(tab.rawValue)
