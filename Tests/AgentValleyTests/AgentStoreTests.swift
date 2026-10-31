@@ -614,6 +614,12 @@ final class AgentStoreTests: XCTestCase {
         XCTAssertEqual(stuck.movedAt, now.addingTimeInterval(-300))
         XCTAssertTrue(stuck.canHide)
         XCTAssertFalse(cards.first { $0.id == "/r/p/s2" }!.canHide, "a working session has nothing to put away")
+        // An idle one can be put away too: a session opened for one question, done with.
+        XCTAssertTrue(card("idle", main: .done, agents: [.done]).canHide)
+        XCTAssertFalse(card("lead done", main: .done, agents: [.working]).canHide)
+        var serving = card("serving", main: .done)
+        serving.jobs = [job]
+        XCTAssertFalse(serving.canHide, "an idle session with a job running still has work under way")
         XCTAssertEqual(AgentStore.showing(cards, hidden: [:]).count, 2)
         XCTAssertEqual(AgentStore.showing(cards, hidden: ["/r/p/s1": now.addingTimeInterval(-300)]).map(\.id), ["/r/p/s2"])
         // It has moved since it was hidden: back it comes.
@@ -630,6 +636,11 @@ final class AgentStoreTests: XCTestCase {
         XCTAssertEqual(AgentStore.putAway(cards, hidden: ["/r/p/s1": now.addingTimeInterval(-300)]).map(\.id), ["/r/p/s1"])
         // It has moved since: it is back in the list, not among the hidden.
         XCTAssertTrue(AgentStore.putAway(cards, hidden: ["/r/p/s1": now.addingTimeInterval(-900)]).isEmpty)
+        // An idle session put away is cleared: nothing waits in it to bring back.
+        let idle = card("idle", main: .done)
+        let hidden = ["idle": now]
+        XCTAssertTrue(AgentStore.showing([idle], hidden: hidden).isEmpty)
+        XCTAssertTrue(AgentStore.putAway([idle], hidden: hidden).isEmpty)
     }
 
     func testACardIsCalledByItsTitleOrElseItsFolder() {
@@ -1737,6 +1748,24 @@ final class AgentStoreTests: XCTestCase {
         XCTAssertEqual(AgentStore.cards(from: ["/p/s.jsonl": main], now: now, running: [:]).first?.closed, true)
         XCTAssertEqual(AgentStore.cards(from: ["/p/s.jsonl": main], now: now, running: ["s": now - 600]).first?.closed, false)
         XCTAssertEqual(AgentStore.cards(from: ["/p/s.jsonl": main], now: now).first?.closed, false)
+    }
+    // A workspace deleted with its session: Claude Code is closed and the folder is gone, so
+    // nothing is left to come back to, however new its hand-back.
+    func testAClosedSessionWhoseFolderIsGoneHasNoCard() {
+        var main = tracked("/p/s", main: true, idle: 60)
+        main.info.turnEnded = true
+        var sub = tracked("/p/s/subagents/agent-a", idle: 120)
+        sub.session = "/p/s"
+        sub.info.turnEnded = true
+        sub.info.handedBackAt = now.addingTimeInterval(-120)
+        let files = ["/p/s.jsonl": main, "/p/s/subagents/agent-a.jsonl": sub]
+        let gone: (String) -> Bool = { _ in false }
+        XCTAssertTrue(AgentStore.cards(from: files, now: now, exists: gone, running: [:]).isEmpty)
+        // Still open, or the folder still there: the card stays.
+        XCTAssertEqual(AgentStore.cards(from: files, now: now, exists: gone, running: ["s": now - 600]).count, 1)
+        XCTAssertEqual(AgentStore.cards(from: files, now: now, exists: { _ in true }, running: [:]).count, 1)
+        // A Claude Code that keeps no records cannot say it is closed.
+        XCTAssertEqual(AgentStore.cards(from: files, now: now, exists: gone).count, 1)
     }
     func testASessionWithJobsIsNeitherFoldedNorHidden() {
         var busy = card("jobs", main: .done)

@@ -1704,6 +1704,13 @@ struct PanelView: View {
         DispatchQueue.main.async { scrollTarget = target }
     }
 
+    /// Puts a session away until it moves again. Its unread hand-backs count as read, so they
+    /// do not hold it for a day: they stay in the library.
+    private func hideSession(_ card: SessionCard) {
+        state.hidden[card.id] = card.movedAt ?? Date()
+        store.saw(Set(card.agents.filter(\.awaitsLook).map(\.id)), at: Date())
+    }
+
     /// Sessions, or the settings in their place. Either way its height sizes the island.
     private func content(_ motion: Motion, viewport: CGFloat) -> some View {
         ScrollViewReader { reader in
@@ -1934,7 +1941,9 @@ struct PanelView: View {
             }
             // With a hide button on any card, every card keeps its place for one: the columns
             // beside it then stand in line down the list.
-            let anyHide = list.drawn.contains { card in card.canHide && !answers.pending.contains { $0.ask.session == AnswerStore.sessionID(of: card) } }
+            let anyHide = (list.drawn + (state.idleExpanded ? list.folded : [])).contains { card in
+                card.canHide && !answers.pending.contains { $0.ask.session == AnswerStore.sessionID(of: card) }
+            }
             ForEach(Array(list.cards.enumerated()), id: \.element.id) { index, card in
                 if let header = headers[card.id] {
                     // What the cards under it have in common, in the app's own word for it.
@@ -1972,7 +1981,7 @@ struct PanelView: View {
                         .transition(.opacity)
                 }
                 let asked = answers.pending.contains { $0.ask.session == AnswerStore.sessionID(of: card) }
-                let hide: (() -> Void)? = card.canHide && !asked ? { state.hidden[card.id] = card.movedAt ?? Date() } : nil
+                let hide: (() -> Void)? = card.canHide && !asked ? { hideSession(card) } : nil
                 if !list.shut.contains(card.id) {
                 Group {
                     if folded.contains(card.id) {
@@ -2041,12 +2050,12 @@ struct PanelView: View {
                         // line each while the list above has folded any.
                         Group {
                             if folded.isEmpty {
-                                SessionCardView(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), showsApp: list.showsApps, compact: compact,
-                                                showingDone: showsDone(card), toggleDone: { state.doneShown[card.id] = !showsDone(card) },
+                                SessionCardView(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), showsApp: list.showsApps,
+                                                hide: card.canHide ? { hideSession(card) } : nil, compact: compact, reserveHide: anyHide, showingDone: showsDone(card), toggleDone: { state.doneShown[card.id] = !showsDone(card) },
                                                 askedOpen: state.askedOpen, toggleAsked: { state.askedOpen.formSymmetricDifference([$0]) },
                                                 reading: state.readingAll, toggleReading: { toggleReading($0) })
                             } else {
-                                CompactSessionRow(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), reserveHide: anyHide)
+                                CompactSessionRow(card: card, motion: motion, look: looks[card.main?.id ?? ""] ?? LeadLook(), hide: card.canHide ? { hideSession(card) } : nil, reserveHide: anyHide)
                             }
                         }
                             .overlay { ring(on: card) }
@@ -2124,7 +2133,7 @@ struct PanelView: View {
                 let ids = list.drawn.map(\.id)
                 let index = ids.firstIndex(of: card.id) ?? 0
                 state.selected = index + 1 < ids.count ? ids[index + 1] : index > 0 ? ids[index - 1] : nil
-                state.hidden[card.id] = card.movedAt ?? Date()
+                hideSession(card)
             case .done:
                 // A folded row shows no sub-agents to unfold.
                 guard !folded.contains(card.id), !card.doneAgents().isEmpty else { return }
@@ -3289,7 +3298,7 @@ extension SessionCardView {
     }
 
     /// For a session that was closed with a question up, or has stalled: it would otherwise
-    /// keep the bar flagged for up to an hour.
+    /// keep the bar flagged for up to an hour. And for an idle one the person is done with.
     struct HideButton: View {
         let name: String
         let action: () -> Void

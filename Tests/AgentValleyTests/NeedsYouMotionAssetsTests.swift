@@ -110,9 +110,9 @@ final class NeedsYouMotionAssetsTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let root = folder.appendingPathComponent("projects")
         try Self.madeUpProjects(in: root, now: Date())
-        let empty = folder.appendingPathComponent("none")
-        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
-        let store = started(root, sessions: empty)
+        // No records folder: the store goes by the transcripts alone. An empty one would call the
+        // made-up sessions closed, and closed in folders that are not there, they have no card.
+        let store = started(root, sessions: folder.appendingPathComponent("none"))
         let settings = Settings(defaults: try XCTUnwrap(UserDefaults(suiteName: "needs-you-motion-\(UUID().uuidString)")))
         let answers = AnswerStore(directory: folder.appendingPathComponent("answers"))
         let state = NotchState()
@@ -161,9 +161,9 @@ final class NeedsYouMotionAssetsTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let root = folder.appendingPathComponent("projects")
         try Self.madeUpProjects(in: root, now: Date())
-        let empty = folder.appendingPathComponent("none")
-        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
-        let store = started(root, sessions: empty)
+        // No records folder: the store goes by the transcripts alone. An empty one would call the
+        // made-up sessions closed, and closed in folders that are not there, they have no card.
+        let store = started(root, sessions: folder.appendingPathComponent("none"))
         XCTAssertEqual(Set(store.sessions.map(\.name)), ["Refactor checkout flow", "Deploy preview build", "Rate limits for the public API"])
         XCTAssertEqual(AgentStore.count(.working, in: store.sessions), 3)
 

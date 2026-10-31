@@ -59,9 +59,10 @@ SESSIONS = {
 IDS = {name: f"00000000-0000-4000-8000-{index:012d}" for index, name in enumerate(SESSIONS, 1)}
 
 # What Claude Code's own record says of each session. "deps" says busy while its transcript has
-# been silent for twelve minutes: the quiet case that stays listed.
+# been silent for twelve minutes: the quiet case that stays listed. Every session has one: a
+# closed session in a folder that is not there, as all of these are, has no card.
 RECORDS = [("checkout", "busy"), ("login", "waiting"), ("migrate", "waiting"), ("deploy", "waiting"), ("deps", "busy"),
-           ("readme", "idle")]
+           ("readme", "idle"), ("links", "idle")]
 
 STEPS = [
     ("Read", {"file_path": "/Users/demo/shop-web/src/cart/total.ts"}),

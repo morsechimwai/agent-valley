@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.30 — 2026-10-31
+
+- A session that was closed in a folder that is gone, such as a workspace you deleted, leaves the panel at once. It used to stay up to a day when a sub-agent had handed back something you had not opened.
+- Idle sessions get the hide button too. Hiding one clears it from the list: what its sub-agents handed back counts as read and stays in the Library, and the card comes back if the session starts working again. A session with a server or a monitor still running keeps its card.
+
 ## 0.3.29 — 2026-10-30
 
 - A session whose worktree folder was removed while it was still listed stays under its project. It used to get a project line of its own, so one project could show up twice.

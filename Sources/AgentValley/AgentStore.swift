@@ -205,9 +205,12 @@ extension SessionCard {
     /// When any agent of the session last did something.
     var movedAt: Date? { rows.compactMap(\.info.lastActivity).max() }
 
-    /// Nothing is working and something is quiet or asking: a session that may have been closed
-    /// with a question up, which would otherwise keep flagging the bar for up to an hour.
-    var canHide: Bool { rows.contains(where: \.mayNeedPerson) && !rows.contains { $0.status == .working } }
+    /// Nothing is working: a session that may have been closed with a question up, which would
+    /// otherwise keep flagging the bar for up to an hour, or an idle one the person is done with.
+    /// Not an idle one with jobs running: it still has work under way.
+    var canHide: Bool {
+        !rows.contains { $0.status == .working } && (rows.contains(where: \.mayNeedPerson) || isIdle && jobs.isEmpty)
+    }
 
     /// The app to send the person to: the session's own, while one of its agents waits on them.
     var goTo: OwnerApp? { rows.contains { $0.status == .needsYou } ? owner : nil }
@@ -577,9 +580,10 @@ final class AgentStore: ObservableObject {
     }
 
     /// The sessions the person has put away, so the panel can say so and bring them back: one
-    /// that waits on the person does not move by itself.
+    /// that waits on the person does not move by itself. An idle one is cleared, not listed:
+    /// nothing in it waits to be brought back.
     static func putAway(_ sessions: [SessionCard], hidden: [String: Date]) -> [SessionCard] {
-        sessions.filter { isAway($0, hidden: hidden) }
+        sessions.filter { isAway($0, hidden: hidden) && !$0.isIdle }
     }
 
     /// `keeping`: sessions, by the name of their transcript, that keep their card although
@@ -964,7 +968,8 @@ final class AgentStore: ObservableObject {
     static func cards(from files: [String: TrackedFile], now: Date, visibleFor: TimeInterval = AgentStore.defaultVisibleFor,
                       states: [String: SessionState] = [:], owners: [String: OwnerApp] = [:],
                       worktree: (String) -> Bool = { _ in false }, home: String = NSHomeDirectory(),
-                      git: (String) -> GitPlace? = { _ in nil }, running: [String: Date]? = nil) -> [SessionCard] {
+                      git: (String) -> GitPlace? = { _ in nil }, exists: (String) -> Bool = { _ in true },
+                      running: [String: Date]? = nil) -> [SessionCard] {
         let claimed = claims(states, files: files)
         let jobs = BackgroundJobs.bySession(files, now: now, running: running)
         let holding = Set(jobs.filter { !$0.value.isEmpty }.keys)
@@ -1029,6 +1034,11 @@ final class AgentStore: ObservableObject {
                 let place = projectPlace(of: source.cwd, home: home, git: git)
                 let repo = source.cwd.isEmpty ? "" : place.map { TranscriptReader.clipped(($0.checkout as NSString).lastPathComponent) }
                     ?? Projects.name(of: source.cwd, home: home)
+                let closed = running.map { $0[(session as NSString).lastPathComponent] == nil } ?? false
+                // Closed, in a folder since deleted, as a workspace removed with its session: nothing
+                // is left to come back to. Not even an unread hand-back holds it: the library keeps
+                // those only while the folder stands.
+                if closed, !source.cwd.isEmpty, !exists(source.cwd) { return nil }
                 return SessionCard(
                     id: session,
                     project: project.isEmpty ? "Claude Code" : project,
@@ -1044,7 +1054,7 @@ final class AgentStore: ObservableObject {
                     git: place,
                     jobs: jobs[session] ?? [],
                     onlyForJobs: !withoutJobs.contains(session),
-                    closed: running.map { $0[(session as NSString).lastPathComponent] == nil } ?? false
+                    closed: closed
                 ).asShown
             }
             // By start, newest first: the order holds still while agents work.
@@ -1181,7 +1191,7 @@ final class AgentStore: ObservableObject {
     func cards(now: Date) -> [SessionCard] {
         // ponytail: the disk is asked again for every card on every publish, a stat or two each; keep the answers by folder if that ever shows.
         Self.cards(from: files, now: now, visibleFor: visibleFor, states: states, owners: owners, worktree: Self.isWorktree, git: place(of:),
-                    running: keepsRecords ? runningSince : nil)
+                    exists: { FileManager.default.fileExists(atPath: $0) }, running: keepsRecords ? runningSince : nil)
     }
 
     /// Where git says a folder sits; once the folder is gone, where it said while it stood. A
