@@ -260,15 +260,12 @@ html{scroll-padding-top:80px}
 .t-bar i{display:block;height:100%;border-radius:1em;background:currentColor}
 .t-plan{padding:.1em .7em;border-radius:1em;font-size:.8em;font-weight:600;line-height:1.4;color:#ee9a7d;background:rgb(217 119 87 / .22)}
 .t-meters>span+span{margin-left:1ch;padding-left:1ch;border-left:1px solid var(--app-dim)}
+/* The plan's badge leads the limits, two cells before them. */
+.t-meters>.t-plan+span{margin-left:2ch;padding-left:0;border-left:0}
 .t-row p+p{padding-left:3ch}
 /* The panel's folder and branch marks, as the font draws them: the gap to the name inside the mark. */
 .t-row .i{margin-right:.4em}
 .t-row+.t-row{margin-top:.3em}
-/* Too narrow for the meters side by side: one under another. */
-@container (max-width:440px){
-  .cterm .t-meters{display:grid}
-  .t-meters>span+span{margin-left:0;padding-left:0;border-left:0}
-}
 
 
 /* History as the app draws it, with made-up numbers on the reader's own calendar to click through */

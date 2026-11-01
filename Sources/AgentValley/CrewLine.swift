@@ -136,46 +136,52 @@ enum CrewLine {
                 picture = (.mug, "On standby")
             }
         }
-        var top = picture?.0.character ?? CrewFont.character(.lead(look ?? LeadLook()), .working, holding: holding)
-        // The plan on the panel's badge where the font has one for it; else as quiet text. The
-        // picture's word goes after it, as quiet.
+        let face = picture?.0.character ?? CrewFont.character(.lead(look ?? LeadLook()), .working, holding: holding)
+        // The plan on the panel's badge where the font has one for it; else as quiet text.
         let badge = newFont ? plan.flatMap(CrewFont.Badge.init(plan:)) : nil
-        let after = [badge == nil ? plan.flatMap { $0.isEmpty ? nil : $0 } : nil, picture?.1].compactMap { $0 }.joined(separator: " · ")
-        if !model.isEmpty { top += "  " + Style.bold + model + Style.reset }
-        if let badge { top += "  " + badge.text }
-        if !after.isEmpty { top += Style.faint + (model.isEmpty && badge == nil ? "  " : " · ") + after + Style.reset }
+        let planText = badge?.text ?? plan.flatMap { $0.isEmpty ? nil : Style.faint + $0 + Style.reset }
+        let limits = [("five_hour", "5h"), ("seven_day", "7d")].compactMap { key, name in limit(input, key).map { (name, $0) } }
+        let context = (input["context_window"] as? [String: Any]).flatMap { window in
+            number(window["used_percentage"]).map { (used: $0, size: number(window["context_window_size"]) ?? 0) }
+        }
 
+        // Two lines, as the panel has them: this session on top, as its card (face, model,
+        // context); below, the plan and its limits, as the status row. With no limits the plan
+        // stays on top.
         let room = columns - 9
         let layouts: [(bar: Int, tokens: Bool, gap: String)] = [
             (10, true, "  │  "), (8, true, " │ "), (6, true, " │ "), (6, false, " │ "), (4, false, " │ "),
         ]
-        var bottom = ""
+        var lines: [String] = []
         for layout in layouts {
-            bottom = meters(input, bar: layout.bar, tokens: layout.tokens, gap: layout.gap, round: newFont, now: now)
-            if width(bottom) <= room { break }
+            var top = face, first = true
+            func add(_ text: String, dot: Bool = true) {
+                top += first || !dot ? "  " : Style.faint + " · " + Style.reset
+                top += text
+                first = false
+            }
+            if !model.isEmpty { add(Style.bold + model + Style.reset) }
+            if limits.isEmpty, let planText { add(planText, dot: badge == nil) }
+            if let word = picture?.1 { add(Style.faint + word + Style.reset) }
+            if let context {
+                let tail = layout.tokens && context.size > 0 ? "\(short(context.used / 100 * context.size))/\(short(context.size))" : ""
+                add(meter("context", PlanLimit(usedPercent: context.used, resetsAt: nil), cells: layout.bar, tail: tail, round: newFont, now: now))
+            }
+            lines = [top]
+            if !limits.isEmpty {
+                let meters = limits.map { name, limit in
+                    meter(name, limit, cells: layout.bar, tail: limit.resetLabel(now: now).map { "↻ " + $0 } ?? "", round: newFont, now: now)
+                }
+                lines.append((planText.map { $0 + "  " } ?? "") + meters.joined(separator: Style.faint + layout.gap + Style.reset))
+            }
+            if lines.allSatisfy({ width($0) <= room }) { break }
         }
-        return bottom.isEmpty ? top : top + "\n" + bottom
+        return lines.joined(separator: "\n")
     }
 
     private static func number(_ value: Any?) -> Double? {
         guard let value = (value as? NSNumber)?.doubleValue, value.isFinite, abs(value) < 1e12 else { return nil }
         return value
-    }
-
-    private static func meters(_ input: [String: Any], bar cells: Int, tokens: Bool, gap: String, round: Bool, now: Date) -> String {
-        var parts: [String] = []
-        let context = input["context_window"] as? [String: Any]
-        if let used = number(context?["used_percentage"]) {
-            let size = number(context?["context_window_size"]) ?? 0
-            let tail = tokens && size > 0 ? "\(short(used / 100 * size))/\(short(size))" : ""
-            parts.append(meter("context", PlanLimit(usedPercent: used, resetsAt: nil), cells: cells, tail: tail, round: round, now: now))
-        }
-        for (key, name) in [("five_hour", "5h"), ("seven_day", "7d")] {
-            guard let limit = limit(input, key) else { continue }
-            let tail = limit.resetLabel(now: now).map { "↻ " + $0 } ?? ""
-            parts.append(meter(name, limit, cells: cells, tail: tail, round: round, now: now))
-        }
-        return parts.joined(separator: Style.faint + gap + Style.reset)
     }
 
     /// One plan window of what Claude Code hands the status line: `five_hour` or `seven_day`.

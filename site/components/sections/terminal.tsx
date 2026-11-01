@@ -37,15 +37,12 @@ export function Terminal() {
         <figure
           className="cterm"
           role="img"
-          aria-label="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and an orange Ultra badge, then bars for context and the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step."
+          aria-label="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and a bar for context, then an orange Ultra badge and a bar for the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step."
         >
           <div aria-hidden="true">
             <p className="t-prompt">&gt; Find where we take payments, then plan refunds</p>
-            <p><Mascot who="guru" pose="still" holds="calling" /><b>Opus 5.5</b><span className="t-plan">Ultra</span></p>
-            <p className="t-meters">
-              <span><span className="t-dim">context</span> <Bar percent={34} /> <b>34%</b></span>
-              <span><span className="t-dim">7d</span> <Bar percent={62} /> <b>62%</b> <span className="t-dim">↻ 3d 4h</span></span>
-            </p>
+            <p><Mascot who="guru" pose="still" holds="calling" /><span><b>Opus 5.5</b> <span className="t-dim">· context</span> <Bar percent={34} /> <b>34%</b></span></p>
+            <p className="t-meters"><span className="t-plan">Ultra</span><span><span className="t-dim">7d</span> <Bar percent={62} /> <b>62%</b> <span className="t-dim">↻ 3d 4h</span></span></p>
             <p className="t-main">● main</p>
             <Row who="afro" holds="searching" task="Map payment call sites" time="2m 56s" model="Haiku 5.5" step="Grep PaymentIntent" />
             <Row who="coder" holds="reading" task="Plan the refund flow" time="48s" model="Sonnet 5.5" step="Read refunds.ts" />

@@ -439,9 +439,11 @@ final class CrewSetupTests: XCTestCase {
         let lead = try run(["status"], input: input, columns: "98")
         XCTAssertTrue(lead.lines.first?.hasPrefix(CrewFont.character(.lead(LeadLook(face: 1, hair: 2, shirt: 3)), .working)) == true, "\(lead.lines)")
 
-        // The plan, from the account in Claude Code's own file.
+        // The plan, from the account in Claude Code's own file, leads the limits on the second line.
         try write(#"{"projects": {}, "oauthAccount": {"organizationType": "claude_pro"}}"#, to: ".claude.json")
-        XCTAssertTrue(try run(["status"], input: input, columns: "98").lines.first?.contains(" · Pro") == true)
+        let plan = try run(["status"], input: input, columns: "98").lines
+            .map { $0.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression) }
+        XCTAssertTrue(plan.last?.hasPrefix("Pro  5h ") == true, "\(plan)")
 
         let garbage = try run(["status"], input: "garbage")
         XCTAssertEqual(garbage.status, 0)

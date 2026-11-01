@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.33 — 2026-11-01
+
+- The status line in your terminal has two rows now, like the panel. The top one is this session: its face, the model and how full the context is. The one under it is your plan: its orange badge, then its limits.
+
 ## 0.3.32 — 2026-11-01
 
 - When a session ends its turn with a shell or a monitor still running in the background, its card says so again, "1 shell, 1 monitor running", instead of "idle". Claude Code 2.1.312 and later mark such a session in a way the app did not read, so it lost track of the session: its background jobs and the jump to its terminal went missing.

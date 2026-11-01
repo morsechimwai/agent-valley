@@ -17,44 +17,58 @@ final class CrewLineTests: XCTestCase {
         plain(CrewLine.status(input, columns: columns, plan: plan, look: LeadLook(), newFont: newFont, now: now)).components(separatedBy: "\n")
     }
 
+    /// The context meter after the model, with the font's round bar or with lines.
+    func context(_ newFont: Bool) -> String {
+        " · context " + (newFont ? CrewFont.Bar.text(22, cells: 10) : "━━━━━━━━━━") + " 22% 220k/1.0m"
+    }
+
     // With the font, a plan it has a badge for wears it, as in the panel, and the bars have round ends.
     func testTheFontDrawsThePlanBadgeAndRoundBars() {
-        let top = lines(102, plan: "Ultra", newFont: true)
-        XCTAssertEqual(top[0], "\u{3F015}  Opus 5.5  " + CrewFont.Badge.ultra.text)
-        XCTAssertTrue(top[1].hasPrefix("context " + CrewFont.Bar.text(22, cells: 10) + " 22%"), top[1])
-        XCTAssertFalse(top[1].contains("━"))
+        let ultra = lines(102, plan: "Ultra", newFont: true)
+        XCTAssertEqual(ultra[0], "\u{3F015}  Opus 5.5" + context(true))
+        XCTAssertTrue(ultra[1].hasPrefix(CrewFont.Badge.ultra.text + "  5h " + CrewFont.Bar.text(6, cells: 10) + " 6%"), ultra[1])
+        XCTAssertFalse(ultra.joined().contains("━"))
         // A name the font has no badge for stays quiet text.
-        XCTAssertEqual(lines(102, plan: "Max 20x", newFont: true)[0], "\u{3F015}  Opus 5.5 · Max 20x")
+        XCTAssertTrue(lines(102, plan: "Max 20x", newFont: true)[1].hasPrefix("Max 20x  5h "))
+        // With no limits the badge stays on top, after the model.
+        input["rate_limits"] = nil
+        XCTAssertEqual(lines(102, plan: "Ultra", newFont: true), ["\u{3F015}  Opus 5.5  " + CrewFont.Badge.ultra.text + context(true)])
         input["model"] = nil
-        XCTAssertEqual(lines(102, plan: "Pro", newFont: true)[0], "\u{3F015}  " + CrewFont.Badge.pro.text)
-        input["model"] = ["display_name": "Opus 5.5"]
-        for columns in [102, 101, 91, 85, 75] { XCTAssertLessThanOrEqual(CrewLine.width(lines(columns, newFont: true)[1]), columns - 9) }
+        XCTAssertEqual(lines(102, plan: "Pro", newFont: true)[0], "\u{3F015}  " + CrewFont.Badge.pro.text + context(true))
     }
 
-    func testTheTopLineIsTheLeadModelAndPlan() {
+    // On top this session, as its card in the panel; below the plan and its limits, as the status row.
+    func testTheTopLineIsTheSessionAndTheNextThePlan() {
         let lines = lines(102)
-        XCTAssertEqual(lines[0], "\u{3F015}  Opus 5.5 · Max 20x")
-        XCTAssertEqual(lines[1], "context ━━━━━━━━━━ 22% 220k/1.0m  │  5h ━━━━━━━━━━ 6% ↻ 2h 42m  │  7d ━━━━━━━━━━ 70% ↻ 2d 15h")
+        XCTAssertEqual(lines[0], "\u{3F015}  Opus 5.5" + context(false))
+        XCTAssertEqual(lines[1], "Max 20x  5h ━━━━━━━━━━ 6% ↻ 2h 42m  │  7d ━━━━━━━━━━ 70% ↻ 2d 15h")
     }
 
-    func testNoPlanDropsTheDot() {
-        XCTAssertEqual(lines(98, plan: nil)[0], "\u{3F015}  Opus 5.5")
+    func testNoPlanLeavesTheLimits() {
+        XCTAssertEqual(lines(98, plan: nil)[1], "5h ━━━━━━━━━━ 6% ↻ 2h 42m  │  7d ━━━━━━━━━━ 70% ↻ 2d 15h")
     }
 
-    func testNoModelKeepsFaceAndPlan() {
+    func testNoModelKeepsFaceAndContext() {
         input["model"] = nil
-        XCTAssertEqual(lines(98)[0], "\u{3F015}  Max 20x")
-        XCTAssertEqual(lines(98, plan: nil)[0], "\u{3F015}")
+        XCTAssertEqual(lines(98)[0], "\u{3F015}  context ━━━━━━━━━━ 22% 220k/1.0m")
+        input["context_window"] = nil
+        XCTAssertEqual(lines(98)[0], "\u{3F015}")
+        input["rate_limits"] = nil
+        XCTAssertEqual(lines(98), ["\u{3F015}  Max 20x"])
     }
 
+    // The longer line sets the layout: the plan's, 65 cells at the widest, then 59, 55 and 51.
     func testTheLayoutShrinksToFit() {
         func bottom(_ columns: Int) -> String { lines(columns)[1] }
-        XCTAssertTrue(bottom(102).contains("  │  ") && bottom(102).contains("━━━━━━━━━━"))
-        XCTAssertTrue(bottom(101).contains(" │ ") && !bottom(101).contains("  │  ") && bottom(101).contains("━━━━━━━━ ") && !bottom(101).contains("━━━━━━━━━"))
-        XCTAssertTrue(bottom(91).contains("220k/1.0m") && bottom(91).contains("━━━━━━ ") && !bottom(91).contains("━━━━━━━"))
-        XCTAssertFalse(bottom(85).contains("220k")); XCTAssertTrue(bottom(85).contains("━━━━━━ "))
-        XCTAssertTrue(bottom(75).contains("━━━━ ") && !bottom(75).contains("━━━━━"))
-        for columns in [102, 101, 91, 85, 75] { XCTAssertLessThanOrEqual(CrewLine.width(bottom(columns)), columns - 9) }
+        XCTAssertTrue(bottom(74).contains("  │  ") && bottom(74).contains("━━━━━━━━━━"))
+        XCTAssertTrue(bottom(73).contains(" │ ") && !bottom(73).contains("  │  ") && bottom(73).contains("━━━━━━━━ ") && !bottom(73).contains("━━━━━━━━━"))
+        XCTAssertTrue(lines(67)[0].contains("220k/1.0m") && bottom(67).contains("━━━━━━ ") && !bottom(67).contains("━━━━━━━"))
+        XCTAssertFalse(lines(63)[0].contains("220k")); XCTAssertTrue(bottom(63).contains("━━━━ ") && !bottom(63).contains("━━━━━"))
+        for columns in [110, 74, 73, 68, 67, 64, 63, 60] {
+            for newFont in [false, true] {
+                XCTAssertTrue(lines(columns, newFont: newFont).allSatisfy { CrewLine.width($0) <= columns - 9 }, "\(columns)")
+            }
+        }
         XCTAssertTrue(bottom(40).contains("━━━━ ") && !bottom(40).contains("━━━━━"))
     }
 
@@ -80,9 +94,7 @@ final class CrewLineTests: XCTestCase {
 
     func testMissingPiecesAreSkipped() {
         input["rate_limits"] = nil
-        let ctxOnly = lines(98)
-        XCTAssertEqual(ctxOnly.count, 2)
-        XCTAssertTrue(ctxOnly[1].hasPrefix("context") && !ctxOnly[1].contains("5h") && !ctxOnly[1].contains("7d"))
+        XCTAssertEqual(lines(98), ["\u{3F015}  Opus 5.5 · Max 20x" + context(false)])
         let empty = plain(CrewLine.status([:], columns: 98, plan: nil, look: LeadLook(), now: now))
         XCTAssertEqual(empty, "\u{3F015}")
     }
@@ -307,34 +319,33 @@ final class CrewLineTests: XCTestCase {
 
     // A session the app has given no lead yet: nobody has sat down, and the bar's mug waits.
     func testNoLookShowsTheMugOnStandby() {
-        XCTAssertEqual(top(look: nil), CrewFont.Picture.mug.character + "  Opus 5.5 · Max 20x · On standby")
-        XCTAssertEqual(top(look: nil, plan: nil), CrewFont.Picture.mug.character + "  Opus 5.5 · On standby")
+        XCTAssertEqual(top(look: nil), CrewFont.Picture.mug.character + "  Opus 5.5 · On standby" + context(true))
         input["model"] = nil
-        XCTAssertEqual(top(look: nil, plan: nil), CrewFont.Picture.mug.character + "  On standby")
+        XCTAssertEqual(top(look: nil, plan: nil), CrewFont.Picture.mug.character + "  On standby" + context(true))
     }
 
     // A limit run out sends the crew off, as on the bar: fishing for the 5 hours, the van for the week.
     func testARunOutLimitSendsTheCrewOff() {
         input["rate_limits"] = ["five_hour": ["used_percentage": 100.0, "resets_at": now.timeIntervalSince1970 + 600],
                                 "seven_day": ["used_percentage": 70.0, "resets_at": now.timeIntervalSince1970 + 226_830]]
-        XCTAssertEqual(top(), CrewFont.Picture.fish.character + "  Opus 5.5 · Max 20x · Gone fishin\u{2019}")
-        XCTAssertEqual(top(look: nil), CrewFont.Picture.fish.character + "  Opus 5.5 · Max 20x · Gone fishin\u{2019}")
+        XCTAssertEqual(top(), CrewFont.Picture.fish.character + "  Opus 5.5 · Gone fishin\u{2019}" + context(true))
+        XCTAssertEqual(top(look: nil), CrewFont.Picture.fish.character + "  Opus 5.5 · Gone fishin\u{2019}" + context(true))
         // Both out: the one back last.
         input["rate_limits"] = ["five_hour": ["used_percentage": 100.0, "resets_at": now.timeIntervalSince1970 + 600],
                                 "seven_day": ["used_percentage": 100.0, "resets_at": now.timeIntervalSince1970 + 226_830]]
-        XCTAssertEqual(top(), CrewFont.Picture.van.character + "  Opus 5.5 · Max 20x · On vacation")
+        XCTAssertEqual(top(), CrewFont.Picture.van.character + "  Opus 5.5 · On vacation" + context(true))
         // Someone works on past the limit: the face stays.
-        XCTAssertEqual(top(atWork: true), "\u{3F015}  Opus 5.5 · Max 20x")
+        XCTAssertEqual(top(atWork: true), "\u{3F015}  Opus 5.5" + context(true))
         // Past its reset it is back, whatever the last numbers said.
         input["rate_limits"] = ["five_hour": ["used_percentage": 100.0, "resets_at": now.timeIntervalSince1970 - 1]]
-        XCTAssertEqual(top(), "\u{3F015}  Opus 5.5 · Max 20x")
+        XCTAssertEqual(top(), "\u{3F015}  Opus 5.5" + context(true))
     }
 
     // A terminal that has not seen the new font gets faces only, Sunny where there is no look.
     func testAnOldFontGetsFacesAndNoWords() {
-        XCTAssertEqual(top(look: nil, newFont: false), "\u{3F015}  Opus 5.5 · Max 20x")
+        XCTAssertEqual(top(look: nil, newFont: false), "\u{3F015}  Opus 5.5" + context(false))
         input["rate_limits"] = ["seven_day": ["used_percentage": 100.0, "resets_at": now.timeIntervalSince1970 + 600]]
-        XCTAssertEqual(top(look: LeadLook(face: 3, hair: 5, shirt: 6), newFont: false), "\u{3F0BC}  Opus 5.5 · Max 20x")
+        XCTAssertEqual(top(look: LeadLook(face: 3, hair: 5, shirt: 6), newFont: false), "\u{3F0BC}  Opus 5.5" + context(false))
     }
 
     // The lead and each working sub-agent hold what the notch has them hold.
