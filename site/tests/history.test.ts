@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { dollars, historyView, nextPick, noise, spanTitle, startOf, weekStart, wholeDollars, type Pick, type Span } from '@/lib/history';
+import { dollars, historyView, nextPick, noise, openAt, spanTitle, startOf, weekStart, wholeDollars, type Pick, type Span } from '@/lib/history';
 
 // The values are the old page's own, worked out by its script for this same moment.
 const now = new Date(2026, 9, 16, 15, 30);
@@ -11,6 +11,14 @@ test('day', () => expect(historyView(at('Day'), now).announce).toBe('Fri, Oct 16
 test('one project', () => expect(historyView(at('Month', { project: 0 }), now).announce).toBe('October 2026, shop-web, $628.47'));
 test('two months back', () => expect(historyView(at('Month', { anchor: new Date(2026, 7, 1) }), now).announce).toBe('August 2026, $2,101.27'));
 test('no earlier than two months back', () => expect(historyView(at('Month', { anchor: new Date(2026, 7, 1) }), now).canEarlier).toBe(false));
+test('opens on the month before in the first week', () => expect([
+  openAt(new Date(2026, 10, 1, 9)).getTime(), openAt(new Date(2026, 10, 7, 23)).getTime(), openAt(new Date(2026, 10, 8, 0)).getTime(), openAt(new Date(2026, 0, 3)).getTime(),
+]).toEqual([new Date(2026, 9, 31).getTime(), new Date(2026, 9, 31).getTime(), new Date(2026, 10, 8, 0).getTime(), new Date(2025, 11, 31).getTime()]));
+test('the month before is a full one', () => {
+  const nov1 = new Date(2026, 10, 1, 9);
+  const v = historyView(at('Month', { anchor: openAt(nov1) }), nov1);
+  expect([v.title, v.quiet, v.canLater]).toEqual(['October 2026', false, true]);
+});
 test('no later than now', () => expect(historyView(at('Month'), now).canLater).toBe(false));
 test('money', () => expect([dollars(0), dollars(0.004), dollars(12.5), wholeDollars(0.4), wholeDollars(1234.5)]).toEqual(['$0.00', '<$0.01', '$12.50', '<$1', '$1,235']));
 test('titles', () => expect([

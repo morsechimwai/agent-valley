@@ -19,6 +19,14 @@ test("History is drawn on the reader's own calendar", async ({ page }) => {
   await expect(hist.getByRole('button', { name: 'All projects' })).toBeFocused();
 });
 
+test('in the first week of a month it opens on the month before', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-01T09:00:00+07:00'));
+  await page.goto('/');
+  const hist = page.getByRole('group', { name: 'The History page' });
+  await expect(hist.locator('.h-title')).toHaveText('October 2026');
+  await expect(hist.getByRole('button', { name: /^shop-web/ })).toBeVisible();
+});
+
 test.describe('in America', () => {
   test.use({ locale: 'en-US' });
   test('a week starts on Sunday', async ({ page }) => {

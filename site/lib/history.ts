@@ -68,6 +68,10 @@ export function weekStart(lang: string): number {
   }
 }
 
+// Where the page opens. The app opens on this month, but in a month's first week that is a few
+// bars or none, so the page opens on the last day of the month before, a whole month of them.
+export const openAt = (now: Date) => now.getDate() < 8 ? new Date(now.getFullYear(), now.getMonth(), 0) : now;
+
 export const startOf = (span: Span, d: Date, first: number) => span === 'Month' ? new Date(d.getFullYear(), d.getMonth(), 1)
   : new Date(d.getFullYear(), d.getMonth(), d.getDate() - (span === 'Week' ? (d.getDay() - first + 7) % 7 : 0));
 export const step = (span: Span, d: Date, by: number) => span === 'Month' ? new Date(d.getFullYear(), d.getMonth() + by, 1)

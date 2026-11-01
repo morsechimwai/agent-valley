@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { announce } from '@/components/announcer';
 import { Icon } from '@/components/icons';
-import { DAYS, historyView, MONTHS, nextPick, weekStart, type Action, type Bars, type Pick, type Split } from '@/lib/history';
+import { DAYS, historyView, MONTHS, nextPick, openAt, weekStart, type Action, type Bars, type Pick, type Split } from '@/lib/history';
 
 const SPANS = ['Day', 'Week', 'Month'] as const;
 
@@ -30,7 +30,7 @@ export function HistoryPanel() {
   useEffect(() => {
     const at = new Date();
     setNow(at);
-    setPick({ span: 'Month', anchor: at, project: null, day: null, hour: null, first: weekStart(navigator.language) });
+    setPick({ span: 'Month', anchor: openAt(at), project: null, day: null, hour: null, first: weekStart(navigator.language) });
   }, []);
 
   useEffect(() => {
