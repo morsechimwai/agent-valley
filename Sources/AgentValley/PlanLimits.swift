@@ -35,6 +35,8 @@ struct PlanLimit: Equatable {
 struct PlanLimits: Equatable {
     var fiveHour: PlanLimit?
     var week: PlanLimit?
+    /// The plan's name, as the terminal's status line has it: "Ultra".
+    var plan: String?
 
     /// The window that has run out and comes back last, or nil while there is room: Claude Code
     /// waits for it. Out once its meter reads 100%. Past its reset time it is back, whatever the
@@ -54,11 +56,13 @@ struct RunOut: Equatable {
     let resetsAt: Date?
 }
 
-/// What the ring on the shut bar draws: the 5-hour window, the one that stops work soonest.
+/// What the ring on the shut bar draws: the 5-hour window, the one that stops work soonest, or
+/// the weekly one on a plan without a 5-hour window.
 struct LimitRing: Equatable {
     let limit: PlanLimit
     /// The latest refresh failed and this is the number from before it.
     let stale: Bool
+    var weekly = false
 }
 
 /// Why there are no numbers. It names a cause the person can act on and nothing else: no part
@@ -209,11 +213,22 @@ final class KeychainLimitsSource: PlanLimitsSource {
             case .failure(let reason): return answer(.failure(reason))
             }
             let task = session.dataTask(with: Self.request(token: token)) { data, response, error in
-                answer(Self.outcome(data: data, response: response, failed: error != nil))
+                answer(Self.outcome(data: data, response: response, failed: error != nil).map { limits in
+                    var limits = limits
+                    limits.plan = Self.plan()
+                    return limits
+                })
             }
             if flight.begin({ task.cancel() }) { task.resume() }
         }
         return flight.cancel
+    }
+
+    /// The plan's name from what Claude Code keeps in `~/.claude.json`: the usage reply has none.
+    static func plan(home: URL = URL(fileURLWithPath: NSHomeDirectory()),
+                     environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
+        (try? Data(contentsOf: CrewSetup.claudeJSON(home: home, environment: environment)))
+            .flatMap(CrewSetup.oauthAccount).flatMap { CrewLine.plan(fromClaudeJSON: ["oauthAccount": $0]) }
     }
 
     /// Sorts a reply into numbers or the reason there are none. The reason is a category and at
@@ -302,11 +317,11 @@ final class PlanLimitsClient: ObservableObject {
         /// `asOf`: set when the latest refresh failed, to the time these older numbers are from.
         case limits(PlanLimits, asOf: Date?)
 
-        /// The ring for the shut bar, or nil without a number for the 5-hour window: an empty
+        /// The ring for the shut bar: the 5-hour window, else the weekly one, else nil. An empty
         /// ring would say that nothing has been used.
         var ring: LimitRing? {
-            guard case .limits(let limits, let asOf) = self, let limit = limits.fiveHour else { return nil }
-            return LimitRing(limit: limit, stale: asOf != nil)
+            guard case .limits(let limits, let asOf) = self, let limit = limits.fiveHour ?? limits.week else { return nil }
+            return LimitRing(limit: limit, stale: asOf != nil, weekly: limits.fiveHour == nil)
         }
 
         /// Whether the panel has numbers to go by.

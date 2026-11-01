@@ -41,6 +41,30 @@ final class CrewFontTests: XCTestCase {
     }
 
     /// Each mark stands inside its two cells, from a little under the line to below the top.
+    // A badge for each plan Claude sells, after the tags, so no code a font shipped moves.
+    func testBadgesFollowTheTags() {
+        XCTAssertEqual(CrewFont.Badge.free.firstScalar, CrewFont.Tag.lastScalar + 1)
+        let all = CrewFont.Badge.allCases.flatMap { $0.text.unicodeScalars.map(\.value) }
+        XCTAssertEqual(all, Array(CrewFont.Badge.free.firstScalar...CrewFont.Badge.lastScalar))
+        XCTAssertEqual(CrewFont.Badge.ultra.text.unicodeScalars.count, 3)
+        XCTAssertEqual(CrewFont.Badge(plan: "ultra"), .ultra)
+        XCTAssertNil(CrewFont.Badge(plan: "Max 20x"))
+    }
+
+    // The bar fills in eighths of a character, at least one above 0%, and its ends are round.
+    func testBarsFillInEighthsAfterTheBadges() {
+        let first = CrewFont.Bar.firstScalar
+        func codes(_ percent: Double, _ cells: Int) -> [UInt32] { CrewFont.Bar.text(percent, cells: cells).unicodeScalars.map { $0.value - first } }
+        XCTAssertEqual(first, CrewFont.Badge.lastScalar + 1)
+        XCTAssertEqual(codes(0, 10), [0, 9, 9, 9, 18])
+        XCTAssertEqual(codes(0.4, 10), [1, 9, 9, 9, 18])
+        XCTAssertEqual(codes(50, 4), [8, 18])
+        XCTAssertEqual(codes(100, 4), [8, 26])
+        XCTAssertEqual(codes(130, 10), [8, 17, 17, 17, 26])
+        XCTAssertEqual(CrewLine.width(CrewFont.Bar.text(62, cells: 8)), 8)
+        XCTAssertLessThanOrEqual(CrewFont.Bar.lastScalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
+    }
+
     func testMarksFitTheirCells() {
         for mark in CrewFont.Mark.allCases {
             let points = mark.contours.flatMap { $0 }

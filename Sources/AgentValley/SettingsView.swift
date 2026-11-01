@@ -614,7 +614,7 @@ struct Legend: View {
             mark("working") { Text(verbatim: "2").bold() }
             mark("quiet") { Text(verbatim: "2").foregroundStyle(.white.opacity(0.6)) }
             // A ring as an example, two thirds used: the real one is on the bar.
-            mark("5h limit") { LimitRingView(ring: LimitRing(limit: PlanLimit(usedPercent: 65, resetsAt: nil), stale: false)).accessibilityHidden(true) }
+            mark("plan limit") { LimitRingView(ring: LimitRing(limit: PlanLimit(usedPercent: 65, resetsAt: nil), stale: false)).accessibilityHidden(true) }
             mark("longest wait") { Text(verbatim: "12m").bold().foregroundStyle(MascotFlag.red) }
         }
         // With nobody at work, the bar shows these in the mascot's place.

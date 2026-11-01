@@ -12,8 +12,23 @@ final class CrewLineTests: XCTestCase {
         s.replacingOccurrences(of: "\u{1B}\\[[0-9;]*m", with: "", options: .regularExpression)
     }
 
-    func lines(_ columns: Int, plan: String? = "Max 20x") -> [String] {
-        plain(CrewLine.status(input, columns: columns, plan: plan, look: LeadLook(), now: now)).components(separatedBy: "\n")
+    /// Without the new font unless asked: the plan as quiet text, the bars as lines.
+    func lines(_ columns: Int, plan: String? = "Max 20x", newFont: Bool = false) -> [String] {
+        plain(CrewLine.status(input, columns: columns, plan: plan, look: LeadLook(), newFont: newFont, now: now)).components(separatedBy: "\n")
+    }
+
+    // With the font, a plan it has a badge for wears it, as in the panel, and the bars have round ends.
+    func testTheFontDrawsThePlanBadgeAndRoundBars() {
+        let top = lines(102, plan: "Ultra", newFont: true)
+        XCTAssertEqual(top[0], "\u{3F015}  Opus 5.5  " + CrewFont.Badge.ultra.text)
+        XCTAssertTrue(top[1].hasPrefix("context " + CrewFont.Bar.text(22, cells: 10) + " 22%"), top[1])
+        XCTAssertFalse(top[1].contains("━"))
+        // A name the font has no badge for stays quiet text.
+        XCTAssertEqual(lines(102, plan: "Max 20x", newFont: true)[0], "\u{3F015}  Opus 5.5 · Max 20x")
+        input["model"] = nil
+        XCTAssertEqual(lines(102, plan: "Pro", newFont: true)[0], "\u{3F015}  " + CrewFont.Badge.pro.text)
+        input["model"] = ["display_name": "Opus 5.5"]
+        for columns in [102, 101, 91, 85, 75] { XCTAssertLessThanOrEqual(CrewLine.width(lines(columns, newFont: true)[1]), columns - 9) }
     }
 
     func testTheTopLineIsTheLeadModelAndPlan() {
@@ -73,8 +88,14 @@ final class CrewLineTests: XCTestCase {
     }
 
     func testPlanName() {
-        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["organizationType": "claude_max", "organizationRateLimitTier": "default_claude_max_20x"]]), "Max 20x")
+        // Without the plan's own name, the older fields under the names of 30 October 2026.
+        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["organizationType": "claude_max", "organizationRateLimitTier": "default_claude_max_20x"]]), "Ultra")
+        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["organizationType": "claude_max", "organizationRateLimitTier": "default_claude_max_5x"]]), "Max")
         XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["organizationType": "claude_pro"]]), "Pro")
+        // Since Ultra, the plan's own name: the older fields still say Max 20x.
+        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["planDisplayName": "Ultra", "organizationType": "claude_max", "organizationRateLimitTier": "default_claude_max_20x"]]), "Ultra")
+        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["planDisplayName": " \u{1B}[31m\n", "organizationType": "claude_pro"]]), "[31m")
+        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": ["planDisplayName": "", "organizationType": "claude_pro"]]), "Pro")
         XCTAssertNil(CrewLine.plan(fromClaudeJSON: nil)); XCTAssertNil(CrewLine.plan(fromClaudeJSON: ["oauthAccount": [:]]))
     }
 

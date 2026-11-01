@@ -100,10 +100,10 @@ TPX, FACE_X, FACE_TOP = 75, 420, TOP - 150      # the face, 900 square, clear of
 FACE_RIGHT = FACE_X + 12 * TPX
 SEAM = 12                                       # how far a part's colours reach into its neighbours
 
-def capsule(r, steps=24):
+def capsule(r, steps=24, left=CX_L, right=CX_R, cy=CY):
     """The pill's outline, clockwise as TrueType fills it."""
-    pts = [(CX_R + r * math.cos(math.radians(a)), CY + r * math.sin(math.radians(a))) for a in [90 - 180 * i / steps for i in range(steps + 1)]]
-    pts += [(CX_L + r * math.cos(math.radians(a)), CY + r * math.sin(math.radians(a))) for a in [270 - 180 * i / steps for i in range(steps + 1)]]
+    pts = [(right + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a))) for a in [90 - 180 * i / steps for i in range(steps + 1)]]
+    pts += [(left + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a))) for a in [270 - 180 * i / steps for i in range(steps + 1)]]
     return pts
 
 def clip(poly, lo, hi):
@@ -230,6 +230,116 @@ for tag in data.get("tags", []):
                          f'<g transform="matrix({TPX} 0 0 {TPX} {FACE_X} {-FACE_TOP})">{faces_svg}</g>'
                          + (f'<path fill="#{tag["ink"]}" d="{d(ink)}"/>' if ink else "")))
 
+def frame_glyph(polys):
+    """A plain outline with the frame that tells Ghostty the glyph's two cells."""
+    pen = TTGlyphPen(None)
+    for x, y in ((0, TOP - 12 * PX), (WIDE, TOP)):
+        pen.moveTo((x, y)); pen.lineTo((x, y)); pen.closePath()
+    for poly in polys:
+        pen.moveTo(poly[0])
+        for p in poly[1:]:
+            pen.lineTo(p)
+        pen.closePath()
+    glyph = pen.glyph()
+    glyph.flags[0] |= flagOverlapSimple
+    return glyph
+
+# Plan badges: the plan's name on a pill in Claude's orange, `parts` characters wide, the fill
+# faint over the terminal's background and the letters a lighter orange, in IBM Plex Mono SemiBold, the same
+# size on every badge. The fill is not carried past the parts' edges: two faint layers over each
+# other would show as a darker line.
+B_R = 540                                       # the pill a little under the line's height
+
+@functools.cache
+def badge_letters(name, parts):
+    """`name` centred on its pill, as big as fits up to 0.95: only a long name with a letter
+    below the line comes out smaller."""
+    left, right = 30 + B_R, parts * WIDE - 30 - B_R
+    for size in range(950, 600, -25):
+        s = size / 1000
+        base = CY - PLEX["OS/2"].sCapHeight * s / 2
+        polys = []
+        for i, c in enumerate(name):
+            pen = FlatPen(PLEX_GLYPHS, (s, 0, 0, s, i * 600 * s, base))
+            PLEX_GLYPHS[PLEX_CMAP[ord(c)]].draw(pen)
+            polys += pen.polys
+        xs = [x for p in polys for x, _ in p]
+        shift = parts * WIDE / 2 - (min(xs) + max(xs)) / 2
+        polys = [[(round(x + shift), round(y)) for x, y in p] for p in polys]
+        if all(math.hypot(x - min(max(x, left), right), y - CY) <= B_R - 80 for p in polys for x, y in p):
+            return polys
+    raise SystemExit(f"no room for {name} on its badge")
+
+for badge in data.get("badges", []):
+    key, part, parts, name = f"u{badge['codepoint']:X}", badge["part"], badge["parts"], badge["name"]
+    lo = part * WIDE
+    pill = capsule(B_R, left=30 + B_R, right=parts * WIDE - 30 - B_R)
+    ring = cut([pill], lo) + [p[::-1] for p in cut([capsule(B_R - 50, left=30 + B_R, right=parts * WIDE - 30 - B_R)], lo)]
+    letters, fill = cut(badge_letters(name, parts), lo, SEAM), cut([pill], lo)
+    order.append(key); glyphs[key] = frame_glyph(ring + cut(badge_letters(name, parts), lo)); cmap[badge["codepoint"]] = key
+    def shared(name, polys):
+        if name not in shapes:
+            shapes[name] = f"s{len(shapes)}"
+            order.append(shapes[name]); glyphs[shapes[name]] = polygons_glyph(polys)
+        return shapes[name]
+    layers = [(shared(("badge-fill", parts, part), fill), pal(badge["colour"], badge["fill"]))]
+    if letters:
+        layers.append((shared(("badge-letters", name, part), letters), pal(badge["ink"], 1)))
+    colr[key] = layers
+    def d(polys):
+        return "".join("M" + "L".join(f"{x} {-y}" for x, y in p) + "Z" for p in polys)
+    tag_svg.append((key, f'<path fill="#{badge["colour"]}" fill-opacity="{badge["fill"]:g}" d="{d(fill)}"/>'
+                         + (f'<path fill="#{badge["ink"]}" d="{d(letters)}"/>' if letters else "")))
+
+# Limit bars: one track with round ends from the first character's left to the last one's right,
+# about as thick as the panel's bar beside its text and centred on the capitals. The used part is
+# in the text's colour (palette index 0xFFFF), so the bar reads on a light background as on a
+# dark one; the track is a faint grey over either. No SVG copy: Ghostty, which draws colour only
+# from SVG, draws the plain outline in the text's colour, the used part full and the rest a line.
+BAR_MID, BAR_R, BAR_PAD, BAR_LINE = 420, 170, 60, 30
+
+def bar_track(place, r, reach=0):
+    """The track's part in a character, its ends at the joins carried `reach` past the edges."""
+    steps = 16
+    pts = []
+    if place == 2:
+        cx = WIDE - BAR_PAD - BAR_R
+        pts += [(cx + r * math.cos(math.radians(a)), BAR_MID + r * math.sin(math.radians(a))) for a in [90 - 180 * i / steps for i in range(steps + 1)]]
+    else:
+        pts += [(WIDE + reach, BAR_MID + r), (WIDE + reach, BAR_MID - r)]
+    if place == 0:
+        cx = BAR_PAD + BAR_R
+        pts += [(cx + r * math.cos(math.radians(a)), BAR_MID + r * math.sin(math.radians(a))) for a in [270 - 180 * i / steps for i in range(steps + 1)]]
+    else:
+        pts += [(-reach, BAR_MID - r), (-reach, BAR_MID + r)]
+    return pts
+
+def between(poly, lo, hi):
+    return [(x + lo, y) for x, y in clip(poly, lo, hi)] if hi > lo else []
+
+for bar in data.get("bars", []):
+    key, place, level = f"u{bar['codepoint']:X}", bar["place"], bar["level"]
+    end = WIDE * level // 8
+    # The used part is solid, so it reaches into its neighbours where it goes on, and no hairline
+    # shows where two characters meet. The faint track is only where the bar is not used, and
+    # reaches nowhere: drawn over the used part, or twice over itself, it would show darker.
+    track = between(bar_track(place, BAR_R), end, WIDE)
+    used = between(bar_track(place, BAR_R, SEAM), -SEAM if place else 0, end + (SEAM if level == 8 and place != 2 else 0)) if level else []
+    line = between(bar_track(place, BAR_LINE), end, WIDE)
+    order.append(key); glyphs[key] = frame_glyph([p for p in (used, line) if len(p) > 2]); cmap[bar["codepoint"]] = key
+    layers = []
+    if len(track) > 2:
+        if ("bar-track", place, level) not in shapes:
+            shapes[("bar-track", place, level)] = f"s{len(shapes)}"
+            order.append(shapes[("bar-track", place, level)]); glyphs[shapes[("bar-track", place, level)]] = polygons_glyph([track])
+        layers.append((shapes[("bar-track", place, level)], pal(bar["track"], bar["opacity"])))
+    if len(used) > 2:
+        if ("bar-used", place, level) not in shapes:
+            shapes[("bar-used", place, level)] = f"s{len(shapes)}"
+            order.append(shapes[("bar-used", place, level)]); glyphs[shapes[("bar-used", place, level)]] = polygons_glyph([used])
+        layers.append((shapes[("bar-used", place, level)], 0xFFFF))
+    colr[key] = layers
+
 fb = FontBuilder(1200, isTTF=True)
 fb.setupGlyphOrder(order)
 fb.setupCharacterMap(cmap)
@@ -241,7 +351,7 @@ def lsb(name):  # a glyph's left side bearing must be its own left edge, or each
 fb.setupHorizontalMetrics({g: (WIDE, lsb(g)) for g in order})
 fb.setupHorizontalHeader(ascent=1000, descent=-200)
 fb.setupNameTable({"familyName": FAMILY, "styleName": "Regular",
-                   "copyright": "The crew's faces: AgentValley. The letters of the name tags: IBM Plex Mono, Copyright 2017 IBM Corp. with Reserved Font Name \"Plex\".",
+                   "copyright": "The crew's faces: AgentValley. The letters of the name tags and plan badges: IBM Plex Mono, Copyright 2017 IBM Corp. with Reserved Font Name \"Plex\".",
                    "licenseDescription": "This Font Software is licensed under the SIL Open Font License, Version 1.1.",
                    "licenseInfoURL": "https://openfontlicense.org",
                    "uniqueFontIdentifier": f"AgentValleyCrew-{hashlib.sha256(raw).hexdigest()}",
@@ -270,4 +380,4 @@ svg = newTable("SVG "); svg.docList = sorted(docs, key=lambda d: d.startGlyphID)
 fb.font["SVG "] = svg
 
 fb.save(sys.argv[2])
-print(sys.argv[2], len(data["faces"]), "faces", len(data.get("marks", [])), "marks", len(data.get("tags", [])), "tag parts", len(order), "glyphs", len(palette), "colours")
+print(sys.argv[2], len(data["faces"]), "faces", len(data.get("marks", [])), "marks", len(data.get("tags", [])), "tag parts", len(data.get("badges", [])), "badge parts", len(data.get("bars", [])), "bar parts", len(order), "glyphs", len(palette), "colours")

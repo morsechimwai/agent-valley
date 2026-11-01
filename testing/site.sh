@@ -26,6 +26,8 @@
 #                             in site/motion; then, with Remotion, the first page's head that the
 #                             site shows, on nothing (site/public/report-sheet.webp). Remotion fetches
 #                             its Chrome on its first render.
+#   testing/site.sh terminal  Builds the site and writes docs/terminal.png for the README: the
+#                             site's terminal with the status line and two sub-agent rows.
 #   testing/site.sh history   Builds the site and writes docs/history.png for the README: the site's
 #                             History panel with the PDF's first page coming out from under it, and
 #                             a pen arrow from Export PDF to the page, on the page's cream.
@@ -132,6 +134,39 @@ HTML
     python3 -I -c 'import sys; from PIL import Image; Image.open(sys.argv[1]).save(sys.argv[2], quality=86, method=6)' \
         "$work/photo.png" docs/crew-photo.webp
     ls -l docs/crew-photo.webp
+    ;;
+terminal)
+    # At twice its size with round corners, as the site draws it.
+    npm --prefix site run build >/dev/null
+    serve_out 8766 >/dev/null 2>&1 &
+    server=$!
+    disown "$server"
+    work=$(mktemp -d)
+    trap 'kill $server; rm -rf "$work"' EXIT
+    sleep 1
+    (cd site && OUT="$work/terminal.png" node --input-type=module - <<'JS'
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch({ channel: 'chrome' });
+const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2, reducedMotion: 'reduce' });
+await page.goto('http://127.0.0.1:8766/');
+const figure = page.locator('figure.cterm');
+await figure.scrollIntoViewIfNeeded();
+await page.evaluate(() => document.fonts.ready);
+await figure.screenshot({ path: process.env.OUT });
+await browser.close();
+JS
+    )
+    python3 -I - "$work/terminal.png" docs/terminal.png <<'PY'
+import sys
+from PIL import Image, ImageDraw
+picture = Image.open(sys.argv[1]).convert('RGBA')
+corners = Image.new('L', picture.size, 0)
+ImageDraw.Draw(corners).rounded_rectangle((0, 0, *picture.size), radius=36, fill=255)
+picture.putalpha(corners)
+picture.save(sys.argv[2], optimize=True)
+PY
+    ls -l docs/terminal.png
+    sips -g pixelWidth -g pixelHeight docs/terminal.png | tail -2
     ;;
 rows)
     # At twice its size, on the page's cream with round corners: it reads on GitHub's dark theme too.

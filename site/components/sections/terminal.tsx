@@ -4,11 +4,10 @@ import { Mascot, type Person, type Thing } from '@/components/mascot';
 import { Reveal } from '@/components/reveal';
 import { Word } from '@/components/word';
 
-// A meter of six cells, as the status line draws it in a terminal this narrow: the used part
-// bright on a faint track.
+// A meter of six cells, as the status line draws it in a terminal this narrow: round ends, the
+// used part in the text's colour on a faint track, as in the panel.
 function Bar({ percent }: { percent: number }) {
-  const full = Math.round((percent / 100) * 6);
-  return <>{'━'.repeat(full)}<span className="t-dim">{'━'.repeat(6 - full)}</span></>;
+  return <span className="t-bar"><i style={{ width: `${percent}%` }} /></span>;
 }
 
 function Row({ who, holds, task, time, model, step }: { who: Person; holds: Thing; task: string; time: string; model: string; step: string }) {
@@ -40,14 +39,13 @@ export function Terminal() {
         <figure
           className="cterm"
           role="img"
-          aria-label="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and Max 20x, then bars for context, the 5-hour limit and the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step."
+          aria-label="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and an orange Ultra badge, then bars for context and the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step."
         >
           <div aria-hidden="true">
             <p className="t-prompt">&gt; Find where we take payments, then plan refunds</p>
-            <p><Mascot who="guru" pose="still" holds="calling" /><b>Opus 5.5</b><span className="t-dim">· Max 20x</span></p>
+            <p><Mascot who="guru" pose="still" holds="calling" /><b>Opus 5.5</b><span className="t-plan">Ultra</span></p>
             <p className="t-meters">
               <span><span className="t-dim">context</span> <Bar percent={34} /> <b>34%</b></span>
-              <span><span className="t-dim">5h</span> <Bar percent={41} /> <b>41%</b> <span className="t-dim">↻ 2h 10m</span></span>
               <span><span className="t-dim">7d</span> <Bar percent={62} /> <b>62%</b> <span className="t-dim">↻ 3d 4h</span></span>
             </p>
             <p className="t-main">● main</p>

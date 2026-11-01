@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.31 — 2026-11-01
+
+- Claude renamed its plans on 30 October: Max 20x is now Ultra, and Max 5x is just Max. The status line and the panel use the new names. Ultra has no 5-hour limit, so there the ring on the bar shows the weekly limit, and Plan limits shows the weekly one alone.
+- Your plan's name is an orange badge now, after the model in Claude Code's status line and before the limits in the panel.
+- The bars in the status line have round ends, like the panel's. The used part is in your terminal's text colour, so they read on a light theme too. Reopen your terminal app once after the update to see the badge and the new bars.
+
 ## 0.3.30 — 2026-10-31
 
 - A session that was closed in a folder that is gone, such as a workspace you deleted, leaves the panel at once. It used to stay up to a day when a sub-agent had handed back something you had not opened.

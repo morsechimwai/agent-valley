@@ -257,6 +257,10 @@ html{scroll-padding-top:80px}
 .t-meters{margin-bottom:1em}
 .cterm .t-meters{column-gap:0}
 .t-meters>span{white-space:nowrap}
+/* As the crew font draws them: the track a faint grey over the background, the badge Claude's orange. */
+.t-bar{display:inline-block;width:6ch;height:.28em;margin-inline:.1ch;vertical-align:.2em;border-radius:1em;background:rgb(128 128 128 / .45);overflow:hidden}
+.t-bar i{display:block;height:100%;border-radius:1em;background:currentColor}
+.t-plan{padding:.1em .7em;border-radius:1em;font-size:.8em;font-weight:600;line-height:1.4;color:#ee9a7d;background:rgb(217 119 87 / .22)}
 .t-meters>span+span{margin-left:1ch;padding-left:1ch;border-left:1px solid var(--app-dim)}
 .t-row p+p{padding-left:3ch}
 /* The panel's folder and branch marks, as the font draws them: the gap to the name inside the mark. */

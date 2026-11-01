@@ -820,11 +820,11 @@ enum Format {
     static func oneLineRows(liveAgents: Int) -> Bool { liveAgents > compactPast }
     static let shortcutCaption = "Opens the panel from any app. ↑ ↓ move between sessions, return goes to the session's app, ⌘return and ⌘delete answer a request, esc closes. The ? lists every key."
     static let waitCaption = "After a minute of waiting, the longest wait shows in red in the ring's place."
-    static let ringCaption = "The ring is how much of your 5-hour limit is used, yellow from 80%. Only with Plan limits on."
+    static let ringCaption = "The ring is how much of your 5-hour limit is used, or your weekly one on plans without a 5-hour limit. Yellow from 80%. Only with Plan limits on."
 
     /// The ring on the bar, read out: it has no room for a word of its own.
     static func ringLabel(_ ring: LimitRing) -> String {
-        "5-hour limit \(ring.limit.percentLabel) used" + (ring.stale ? ", from before the last check failed" : "")
+        (ring.weekly ? "Weekly limit " : "5-hour limit ") + "\(ring.limit.percentLabel) used" + (ring.stale ? ", from before the last check failed" : "")
     }
     /// Under the shortcut's switch when the system would not give the chord.
     static let shortcutTaken = "This shortcut could not be registered: another app may hold it. Pick another below."
@@ -1516,7 +1516,7 @@ struct PanelView: View {
                         .animation(motion.reveal(index: 0), value: state.expanded)
                         .accessibilityLabel(Text(verbatim: Format.waitedAloud(wait)))
                 } else if let ring = limits.display.ring {
-                    // How much of the 5-hour limit is used, when that is known. Gone with the panel
+                    // How much of the 5-hour limit (or the weekly one) is used. Gone with the panel
                     // open, as the number is: the line under the bar has both limits in full.
                     LimitRingView(ring: ring)
                         .opacity(state.expanded ? 0 : 1)

@@ -333,6 +333,10 @@ final class PanelPicturesTests: XCTestCase {
                 ? PlanLimits(fiveHour: PlanLimit(usedPercent: 12, resetsAt: soon), week: PlanLimit(usedPercent: 100, resetsAt: later))
                 : PlanLimits(fiveHour: PlanLimit(usedPercent: 100, resetsAt: soon), week: PlanLimit(usedPercent: 64, resetsAt: later))))
             limits.setEnabled(true)
+        } else if scene == "weekly" {
+            // A plan with no 5-hour window, as Ultra came: the ring takes the weekly one.
+            limits = PlanLimitsClient(source: FixedLimits(limits: PlanLimits(fiveHour: nil, week: PlanLimit(usedPercent: 90, resetsAt: Date().addingTimeInterval(37 * 3600)), plan: "Ultra")))
+            limits.setEnabled(true)
         } else {
             limits = PlanLimitsClient()
         }
@@ -729,6 +733,11 @@ final class PanelPicturesTests: XCTestCase {
             picture("open")
         case "island-motion":
             try islandMotion(state: state, window: window, islandOn: islandOn, open: open, shut: shut)
+        case "weekly":
+            picture("shut")
+            spoken("shut")
+            open()
+            picture("open")
         case "fishing", "fishing-week":
             // Everyone done for now, so that the bar has the fish and the sign hangs over an empty list.
             for card in store.sessions { state.hidden[card.id] = Date() }

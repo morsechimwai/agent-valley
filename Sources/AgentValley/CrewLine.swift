@@ -101,18 +101,21 @@ enum CrewLine {
         return (full, cells - full)
     }
 
-    /// "Max 20x" from what Claude Code keeps in `~/.claude.json`; nil when it names no plan.
+    /// "Ultra" from what Claude Code keeps in `~/.claude.json`; nil when it names no plan. The
+    /// plan's own name goes first. Without it, the older fields, read with the names Claude gave
+    /// the plans on 30 October 2026: Max 20x is Ultra, Max 5x just Max.
     static func plan(fromClaudeJSON json: [String: Any]?) -> String? {
-        guard let account = json?["oauthAccount"] as? [String: Any],
-              let type = account["organizationType"] as? String else { return nil }
+        guard let account = json?["oauthAccount"] as? [String: Any] else { return nil }
+        let shown = cut(clean(account["planDisplayName"]), to: 20)
+        if !shown.isEmpty { return shown }
+        guard let type = account["organizationType"] as? String else { return nil }
         let name = type.replacingOccurrences(of: "claude_", with: "")
         guard let first = name.first else { return nil }
-        let kind = first.uppercased() + name.dropFirst()
-        let tier = account["organizationRateLimitTier"] as? String ?? ""
-        let multiplier = tier.split(separator: "_").first { part in
-            part.hasSuffix("x") && !part.dropLast().isEmpty && part.dropLast().allSatisfy(\.isNumber)
+        if name == "max" {
+            let tier = account["organizationRateLimitTier"] as? String ?? ""
+            return tier.split(separator: "_").contains("20x") ? "Ultra" : "Max"
         }
-        return multiplier.map { "\(kind) \($0)" } ?? kind
+        return first.uppercased() + name.dropFirst()
     }
 
     /// The top line and, when there is anything to measure, the meters below it.
@@ -134,14 +137,13 @@ enum CrewLine {
             }
         }
         var top = picture?.0.character ?? CrewFont.character(.lead(look ?? LeadLook()), .working, holding: holding)
-        // The picture's word goes after the plan, as quiet as it.
-        let after = [plan.flatMap { $0.isEmpty ? nil : $0 }, picture?.1].compactMap { $0 }.joined(separator: " · ")
-        if !model.isEmpty {
-            top += "  " + Style.bold + model + Style.reset
-            if !after.isEmpty { top += Style.faint + " · " + after + Style.reset }
-        } else if !after.isEmpty {
-            top += "  " + Style.faint + after + Style.reset
-        }
+        // The plan on the panel's badge where the font has one for it; else as quiet text. The
+        // picture's word goes after it, as quiet.
+        let badge = newFont ? plan.flatMap(CrewFont.Badge.init(plan:)) : nil
+        let after = [badge == nil ? plan.flatMap { $0.isEmpty ? nil : $0 } : nil, picture?.1].compactMap { $0 }.joined(separator: " · ")
+        if !model.isEmpty { top += "  " + Style.bold + model + Style.reset }
+        if let badge { top += "  " + badge.text }
+        if !after.isEmpty { top += Style.faint + (model.isEmpty && badge == nil ? "  " : " · ") + after + Style.reset }
 
         let room = columns - 9
         let layouts: [(bar: Int, tokens: Bool, gap: String)] = [
@@ -149,7 +151,7 @@ enum CrewLine {
         ]
         var bottom = ""
         for layout in layouts {
-            bottom = meters(input, bar: layout.bar, tokens: layout.tokens, gap: layout.gap, now: now)
+            bottom = meters(input, bar: layout.bar, tokens: layout.tokens, gap: layout.gap, round: newFont, now: now)
             if width(bottom) <= room { break }
         }
         return bottom.isEmpty ? top : top + "\n" + bottom
@@ -160,18 +162,18 @@ enum CrewLine {
         return value
     }
 
-    private static func meters(_ input: [String: Any], bar cells: Int, tokens: Bool, gap: String, now: Date) -> String {
+    private static func meters(_ input: [String: Any], bar cells: Int, tokens: Bool, gap: String, round: Bool, now: Date) -> String {
         var parts: [String] = []
         let context = input["context_window"] as? [String: Any]
         if let used = number(context?["used_percentage"]) {
             let size = number(context?["context_window_size"]) ?? 0
             let tail = tokens && size > 0 ? "\(short(used / 100 * size))/\(short(size))" : ""
-            parts.append(meter("context", PlanLimit(usedPercent: used, resetsAt: nil), cells: cells, tail: tail, now: now))
+            parts.append(meter("context", PlanLimit(usedPercent: used, resetsAt: nil), cells: cells, tail: tail, round: round, now: now))
         }
         for (key, name) in [("five_hour", "5h"), ("seven_day", "7d")] {
             guard let limit = limit(input, key) else { continue }
             let tail = limit.resetLabel(now: now).map { "↻ " + $0 } ?? ""
-            parts.append(meter(name, limit, cells: cells, tail: tail, now: now))
+            parts.append(meter(name, limit, cells: cells, tail: tail, round: round, now: now))
         }
         return parts.joined(separator: Style.faint + gap + Style.reset)
     }
@@ -183,13 +185,15 @@ enum CrewLine {
         return PlanLimit(usedPercent: used, resetsAt: number(window["resets_at"]).map { Date(timeIntervalSince1970: $0) })
     }
 
-    private static func meter(_ name: String, _ limit: PlanLimit, cells: Int, tail: String, now: Date) -> String {
+    /// `round`: the font's bar with round ends, as the panel's, its used part in the text's colour.
+    private static func meter(_ name: String, _ limit: PlanLimit, cells: Int, tail: String, round: Bool, now: Date) -> String {
         let (full, empty) = bar(limit.usedPercent, cells: cells)
         var number = limit.percentLabel
         if limit.level == .critical { number = "[\(number)]" }
         number = (limit.level == .normal ? Style.bold : Style.bold + Style.yellow) + number + Style.reset
-        var text = Style.faint + name + Style.reset + " " + String(repeating: "━", count: full)
-            + Style.faint + String(repeating: "━", count: empty) + Style.reset + " " + number
+        let drawn = round ? CrewFont.Bar.text(limit.usedPercent, cells: cells)
+            : String(repeating: "━", count: full) + Style.faint + String(repeating: "━", count: empty) + Style.reset
+        var text = Style.faint + name + Style.reset + " " + drawn + " " + number
         if !tail.isEmpty { text += " " + Style.faint + tail + Style.reset }
         return text
     }

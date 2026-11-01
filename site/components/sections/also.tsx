@@ -23,7 +23,7 @@ export function Also() {
       <h2 className="mb-7">Also in the panel.</h2>
       <Sheet
         items={[
-          { term: 'Plan limits', text: "Your Claude 5-hour and weekly limits, with time left until reset. Off until you turn it on. When one runs out we go fishing, or take the van for the weekly one, and a sign says when we're back." },
+          { term: 'Plan limits', text: "Your Claude 5-hour and weekly limits, with time left until reset. Ultra has no 5-hour limit, so there you get the weekly one. Off until you turn it on. When one runs out we go fishing, or take the van for the weekly one, and a sign says when we're back." },
           { term: 'Token use', text: <><Word id="tokens">Tokens</Word> for the last 5 hours and today, with a 12-hour chart.</> },
           { term: 'Task list', text: "When the lead keeps a task list, its card shows it under the step it's on, in Claude Code's own marks: ✓ done, ■ under way, □ to do. Past five tasks the done ones fold into one line. The list goes once everything is done." },
           { term: 'Jobs left running', text: "When an agent leaves something running in the background, a green screen sits beside the coffee on the bar until it ends. A dev server, or anything else serving on a port, gets a small server sending out waves instead. The session's card lists each one and how long it has run: a screen for a command, a server for a port, an eye for a Monitor. After half an hour they stop and dim." },

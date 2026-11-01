@@ -255,6 +255,62 @@ enum CrewFont {
         }
     }
 
+    /// The plan's name on a pill in Claude's orange, as the panel's status row draws it: the fill
+    /// faint, the letters a lighter orange. After the tags. Only the plans Claude sells: any other name stays
+    /// plain text.
+    enum Badge: String, CaseIterable {
+        case free = "Free", pro = "Pro", max = "Max", ultra = "Ultra", team = "Team", enterprise = "Enterprise"
+
+        static let orange: UInt32 = 0xD97757
+        /// The fill, over whatever the terminal's background is.
+        static let fillOpacity = 0.22
+        /// The letters: a lighter orange, to read on the faint fill over a dark background.
+        /// ponytail: on a light background they read weakly; a second set of badges if anyone uses one.
+        static let ink: UInt32 = 0xEE9A7D
+
+        init?(plan: String) {
+            guard let badge = Self.allCases.first(where: { $0.rawValue.caseInsensitiveCompare(plan) == .orderedSame }) else { return nil }
+            self = badge
+        }
+
+        /// Wide characters the pill takes, so its letters are as big as the text's capitals' half
+        /// and have room at the round ends.
+        var parts: Int { rawValue.count <= 4 ? 2 : rawValue.count <= 7 ? 3 : 4 }
+
+        var firstScalar: UInt32 {
+            Self.allCases.prefix { $0 != self }.reduce(Tag.lastScalar + 1) { $0 + UInt32($1.parts) }
+        }
+
+        static var lastScalar: UInt32 { enterprise.firstScalar + UInt32(enterprise.parts) - 1 }
+
+        var text: String { (0..<UInt32(parts)).map { String(UnicodeScalar(firstScalar + $0)!) }.joined() }
+    }
+
+    /// A limit's bar with round ends, as the panel draws it: the used part in the text's colour,
+    /// the rest a faint track over the terminal's background. Each character is two cells, filled
+    /// from the left in eighths: the bar's left end, a middle, its right end. After the badges.
+    enum Bar {
+        static let levels = 9
+        static let track: UInt32 = 0x808080
+        static let trackOpacity = 0.45
+
+        static var firstScalar: UInt32 { Badge.lastScalar + 1 }
+        static var lastScalar: UInt32 { firstScalar + UInt32(3 * levels) - 1 }
+
+        static func scalar(place: Int, level: Int) -> UInt32 { firstScalar + UInt32(place * levels + level) }
+
+        /// A bar `cells` wide (even, 4 or more) with `percent` used: empty at 0% or less, at
+        /// least an eighth of a character above it, full at 100%.
+        static func text(_ percent: Double, cells: Int) -> String {
+            let count = max(2, cells / 2), eighths = count * 8
+            let full = percent <= 0 ? 0 : min(eighths, max(1, Int((percent / 100 * Double(eighths)).rounded())))
+            return (0..<count).map { i in
+                let place = i == 0 ? 0 : i == count - 1 ? 2 : 1
+                return String(UnicodeScalar(scalar(place: place, level: min(max(full - i * 8, 0), 8)))!)
+            }.joined()
+        }
+    }
+
     /// Where `kind` stands among the looks: the crew first, then every lead look.
     private static func place(_ kind: MascotKind) -> Int {
         switch kind {
@@ -313,8 +369,21 @@ enum CrewFont {
         let parts = Tag.dresses.flatMap { kind in
             Tag.text(kind).unicodeScalars.dropFirst().enumerated().map { tag($0.element.value, part: $0.offset + 1, kind, rects: []) }
         }
+        let (orange, ink) = (String(format: "%06X", Badge.orange), String(format: "%06X", Badge.ink))
+        let badges = Badge.allCases.flatMap { badge in
+            (0..<badge.parts).map { part in
+                "{\"codepoint\":\(badge.firstScalar + UInt32(part)),\"part\":\(part),\"parts\":\(badge.parts),\"name\":\"\(badge.rawValue)\","
+                    + "\"colour\":\"\(orange)\",\"fill\":\(String(format: "%.2f", Badge.fillOpacity)),\"ink\":\"\(ink)\"}"
+            }
+        }
+        let bars = (0..<3).flatMap { place in
+            (0..<Bar.levels).map { level in
+                "{\"codepoint\":\(Bar.scalar(place: place, level: level)),\"place\":\(place),\"level\":\(level),"
+                    + "\"track\":\"\(String(format: "%06X", Bar.track))\",\"opacity\":\(String(format: "%.2f", Bar.trackOpacity))}"
+            }
+        }
         return Data(("{\"family\":\"\(family)\",\"faces\":[\((faces + pictures).joined(separator: ","))],\"marks\":[\(marks.joined(separator: ","))],"
-            + "\"tags\":[\((heads + parts).joined(separator: ","))]}").utf8)
+            + "\"tags\":[\((heads + parts).joined(separator: ","))],\"badges\":[\(badges.joined(separator: ","))],\"bars\":[\(bars.joined(separator: ","))]}").utf8)
     }
 
     private static func tag(_ scalar: UInt32, part: Int, _ kind: MascotKind, rects: [String]) -> String {

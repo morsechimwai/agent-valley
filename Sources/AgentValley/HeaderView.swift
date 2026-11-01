@@ -138,6 +138,8 @@ struct StatusRow: View {
                     // Then, with all three counts on the left, the reset times go too: first those of
                     // limits with room to spare, and only at the last that of one near its end.
                     ViewThatFits(in: .horizontal) {
+                        meters(limits, barWidth: 44, badge: true)
+                        // The plan's name goes first: it is the one thing here that never changes.
                         meters(limits, barWidth: 44)
                         ForEach(LimitResets.ladder, id: \.self) { resets in
                             meters(limits, barWidth: 0, resets: resets)
@@ -154,8 +156,11 @@ struct StatusRow: View {
     }
 
     /// Both bars share one width, so their lengths compare by eye.
-    private func meters(_ limits: PlanLimits, barWidth: CGFloat, resets: LimitResets = .all) -> some View {
+    private func meters(_ limits: PlanLimits, barWidth: CGFloat, resets: LimitResets = .all, badge: Bool = false) -> some View {
         HStack(spacing: 0) {
+            if badge, let plan = limits.plan {
+                PlanBadge(name: plan).padding(.trailing, 12)
+            }
             if let limit = limits.fiveHour {
                 LimitMeter(name: "5h", spoken: Format.limitHelp(spoken: "5-hour limit", percent: limit.percentLabel, reset: limit.resetLabel(now: now)),
                            limit: limit, width: barWidth, reset: resets.shows(limit) ? limit.resetLabel(now: now) : nil)
@@ -174,7 +179,29 @@ struct StatusRow: View {
     }
 }
 
-/// How much of the 5-hour limit is used, on the shut bar: a ring, since a wing of the bar has
+/// The plan's name on a pill in Claude's orange, as the terminal's status line draws it: the fill
+/// faint, the letters a lighter orange.
+struct PlanBadge: View {
+    let name: String
+
+    static func colour(_ hex: UInt32) -> Color {
+        Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
+    }
+
+    var body: some View {
+        Text(verbatim: name)
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(Self.colour(CrewFont.Badge.ink))
+            .padding(.horizontal, 7)
+            .frame(height: 17)
+            .background(Capsule().fill(Self.colour(CrewFont.Badge.orange).opacity(CrewFont.Badge.fillOpacity)))
+            .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "\(name) plan"))
+    }
+}
+
+/// How much of the 5-hour limit (or the weekly one) is used, on the shut bar: a ring, since a wing of the bar has
 /// no room for a number and its name. Yellow near the end as the number in the panel is, and
 /// never red. Dim when the number is an old one: here there is no room to say its age.
 struct LimitRingView: View {

@@ -27,6 +27,7 @@
 #     history-project  the same, one project deep
 #     fishing          the 5-hour limit run out: the fish on the bar, the sign over the list
 #     fishing-week     the same for the weekly limit
+#     weekly           a plan with no 5-hour limit: the ring on the bar is the weekly one
 #     island           a Mac with an island instead of the notch: the notch, then the island shut, alerting and open
 #     away             the Away button on, the yellow band, and a phone message that was not sent
 #     motion           frames of the crew lines moving: a sub-agent starts, then one finishes.
@@ -40,7 +41,7 @@ ROOT="/Users/Shared/pt"
 FAKE_HOME="$ROOT/pictures"
 OUT="$PWD/build/pictures"
 SCENES=("$@")
-[ ${#SCENES[@]} -gt 0 ] || SCENES=(list shut roomy handback crew status keys idle intro legend settings request reader oldcopy update heard tokens history history-project fishing fishing-week island away)
+[ ${#SCENES[@]} -gt 0 ] || SCENES=(list shut roomy handback crew status keys idle intro legend settings request reader oldcopy update heard tokens history history-project fishing fishing-week weekly island away)
 
 # Every account on this Mac can write to /Users/Shared, so ROOT has to be this user's own
 # folder, closed to the others, before anything under it is removed: were it a link someone

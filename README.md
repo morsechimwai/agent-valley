@@ -87,11 +87,11 @@ Open History from the chart button at the top of the panel. Pick a day, a week o
 
 Claude Code's status line gets the face of whoever runs the session, with the model, your plan and your limits. Each sub-agent row under the prompt gets its own face, its model, the step it's on, and the notch's own marks for its folder and branch. Send three or more of us and we each take one line, so nobody drops off the bottom. We hold the same things there as in the notch, but we keep still. Until your first prompt only a coffee waits there, on standby, and when a limit runs out we go fishing, or take the van. One command from the app's Claude Code settings sets it up. With the app closed your limits still show, and the coffee waits. We travel as a font, and we've been seen in Terminal, iTerm2, Ghostty and Cursor.
 
-<p align="center"><img src="docs/terminal.png" alt="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and Max 20x, then bars for context, the 5-hour limit and the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step." width="544"></p>
+<p align="center"><img src="docs/terminal.png" alt="Claude Code in a terminal. Under the prompt, the status line shows Sunny's face, Opus 5.5 and an orange Ultra badge, then bars for context and the weekly limit. Below it, two sub-agent rows, each with a little face, its task, time, model, folder, branch and current step." width="544"></p>
 
 ### Also in the panel
 
-- **Plan limits.** Your Claude 5-hour and weekly limits, with time left until reset. Off until you turn it on. When one runs out we go fishing, or take the van for the weekly one, and a sign says when we're back.
+- **Plan limits.** Your Claude 5-hour and weekly limits, with time left until reset. Ultra has no 5-hour limit, so there you get the weekly one. Off until you turn it on. When one runs out we go fishing, or take the van for the weekly one, and a sign says when we're back.
 - **Token use.** Tokens for the last 5 hours and today, with a 12-hour chart.
 - **Task list.** When the lead keeps a task list, its card shows it under the step it's on, in Claude Code's own marks: ✓ done, ■ under way, □ to do. Past five tasks the done ones fold into one line. The list goes once everything is done.
 - **Jobs left running.** When an agent leaves something running in the background, a green screen sits beside the coffee on the bar until it ends. A dev server, or anything else serving on a port, gets a small server sending out waves instead. The session's card lists each one and how long it has run: a screen for a command, a server for a port, an eye for a Monitor. After half an hour they stop and dim.

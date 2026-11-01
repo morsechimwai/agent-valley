@@ -211,18 +211,30 @@ final class PlanLimitsTests: XCTestCase {
         XCTAssertNil(resolve(nil, fetched: nil))
     }
 
-    // The ring on the shut bar is the 5-hour window and nothing else. Without that number there
-    // is no ring: an empty one would read as "nothing used".
+    // The ring on the shut bar is the 5-hour window, or the weekly one on a plan without it.
+    // Without a number there is no ring: an empty one would read as "nothing used".
     func testTheRingIsTheFiveHourLimitOnceItIsKnown() {
         typealias Display = PlanLimitsClient.Display
         let five = PlanLimit(usedPercent: 62, resetsAt: nil)
         XCTAssertNil(Display.off.ring)
         XCTAssertNil(Display.loading.ring)
         XCTAssertNil(Display.unavailable(.offline).ring)
-        XCTAssertNil(Display.limits(PlanLimits(fiveHour: nil, week: five), asOf: nil).ring)
+        let week = PlanLimit(usedPercent: 90, resetsAt: nil)
+        XCTAssertEqual(Display.limits(PlanLimits(fiveHour: nil, week: week), asOf: nil).ring, LimitRing(limit: week, stale: false, weekly: true))
+        XCTAssertEqual(Display.limits(PlanLimits(fiveHour: five, week: week), asOf: nil).ring, LimitRing(limit: five, stale: false))
         XCTAssertEqual(Display.limits(PlanLimits(fiveHour: five, week: nil), asOf: nil).ring, LimitRing(limit: five, stale: false))
         // Numbers kept from before a refresh that failed: still drawn, and marked as old.
         XCTAssertEqual(Display.limits(PlanLimits(fiveHour: five, week: nil), asOf: Date()).ring, LimitRing(limit: five, stale: true))
+    }
+
+    // The usage reply names no plan: it comes from Claude Code's own file, as in the terminal.
+    func testThePlanComesFromClaudeCodesFile() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        XCTAssertNil(KeychainLimitsSource.plan(home: home, environment: [:]))
+        try Data(#"{"oauthAccount": {"planDisplayName": "Ultra"}}"#.utf8).write(to: home.appendingPathComponent(".claude.json"))
+        XCTAssertEqual(KeychainLimitsSource.plan(home: home, environment: [:]), "Ultra")
     }
 
     // The crew goes fishing only while a window has run out, and is back with the later of two.

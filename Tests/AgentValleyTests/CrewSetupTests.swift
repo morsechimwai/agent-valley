@@ -388,7 +388,7 @@ final class CrewSetupTests: XCTestCase {
         XCTAssertNotNil(SafeJSON.object(file))
         let found = try XCTUnwrap(CrewSetup.oauthAccount(in: file))
         XCTAssertEqual(found as NSDictionary, SafeJSON.object(Data(account.utf8))! as NSDictionary)
-        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": found]), "Max 20x")
+        XCTAssertEqual(CrewLine.plan(fromClaudeJSON: ["oauthAccount": found]), "Ultra")
         XCTAssertNil(CrewSetup.oauthAccount(in: Data(#"{"projects": {\#(noise)}}"#.utf8)))
         XCTAssertNil(CrewSetup.oauthAccount(in: Data(#"{"oauthAccount": {"organizationType": "claude_max", "x": {"#.utf8)))
         // A null account is no plan, never the next object along.
