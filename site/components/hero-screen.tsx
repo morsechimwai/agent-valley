@@ -1,25 +1,12 @@
 'use client';
 
-import { createContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-// The picture's words follow it: open, the panel; shut, the bar. Once the Halloween row has its
-// answer (trick-or-treat.tsx), nobody waits any more.
+// The picture's words follow it: open, the panel; shut, the bar.
 const TOLD = {
   open: 'The top of a MacBook screen. The AgentValley panel is open under the notch: one session needs you, another is working with two sub-agents.',
   shut: 'The top of a MacBook screen. Beside the notch, a waving programmer and a red 1: an agent needs you.',
 };
-const TOLD_ANSWERED = {
-  open: 'The top of a MacBook screen. The AgentValley panel is open under the notch: four agents are working, and nobody needs you.',
-  shut: 'The top of a MacBook screen. Beside the notch, a working programmer: nobody needs you.',
-};
-
-// What the panel's own parts may know of the picture: open or shut, and the Halloween row's answer.
-export type Answer = 'allow' | 'deny';
-export const ScreenContext = createContext<{ state: 'open' | 'shut'; answered: Answer | null; answer: (a: Answer) => void }>({
-  state: 'open',
-  answered: null,
-  answer: () => {},
-});
 
 // How long a mouse rests on the bar before the panel opens, as the app waits (EntryWatch.dwell):
 // one crossing the bar on its way elsewhere is gone by then.
@@ -35,7 +22,6 @@ const DWELL = 100;
 export function HeroScreen({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<'open' | 'shut'>('open');
   const [ready, setReady] = useState(false);
-  const [answered, setAnswered] = useState<Answer | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const figure = useRef<HTMLElement>(null);
   // Whether the mouse is in the panel or on the bar; whether resting on the bar may open it (not
@@ -69,13 +55,6 @@ export function HeroScreen({ children }: { children: React.ReactNode }) {
     return () => removeEventListener('keydown', onKey);
   }, [state]);
 
-  // However it shuts, a keyboard on the Halloween row's buttons lands back on the notch, before
-  // the hidden buttons would drop it to the page.
-  useLayoutEffect(() => {
-    const on = document.activeElement;
-    if (state === 'shut' && on !== button.current && figure.current?.contains(on)) button.current?.focus();
-  }, [state]);
-
   const track = (e: React.PointerEvent<HTMLElement>, gone = false) => {
     if (e.pointerType !== 'mouse') return;
     const over = (el: Element | null) => {
@@ -99,24 +78,16 @@ export function HeroScreen({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // An answered row's buttons go; a keyboard that was on one lands back on the notch.
-  const answer = (a: Answer) => {
-    const had = figure.current?.contains(document.activeElement);
-    setAnswered(a);
-    if (had) button.current?.focus();
-  };
-
   return (
     <figure
       ref={figure}
       className="screen"
       data-state={state}
       data-ready={ready ? '' : undefined}
-      data-answered={answered ?? undefined}
       onPointerMove={(e) => track(e)}
       onPointerLeave={(e) => track(e, true)}
     >
-      <span role="img" aria-label={(answered ? TOLD_ANSWERED : TOLD)[state]} />
+      <span role="img" aria-label={TOLD[state]} />
       {/* The notch comes first for the keyboard: the panel it opens follows it. */}
       <button
         ref={button}
@@ -133,10 +104,7 @@ export function HeroScreen({ children }: { children: React.ReactNode }) {
           presser.current = '';
         }}
       />
-      {/* The drawing hides its own parts from screen readers, all but the Halloween row's buttons. */}
-      <ScreenContext.Provider value={{ state, answered, answer }}>
-        <div>{children}</div>
-      </ScreenContext.Provider>
+      <div>{children}</div>
     </figure>
   );
 }

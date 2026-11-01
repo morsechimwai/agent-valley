@@ -60,18 +60,3 @@ export function Mug({ eager, className }: { eager?: boolean; className?: string 
     </span>
   );
 }
-
-// Halloween: a carved pumpkin, its candle flickering on the mug's steam beat; unlit, only carved.
-export function Pumpkin({ lit = true, eager, className }: { lit?: boolean; eager?: boolean; className?: string }) {
-  const load = fetching(eager);
-  return lit ? (
-    <span className={cn('m steam', className)}>
-      <img src="/mascots/pumpkin-0.svg" alt="" {...load} />
-      <img src="/mascots/pumpkin-1.svg" alt="" {...load} />
-    </span>
-  ) : (
-    <span className={cn('m', className)}>
-      <img src="/mascots/pumpkin-off.svg" alt="" {...load} />
-    </span>
-  );
-}

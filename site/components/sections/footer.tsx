@@ -1,19 +1,16 @@
-import { HuntPumpkin } from '@/components/hunt';
 import { SponsorButton } from '@/components/sponsor-button';
 import { StillToggle } from '@/components/still-toggle';
 import { Wordmark } from '@/components/wordmark';
 
 // The block-letter name on the left with the motto under it, the links on the right, and the small
-// print under a rule. `hunt`: the home page, where Halloween's last pumpkin hides by the name.
-// `still`: a page whose animations can be stopped, the home page.
-export function Footer({ hunt = false, still = false }: { hunt?: boolean; still?: boolean }) {
+// print under a rule. `still`: a page whose animations can be stopped, the home page.
+export function Footer({ still = false }: { still?: boolean }) {
   return (
     <footer className="wrap foot border-t pt-12 pb-10 font-mono text-sm text-muted-foreground">
       <div className="flex flex-wrap items-start justify-between gap-x-10 gap-y-6">
         <div>
           <div className="flex items-center gap-2">
             <Wordmark />
-            {hunt && <HuntPumpkin n={4} />}
           </div>
           <p className="mt-3">A small valley of programmers in your notch.</p>
         </div>

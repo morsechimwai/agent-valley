@@ -1,4 +1,3 @@
-import { HuntPumpkin } from '@/components/hunt';
 import { Icon } from '@/components/icons';
 import { Mascot, type Person, type Thing } from '@/components/mascot';
 import { Reveal } from '@/components/reveal';
@@ -33,7 +32,6 @@ export function Terminal() {
         <p>In the terminal we hold the same things, but we keep still. Until your first prompt only a coffee waits there, on standby, and when a limit runs out we go fishing, or take the van.</p>
         <p>One command from the app&apos;s settings sets it up. With the app closed your limits still show, and the coffee waits.</p>
         <p className="text-muted-foreground">We travel as a font, and we&apos;ve been seen in Terminal, iTerm2, Ghostty and Cursor.</p>
-        <HuntPumpkin n={2} />
       </div>
       <Reveal>
         <figure

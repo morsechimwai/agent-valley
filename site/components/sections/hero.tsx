@@ -4,7 +4,6 @@ import { Clock } from '@/components/clock';
 import { Icon } from '@/components/icons';
 import { Mascot } from '@/components/mascot';
 import { Button } from '@/components/ui/button';
-import { TrickOrTreat } from '@/components/trick-or-treat';
 import { Word } from '@/components/word';
 
 // Product Hunt's #4 of the day badge (24 Oct 2026), their embed code as they give it, image from
@@ -100,26 +99,6 @@ export function OnPhone() {
   );
 }
 
-// Halloween dusk on the wallpaper, under the panel: three bats over the setting sun, and a spider
-// let down on its thread from under the notch, with a note in pen.
-function Night() {
-  return (
-    <div className="night hw" aria-hidden="true">
-      {['b1', 'b2', 'b3'].map((b) => (
-        <span key={b} className={`m wave bat ${b}`}>
-          <img src="/mascots/bat-0.svg" alt="" fetchPriority="high" />
-          <img src="/mascots/bat-1.svg" alt="" fetchPriority="high" />
-        </span>
-      ))}
-      <span className="web">
-        <i className="silk" />
-        <img className="spider" src="/mascots/spider.svg" alt="" fetchPriority="high" />
-      </span>
-      <p className="spider-note">He moved in last week. Pays no rent.</p>
-    </div>
-  );
-}
-
 // The top of a MacBook screen: menu bar, the notch with the bar beside it, the panel under it, and
 // the sun setting on the horizon below.
 function ScreenDrawing() {
@@ -130,7 +109,6 @@ function ScreenDrawing() {
         <span className="menus"><i /><i /><i /></span>
         <span className="status"><i className="battery" /><span className="clock">Thu 9:41</span></span>
       </div>
-      <Night />
       <p className="notch-note" aria-hidden="true">
         {/* The pen of the row's note on the task (sections/rows.tsx), turned to point up. */}
         <svg viewBox="0 0 72 80">
@@ -152,12 +130,11 @@ function ScreenDrawing() {
           </span>
           <span className="p-icons"><Icon id="speaker" /><Icon id="pin" /><Icon id="chart" /><Icon id="help" /><Icon id="gear" /></span>
         </div>
-        <div className="p-head wait-only"><em>1 needs you</em><span className="extra"> · 3 working</span></div>
-        <div className="p-head after-only">4 working</div>
+        <div className="p-head"><em>1 needs you</em><span className="extra"> · 3 working</span></div>
         {/* The ALL tab puts each project's line over its cards (0.2.10). */}
-        <p className="p-group not-hw">shop-web · 2 sessions</p>
+        <p className="p-group">shop-web · 2 sessions</p>
         </div>
-        <div className="p-card not-hw" aria-hidden="true">
+        <div className="p-card" aria-hidden="true">
           <Mascot who="guru" pose="wave" dot />
           <div>
             <p className="p-line">
@@ -170,8 +147,6 @@ function ScreenDrawing() {
             <span className="p-go">Go to Terminal</span> <span className="p-go p-next">Answer here next time</span>
           </div>
         </div>
-        <TrickOrTreat />
-        <p className="p-group hw" aria-hidden="true">shop-web · 1 session</p>
         <div className="p-card team" aria-hidden="true">
           <Mascot who="walrus" pose="work" holds="reading" />
           <div>
@@ -197,10 +172,9 @@ function ScreenDrawing() {
             </div>
           </div>
         </div>
-        <i className="lights hw" aria-hidden="true"><b /><b /></i>
       </div>
       <div className="bar" aria-hidden="true">
-        <span className="wing"><Mascot who="guru" pose="wave" className="wait-only" eager /><Mascot who="guru" pose="work" holds="running" className="after-only" /><span className="count wait-only">1</span></span>
+        <span className="wing"><Mascot who="guru" pose="wave" eager /><span className="count">1</span></span>
         <span className="lens" />
         <span className="wing"><span className="gauge" /></span>
       </div>

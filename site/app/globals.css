@@ -107,10 +107,6 @@
      look-alike, where Menlo was not. */
   --app: ui-monospace, "SF Mono", var(--font-geist-mono), Menlo, monospace;
   --hand: var(--font-hand), "Bradley Hand", "Segoe Print", cursive;
-  /* Halloween's band over the top bar: a night-purple terminal, pumpkin output, lilac prompt. */
-  --hw-bg: #1d0b2e;
-  --hw-fg: #ff8c1a;
-  --hw-dim: #c4a1ff;
 }
 
 @theme inline {
@@ -242,14 +238,4 @@
     outline-offset: 3px;
     border-radius: 4px;
   }
-}
-
-/* Halloween 2026 (lib/halloween.ts): the layout's first script marks <html> with halloween, and
-   with data-pumpkins=all once the hunt is done. Both versions of a part are in the page; these
-   pick one. Outside layers, so no utility can show what they hide. */
-html:not(.halloween) .hw,
-.halloween .not-hw,
-html:not(.halloween[data-pumpkins="all"]) .hw-done,
-.halloween[data-pumpkins="all"] .not-hw-done {
-  display: none !important;
 }

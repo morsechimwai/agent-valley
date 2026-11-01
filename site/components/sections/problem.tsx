@@ -1,4 +1,3 @@
-import { HuntPumpkin } from '@/components/hunt';
 import { Pile } from '@/components/pile';
 import { Word } from '@/components/word';
 
@@ -20,7 +19,6 @@ export function Problem() {
           <p className="lead">
             Each <Word id="agent">agent</Word> reports in its own <Word id="terminal">terminal</Word>, line by line. Run a few <Word id="session">sessions</Word> at once and you <Word id="end-up">end up</Word> switching windows just to <Word id="check-on">check on</Word> them.
           </p>
-          <HuntPumpkin n={0} />
         </div>
         {/* Five terminals pile up; the one waiting for an answer is first in, and ends at the back. */}
         <Pile label="Five terminal windows stacked on top of one another. The one waiting for an answer is buried at the back.">

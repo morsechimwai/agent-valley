@@ -11,9 +11,6 @@
 .f-ear{display:none;padding:8px 10px;border:1px solid var(--f-ink);font-size:.875rem;line-height:1.35;text-align:center}
 .f-ear b{display:block;margin-bottom:2px;font-size:.9375rem;font-variant:small-caps;letter-spacing:.08em}
 @media (min-width:1024px){.f-ear{display:block}}
-.f-ear{position:relative}
-.f-pumpkin{position:absolute;top:-14px;right:-12px;line-height:0}
-.f-pumpkin img{width:28px;height:28px;image-rendering:pixelated}
 .f-name{font-family:var(--font-masthead),"Old English Text MT",serif;font-weight:400;font-size:clamp(2.75rem,8.4vw,5.75rem);line-height:1;letter-spacing:0;text-align:center}
 .f-motto{margin-top:10px;font-style:italic;text-align:center}
 .f-date{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 24px;margin-top:14px;padding:6px 0 5px;border-top:1px solid var(--f-ink);border-bottom:4px double var(--f-ink);font-size:.8125rem;letter-spacing:.08em;text-transform:uppercase}

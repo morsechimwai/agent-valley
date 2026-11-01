@@ -81,20 +81,14 @@ export default function Funnies() {
         <div className={`funnies ${masthead.variable} ${news.variable}`}>
           <header>
             <div className="f-top">
-              <p className="f-ear not-hw"><b>Weather</b>98% of the weekly limit. Clearing Thursday.</p>
-              <p className="f-ear hw"><b>Weather</b>Fog over the valley. Zombie processes after midnight.</p>
+              <p className="f-ear"><b>Weather</b>98% of the weekly limit. Clearing Thursday.</p>
               <h1 className="f-name">The Valley Funnies</h1>
-              <p className="f-ear not-hw"><b>Home delivery</b>To your notch, whenever an agent needs you.</p>
-              {/* Halloween's pumpkin sits on the notice's corner, still: this page has no Stop button. */}
-              <p className="f-ear hw">
-                <b>Notice</b>Trick-or-treaters, please knock on the notch.
-                <span className="f-pumpkin" aria-hidden="true"><img src="/mascots/pumpkin-0.svg" alt="" width="28" height="28" /></span>
-              </p>
+              <p className="f-ear"><b>Home delivery</b>To your notch, whenever an agent needs you.</p>
             </div>
             <p className="f-motto">Comics from a small valley of programmers in your notch.</p>
             <p className="f-date">
               <span>Vol. I, No. {STRIPS.length}</span>
-              <span><time dateTime={latest}>{edition}</time><span className="hw"> · Halloween Edition</span></span>
+              <span><time dateTime={latest}>{edition}</time></span>
               <span>Price: free</span>
             </p>
           </header>

@@ -1,6 +1,5 @@
 import { BillScroll } from '@/components/bill-scroll';
 import { HistoryPanel } from '@/components/history-panel';
-import { HuntPumpkin } from '@/components/hunt';
 import { Word } from '@/components/word';
 
 // History and its PDF as one scene: the heading and its words across the top, then the panel
@@ -16,7 +15,6 @@ export function Costs() {
           <p className="text-muted-foreground">
             At <Word id="api"><abbr title="application programming interface">API</abbr> prices</Word>. Kept on your Mac, even after Claude Code clears its old files. A project you move or rename keeps its history, and two folders that share a name stay two projects.
           </p>
-          <HuntPumpkin n={1} />
         </div>
       </div>
       <BillScroll>

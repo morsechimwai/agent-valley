@@ -70,8 +70,8 @@ og)
     disown "$server"
     trap 'kill $server' EXIT
     sleep 1
-    # A browser of its own, so the person's open Chrome is not the one asked. Its clock is set past
-    # Halloween, which the page turns on by the visitor's date: the picture outlives the season.
+    # A browser of its own, so the person's open Chrome is not the one asked. Its clock is fixed,
+    # so the picture is the same whatever day it is taken.
     (cd site && OUT="$PWD/public/og.png" node --input-type=module - <<'JS'
 import { chromium } from '@playwright/test';
 const browser = await chromium.launch({ channel: 'chrome' });

@@ -110,8 +110,6 @@ html{scroll-padding-top:80px}
 .notch-note path{fill:none;stroke:var(--pen);stroke-width:2.2px;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .screen>[role=img]{position:absolute;inset:0;pointer-events:none}
 /* A phone keeps the sub-agent rows, the point of the app: the screen grows taller to hold both cards. */
-/* Halloween's trick-or-treat card brings a second project line: a little more screen keeps the panel off the horizon. */
-@media (min-width:600px){.halloween .screen{aspect-ratio:8/9}}
 @media (max-width:599px){.screen{aspect-ratio:4/5}.panel .extra{display:none}}
 /* Narrower still, a row's figures drop under its task rather than cut it short. */
 @media (max-width:399px){.screen{aspect-ratio:3/5}.screen .p-line{flex-wrap:wrap;column-gap:1em}.screen .p-line>span:last-child{margin-left:auto}}
@@ -518,72 +516,8 @@ html:not(.js) .costs .report>:not(.r-slot){margin-left:0}
 .s-player{position:absolute;inset:0}
 
 @layer components {
-/* Halloween dusk on the hero's wallpaper (hero.tsx Night): over the wallpaper, under the panel and
-   the bar, so the spider's thread starts out of sight under the notch. The note is in the row's
-   hand, as the notch's note is. */
-.night{position:absolute;inset:0;z-index:1;pointer-events:none}
 /* The not-found page's caption above its picture (not-found.tsx), in the comics' own box. */
 .tool-tag{display:inline-block;margin-bottom:.75rem;padding:.2em .6em;border:2px solid #2a2118;background:#f6dc84;color:#1c1300;font:600 clamp(12px,1.5vw,17px)/1.3 var(--mono);white-space:nowrap}
-.bat{--s:clamp(14px,5.5cqw,28px);position:absolute}
-.bat img{object-fit:contain}
-.bat.b1{top:calc(var(--bar) + 38cqw);right:27cqw}
-.bat.b2{--s:clamp(12px,4.5cqw,22px);top:calc(var(--bar) + 31cqw);right:5cqw}
-.bat.b3{top:calc(var(--bar) + 24cqw);left:12cqw}
-.web{position:absolute;top:calc(var(--bar) - 10cqw);left:48cqw;display:flex;flex-direction:column;align-items:center;width:4cqw;animation:dangle 4s ease-in-out infinite alternate}
-.silk{width:1px;height:20cqw;background:rgba(var(--menu),.45)}
-.spider{width:4cqw;image-rendering:pixelated}
-.spider-note{position:absolute;top:calc(var(--bar) + 8cqw);left:55cqw;max-width:30cqw;margin:0;color:var(--accent-text);font:600 clamp(13px,3.9cqw,21px)/1.15 var(--hand);transform:rotate(-3deg)}
-@keyframes dangle{from{transform:translateY(-2cqw)}to{transform:translateY(3cqw)}}
-.idle .web,.still .web{animation-play-state:paused}
-@container (max-width:419px){.spider-note{display:none}}
-}
-
-@layer components {
-/* Halloween's Trick or treat row (trick-or-treat.tsx): the app's two answers, each a 44-point
-   target round a drawn button. Before React is here they could do nothing; shut, they are out of
-   sight and out of the keyboard's way. */
-.p-answer{display:flex;gap:.5em;margin-top:.2em}
-.p-answer button{display:inline-flex;align-items:center;min-width:44px;min-height:44px;padding:0;border:0;background:none;color:inherit;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.p-answer span{padding:.25em .7em;border:1px solid var(--app-fg);border-radius:.4em;background:var(--app-fg);color:var(--ink)}
-.p-answer .deny span{background:none;color:var(--app-fg)}
-.p-answer button:focus-visible{outline:none}
-.p-answer button:focus-visible span{outline:3px solid var(--amber);outline-offset:2px}
-.screen:not([data-ready]) .p-answer,.screen[data-state=shut] .p-answer{visibility:hidden}
-/* Answered, nobody waits: the header and the bar say so, and the bar's mascot stops hopping. */
-.screen:not([data-answered]) .after-only,.screen[data-answered] .wait-only{display:none}
-.screen[data-answered] .bar .m{animation:none}
-/* Deny: the panel goes dark once, and a pair of eyes blinks in it. One slow dim, never a flash. */
-.lights{position:absolute;z-index:3;inset:0;border-radius:inherit;background:var(--ink);opacity:0;pointer-events:none}
-.lights b{position:absolute;top:46%;left:calc(50% - 2.2em);width:.9em;height:.9em;border-radius:50%;background:var(--amber)}
-.lights b+b{left:calc(50% + 1.3em)}
-@media (prefers-reduced-motion:no-preference){
-  html:not(.still) .screen[data-answered=deny] .lights{animation:lights-out 1.2s ease-in-out 1}
-  html:not(.still) .screen[data-answered=deny] .lights b{animation:lids 1.2s steps(1) 1}
-}
-@keyframes lights-out{0%{opacity:0}30%,70%{opacity:.94}100%{opacity:0}}
-@keyframes lids{0%,100%{transform:none}50%{transform:scaleY(.15)}}
-/* Halloween's band (halloween-bar.tsx): one terminal line over the top bar, faint scan lines on
-   night purple, the greeting glowing a little the way a CRT's phosphor did. */
-.hbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;column-gap:12px;padding:0 16px;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),var(--hw-bg);color:var(--hw-fg);font:400 .8125rem/1.4 var(--mono);text-align:center}
-.hbar img{image-rendering:pixelated}
-.hb-cmd{color:var(--hw-dim)}
-.hbar strong{font-weight:600;text-shadow:0 0 6px rgba(255,140,26,.45);white-space:nowrap}
-.hbar a{display:inline-flex;align-items:center;min-height:44px;color:var(--hw-fg)}
-.hbar a:hover{color:var(--hw-dim)}
-.hbar a:focus-visible{outline-color:var(--hw-fg);outline-offset:-2px}
-/* The pumpkin hunt (hunt.tsx): five small pumpkins down the page, each a 44-point button, and the
-   count beside the top bar's links. */
-.hunt{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:8px;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.hunt .m{--s:26px}
-.hunt-count{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding-inline:8px;color:var(--muted-foreground);white-space:nowrap}
-.hunt-count .m{--s:18px}
-/* A phone's top bar has room for the pumpkin and its number only; the words are still read out. */
-@media (max-width:639px){.nav nav .hunt-count{gap:4px;padding-inline:4px}}
-/* Narrower, the count takes the wordmark's room and the crew's mark stands in, as below 360. */
-@media (max-width:399px){
-  .halloween .nav:has(.hunt-count) .wordmark{display:none}
-  .halloween .nav:has(.hunt-count) .brand img{visibility:visible;transform:none;transition:none}
-}
 }
 
 /* Outside the layer, so it wins over the Button's own colours: in the office the Download button is the
