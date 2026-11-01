@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.32 — 2026-11-01
+
+- When a session ends its turn with a shell or a monitor still running in the background, its card says so again, "1 shell, 1 monitor running", instead of "idle". Claude Code 2.1.312 and later mark such a session in a way the app did not read, so it lost track of the session: its background jobs and the jump to its terminal went missing.
+- A state Claude Code adds in some later version no longer does that. The app keeps the session, and types nothing into its terminal until an update says what the new state means.
+
 ## 0.3.31 — 2026-11-01
 
 - Claude renamed its plans on 30 October: Max 20x is now Ultra, and Max 5x is just Max. The status line and the panel use the new names. Ultra has no 5-hour limit, so there the ring on the bar shows the weekly limit, and Plan limits shows the weekly one alone.

@@ -774,7 +774,7 @@ final class AgentStore: ObservableObject {
     /// the store's own reading can be a second old, and a prompt may have opened since.
     static func recordWaitsOnPerson(pid: Int32, sessions folder: String) -> Bool {
         guard let data = FileManager.default.contents(atPath: folder + "/\(pid).json") else { return false }
-        return SessionRecords.parse(data)?.state.activity == .waiting
+        return SessionRecords.parse(data)?.waitsOnPerson ?? false
     }
 
     /// Reads Claude Code's own record of each live session. Only files named `<pid>.json` are opened.
@@ -800,11 +800,12 @@ final class AgentStore: ObservableObject {
         // new session id, and exit removes it or leaves it to a dead pid. Its transcript can stop
         // mid-turn, and would read as at work for ten minutes, the bar's mascot standing for it.
         // Idle until a record holds it again. A record still there that can't be read says
-        // nothing, as before: it may be a state this app does not know yet.
+        // nothing, as before; one with a status this app does not know yet holds it, saying nothing of it.
         // ponytail: grows by one id per session closed while the app runs; a restart clears it.
         let unread = Set(names.filter { read[$0] == nil }.compactMap { last[$0]?.record.sessionId })
-        let gone = Set(states.keys).subtracting(live.keys).subtracting(unread).map { ($0, SessionState(activity: .idle)) }
-        states = live.mapValues(\.state).merging(gone) { held, _ in held }
+        // Live a read ago counts too: a session whose status was not known has no state to lose.
+        let gone = Set(states.keys).union(runningSince.keys).subtracting(live.keys).subtracting(unread).map { ($0, SessionState(activity: .idle)) }
+        states = live.compactMapValues(\.state).merging(gone) { held, _ in held }
         runningSince = live.mapValues(\.startedAt)
         // Once its record is read, the record speaks for a session the hook seated.
         let readAt = Date()
@@ -833,7 +834,7 @@ final class AgentStore: ObservableObject {
             processStart(record.pid).map {
                 SessionReach(process: SessionProcess(pid: record.pid, startedAt: $0),
                              route: found[record.pid]?.route ?? .stopHook,
-                             waitingOnPerson: record.state.activity == .waiting)
+                             waitingOnPerson: record.waitsOnPerson)
             }
         }
     }

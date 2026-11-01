@@ -27,7 +27,18 @@ final class SessionRecordsTests: XCTestCase {
             state: SessionState(activity: .waiting, since: Date(timeIntervalSince1970: 1_791_789_998.096))
         ))
         XCTAssertEqual(record(json(status: "busy")).state, SessionState(activity: .busy, since: nil))
-        XCTAssertEqual(record(json(status: "idle")).state.activity, .idle)
+        XCTAssertEqual(record(json(status: "idle")).state?.activity, .idle)
+        // Since 2.1.312: the turn ended with a background shell or monitor still running.
+        XCTAssertEqual(record(json(status: "shell")).state?.activity, .idle)
+    }
+
+    // A status this app does not know yet: the session is still the process's, and what it does is not said.
+    func testAnUnknownStatusKeepsTheRecordButSaysNothingOfIt() {
+        let unknown = record(json(status: "thinking"))
+        XCTAssertEqual(unknown.pid, 123)
+        XCTAssertNil(unknown.state)
+        XCTAssertEqual(SessionRecords.states(from: [unknown], processStart: alive), [:])
+        XCTAssertEqual(SessionRecords.live(from: [unknown], processStart: alive)["s1"]?.pid, 123)
     }
 
     // Claude Code documents none of this: a record the app cannot read in full counts as absent.
@@ -35,7 +46,6 @@ final class SessionRecordsTests: XCTestCase {
         XCTAssertNil(SessionRecords.parse(Data("{not json".utf8)))
         XCTAssertNil(SessionRecords.parse(Data()))
         XCTAssertNil(SessionRecords.parse(Data("[1,2]".utf8)))
-        XCTAssertNil(SessionRecords.parse(json(status: "thinking")))
         XCTAssertNil(SessionRecords.parse(json(session: "")))
         XCTAssertNil(SessionRecords.parse(Data(#"{"pid":"123","sessionId":"s1","startedAt":1791787807982,"status":"busy"}"#.utf8)))
         XCTAssertNil(SessionRecords.parse(Data(#"{"pid":123,"sessionId":"s1","startedAt":"today","status":"busy"}"#.utf8)))

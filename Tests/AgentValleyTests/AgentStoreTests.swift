@@ -1683,7 +1683,7 @@ final class AgentStoreTests: XCTestCase {
     }
 
     // Only a read that lands mid-rewrite may lean on the reading before it. A record that stays
-    // unreadable, or is whole but says something this app does not know, is no record.
+    // unreadable, or is whole but says something this app does not know, says nothing of the session's state.
     func testAReadingIsNotKeptOnceItsRecordStaysUnreadable() throws {
         let (reading, folder) = try storeWithRecords(alive: [111])
         func put(_ text: String) throws { try Data(text.utf8).write(to: folder.appendingPathComponent("111.json")) }
@@ -1705,6 +1705,33 @@ final class AgentStoreTests: XCTestCase {
         // A record caught missing is a session that ended, not one this app can't read.
         try put(recordJSON(pid: 111, session: "s1", status: "busy"))
         reading.readSessions()
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("111.json"))
+        reading.readSessions()
+        XCTAssertEqual(reading.states, ["s1": SessionState(activity: .idle)])
+    }
+
+    // A status this app does not know yet still says the session is open, as "shell" did before
+    // it was known: its background jobs stay on the card, and nothing is typed into what it may show.
+    func testAnUnknownStatusKeepsTheSessionOpen() throws {
+        let (reading, folder) = try storeWithRecords(alive: [111])
+        try Data(recordJSON(pid: 111, session: "s1", status: "compacting").utf8).write(to: folder.appendingPathComponent("111.json"))
+        let lines = [
+            #"{"type":"assistant","timestamp":"2026-10-12T07:00:00.000Z","cwd":"/Users/me/web-app","message":{"model":"claude-haiku-5-5","content":[{"type":"tool_use","id":"b0","name":"Bash","input":{"command":"npm test","description":"Run the tests","run_in_background":true}}]}}"#,
+            #"{"type":"user","timestamp":"2026-10-12T07:00:01.000Z","toolUseResult":{"backgroundTaskId":"bjob1"},"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"b0","content":"Command running in background with ID: bjob1."}]}}"#,
+            #"{"type":"assistant","timestamp":"2026-10-12T07:00:02.000Z","message":{"model":"claude-haiku-5-5","stop_reason":"end_turn","content":[{"type":"text","text":"Tests are running."}]}}"#,
+        ]
+        let path = try write(lines.joined(separator: "\n") + "\n", to: "proj/s1.jsonl")
+        reading.readSessions()
+        reading.ingest(path: path)
+        let later = try XCTUnwrap(reading.files[path]?.info.lastActivity).addingTimeInterval(60)
+        XCTAssertEqual(reading.cards(now: later).first?.jobs.map(\.id), ["bjob1"])
+        XCTAssertTrue(AgentStore.recordWaitsOnPerson(pid: 111, sessions: folder.path))
+        reading.publish()
+        let published = expectation(description: "published")
+        DispatchQueue.main.async { published.fulfill() }
+        wait(for: [published], timeout: 2)
+        XCTAssertEqual(reading.reach["s1"]?.waitingOnPerson, true)
+        // Closed while its status was not known: the session is idle from then on, like any other.
         try FileManager.default.removeItem(at: folder.appendingPathComponent("111.json"))
         reading.readSessions()
         XCTAssertEqual(reading.states, ["s1": SessionState(activity: .idle)])
