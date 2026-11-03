@@ -32,6 +32,10 @@ struct UsageSummary: Equatable {
     /// Tokens out in each of the last twelve clock hours, oldest first; the last is the hour
     /// under way.
     var hourly = [Int](repeating: 0, count: Usage.bars)
+    /// What each session has cost today at API prices, by session id, and the sessions with an
+    /// answer from a model no price is known for: those answers are not in the sum.
+    var spentToday: [String: Double] = [:]
+    var unpricedToday: Set<String> = []
 
     var isEmpty: Bool { fiveHours.isEmpty && today.isEmpty && hourly.allSatisfy { $0 == 0 } }
 }
@@ -56,5 +60,16 @@ enum Usage {
             if hoursBack < bars { summary.hourly[bars - 1 - hoursBack] += entry.totals.output }
         }
         return summary
+    }
+
+    /// Today's answers priced and added up by session. An answer dated after `now` is not counted.
+    static func spend(of answers: some Sequence<LedgerAnswer>, now: Date, calendar: Calendar = .current) -> (spent: [String: Double], unpriced: Set<String>) {
+        let dayStart = calendar.startOfDay(for: now)
+        var spent: [String: Double] = [:]
+        var unpriced: Set<String> = []
+        for answer in answers where answer.at >= dayStart && answer.at <= now {
+            if let cost = Pricing.cost(of: answer) { spent[answer.session, default: 0] += cost } else { unpriced.insert(answer.session) }
+        }
+        return (spent, unpriced)
     }
 }

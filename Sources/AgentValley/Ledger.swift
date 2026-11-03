@@ -379,10 +379,18 @@ final class UsageLedger: ObservableObject {
     private func lastDay(_ db: SQLite, now: Date, calendar: Calendar) throws -> UsageSummary {
         let rows = try db.rows("SELECT at, input, write5m + write1h, read, output FROM answers WHERE at > ?",
                                [.real(now.addingTimeInterval(-Self.reach).timeIntervalSince1970)])
-        return Usage.summary(of: rows.map {
+        var summary = Usage.summary(of: rows.map {
             UsageEntry(at: Date(timeIntervalSince1970: $0[0].real),
                        totals: TokenTotals(input: $0[1].int, cacheWrite: $0[2].int, cacheRead: $0[3].int, output: $0[4].int))
         }, now: now, calendar: calendar)
+        // Today, priced: what a login billed per use shows in place of plan limits.
+        let today = try db.rows("SELECT at, session, model, fast, us, input, write5m, write1h, read, output, searches FROM answers WHERE at >= ?",
+                                [.real(calendar.startOfDay(for: now).timeIntervalSince1970)])
+        (summary.spentToday, summary.unpricedToday) = Usage.spend(of: today.map {
+            LedgerAnswer(id: "", at: Date(timeIntervalSince1970: $0[0].real), session: $0[1].text, model: $0[2].text, fast: $0[3].int != 0,
+                         us: $0[4].int != 0, input: $0[5].int, write5m: $0[6].int, write1h: $0[7].int, read: $0[8].int, output: $0[9].int, searches: $0[10].int)
+        }, now: now, calendar: calendar)
+        return summary
     }
 
     private static func cannotSave(_ error: Error) -> String {

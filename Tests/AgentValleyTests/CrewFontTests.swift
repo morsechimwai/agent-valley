@@ -17,25 +17,30 @@ final class CrewFontTests: XCTestCase {
     func testUntaggedGivesEachTagBackItsName() {
         let walt = CrewFont.Tag.text(.lead(LeadLook(face: 1, hair: 4, shirt: 6))), judy = CrewFont.Tag.text(.plan)
         let felix = CrewFont.Tag.text(.other(shirt: 2)), mug = CrewFont.Picture.mug.character
-        XCTAssertEqual(CrewFont.untagged("\(walt) hands it to \(judy), then \(felix)\(mug)."), "Walt hands it to Judy, then Felix.")
+        XCTAssertEqual(CrewFont.untagged("\(walt) hands it to \(judy), then \(felix)\(mug)."), "**Walt** hands it to **Judy**, then **Felix**.")
         XCTAssertEqual(CrewFont.untagged("No tags here."), "No tags here.")
+        // A bare badge, with the name in plain text or none, and an older three-character tag.
+        let badge = String(walt.unicodeScalars.first!), next = String(UnicodeScalar(CrewFont.Tag.lastScalar + 1)!)
+        XCTAssertEqual(CrewFont.untagged("\(badge) Walt, then \(badge)."), "Walt, then Walt.")
+        XCTAssertEqual(CrewFont.untagged("Ask \(badge)\(next)\(next) now."), "Ask Walt now.")
     }
 
-    // Three characters a tag, each its own: a head for every look, two name parts for every name in every shirt.
-    func testEveryTagHasItsOwnCharactersAfterTheMarks() {
+    // iTerm's solid plan badges come right after the rings, one character a part as in the first set.
+    func testTheSolidBadgesComeAfterTheRings() {
+        let solid = CrewFont.Badge.allCases.flatMap { $0.text(solid: true).unicodeScalars.map(\.value) }
+        XCTAssertEqual(solid, Array(CrewFont.Bar.lastScalar + 1...CrewFont.Bar.lastScalar + UInt32(solid.count)))
+        XCTAssertEqual(solid.count, CrewFont.Badge.allCases.flatMap { $0.text.unicodeScalars }.count)
+        XCTAssertLessThanOrEqual(solid.last!, CrewFont.lastScalar, "past the end of Ghostty's font line")
+    }
+
+    // One badge a look, right after the marks, then the name in bold.
+    func testEveryTagHasItsOwnBadgeAfterTheMarks() {
         let tags = CrewFont.Tag.kinds.map(CrewFont.Tag.text)
         XCTAssertEqual(tags.count, 7 + 4 * 6 * 7)
-        XCTAssertTrue(tags.allSatisfy { $0.unicodeScalars.count == 3 })
-        XCTAssertEqual(tags.map { $0.unicodeScalars.first!.value }, Array(CrewFont.Tag.firstScalar..<CrewFont.Tag.firstScalar + UInt32(tags.count)))
+        XCTAssertEqual(tags.map { $0.unicodeScalars.first!.value }, Array(CrewFont.Tag.firstScalar...CrewFont.Tag.lastScalar))
         XCTAssertEqual(CrewFont.Tag.firstScalar, CrewFont.Mark.worktree.scalar + 1)
-        let parts = Set(tags.flatMap { $0.unicodeScalars.dropFirst().map(\.value) })
-        XCTAssertEqual(parts, Set(CrewFont.Tag.firstScalar + UInt32(tags.count)...CrewFont.Tag.lastScalar))
         XCTAssertLessThanOrEqual(CrewFont.Tag.lastScalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
-        // A lead's hair changes the face, not the name parts; its shirt changes both.
-        let one = CrewFont.Tag.text(.lead(LeadLook(face: 2, hair: 0, shirt: 3))), other = CrewFont.Tag.text(.lead(LeadLook(face: 2, hair: 5, shirt: 3)))
-        XCTAssertNotEqual(one.unicodeScalars.first, other.unicodeScalars.first)
-        XCTAssertEqual(Array(one.unicodeScalars.dropFirst()), Array(other.unicodeScalars.dropFirst()))
-        XCTAssertNotEqual(Array(one.unicodeScalars.dropFirst()), Array(CrewFont.Tag.text(.lead(LeadLook(face: 2, shirt: 4))).unicodeScalars.dropFirst()))
+        XCTAssertEqual(String(CrewFont.Tag.text(.plan).unicodeScalars.dropFirst()), " **Judy**")
         // Every head says whose it is.
         XCTAssertEqual(CrewFont.Tag.kinds.map { CrewFont.Tag.who(head: CrewFont.Tag.text($0).unicodeScalars.first!.value) }, CrewFont.Tag.kinds.map(CrewFont.Tag.who))
     }
@@ -51,17 +56,13 @@ final class CrewFontTests: XCTestCase {
         XCTAssertNil(CrewFont.Badge(plan: "Max 20x"))
     }
 
-    // The bar fills in eighths of a character, at least one above 0%, and its ends are round.
-    func testBarsFillInEighthsAfterTheBadges() {
+    // The ring is one character in steps of 5%, at least one step above 0%.
+    func testRingsFillInStepsAfterTheBadges() {
         let first = CrewFont.Bar.firstScalar
-        func codes(_ percent: Double, _ cells: Int) -> [UInt32] { CrewFont.Bar.text(percent, cells: cells).unicodeScalars.map { $0.value - first } }
+        func level(_ percent: Double) -> UInt32 { CrewFont.Bar.text(percent).unicodeScalars.first!.value - first }
         XCTAssertEqual(first, CrewFont.Badge.lastScalar + 1)
-        XCTAssertEqual(codes(0, 10), [0, 9, 9, 9, 18])
-        XCTAssertEqual(codes(0.4, 10), [1, 9, 9, 9, 18])
-        XCTAssertEqual(codes(50, 4), [8, 18])
-        XCTAssertEqual(codes(100, 4), [8, 26])
-        XCTAssertEqual(codes(130, 10), [8, 17, 17, 17, 26])
-        XCTAssertEqual(CrewLine.width(CrewFont.Bar.text(62, cells: 8)), 8)
+        XCTAssertEqual([0, 0.4, 50, 62, 100, 130].map(level), [0, 1, 10, 12, 20, 20])
+        XCTAssertEqual(CrewFont.Bar.text(62).unicodeScalars.count, 1)
         XCTAssertLessThanOrEqual(CrewFont.Bar.lastScalar, CrewFont.lastScalar, "past the end of Ghostty's font line")
     }
 

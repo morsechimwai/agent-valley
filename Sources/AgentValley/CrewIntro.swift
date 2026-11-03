@@ -36,8 +36,8 @@ enum CrewIntro {
     /// a terminal without the font would draw empty boxes. The words are the ones tested with `claude -p`.
     private static func tagsLine(_ tags: [Crew: String], in place: String) -> [String] {
         guard !tags.isEmpty else { return [] }
-        let list = Crew.allCases.compactMap { who in tags[who].map { "\($0) = \(who.name)" } }.joined(separator: ", ")
-        return ["The person's terminal draws each of your names as a name tag from AgentValley's font, three characters long. \(place), write each name as its tag in place of the plain name: \(list). Copy each tag exactly, all three characters, with a space before and after it like a word. Nowhere else: never in code, comments, commit messages, PR text, files or tool inputs."]
+        let list = Crew.allCases.compactMap { tags[$0] }.joined(separator: ", ")
+        return ["The person's terminal draws a face badge from AgentValley's font for each of your names. \(place), write each name with its badge in front of it and the name in bold, exactly as here: \(list). Copy each badge exactly, one character, with a space between it and the name. Nowhere else: never in code, comments, commit messages, PR text, files or tool inputs."]
     }
 
     /// For the session's own agent, at SessionStart. `tags`: from `tags(lead:)` when the terminal can draw them.

@@ -128,7 +128,9 @@ extension AppDelegate {
             onStatus: { [store] id, session, status in
                 SendLog.write(id: id, route: store.reach[session]?.route.kind ?? "none", status: status, to: logFile)
             })
-        answers.onIntro = { [store, settings] request, connection in
+        answers.onIntro = { [store, settings, limits] request, connection in
+            // Each session's hook says how it pays, whether or not the crew's names are on.
+            if request.event == "SessionStart" { limits.record(session: request.session, login: request.login) }
             guard CrewIntro.reachesStore(event: request.event, names: settings.crewNames) else { connection.reply(nil); return }
             store.introduce(request, names: settings.crewNames, tags: settings.nameTags) { connection.reply($0) }
         }
@@ -136,6 +138,13 @@ extension AppDelegate {
             let hook = desk.arrived(stop) { connection.reply($0) }
             connection.onClose = { [weak desk] in desk?.hookGone(hook) }
         }
+        // Which sessions are open and what today cost, for how the open sessions pay.
+        store.$sessions
+            .sink { [limits] in limits.setLive(Set($0.filter { !$0.closed }.map(\.id))) }
+            .store(in: &watches)
+        usage.$summary
+            .sink { [limits] in limits.setSpend($0?.spentToday, unpriced: $0?.unpricedToday ?? []) }
+            .store(in: &watches)
         // Published values arrive before they are stored: look again once they have landed.
         answers.$pending
             .receive(on: DispatchQueue.main)

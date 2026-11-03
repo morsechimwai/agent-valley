@@ -106,8 +106,15 @@ struct SettingsView: View {
             }
         }
         SettingGroup {
-            SettingRow(title: "Plan limits", caption: Format.limitsCaption, note: limitsNote) {
-                Switch(title: "Plan limits", isOn: $settings.planLimits)
+            // Paid per use there are no limits to read, so the same switch shows today's spend.
+            if let login = limits.login, login.payPerUse {
+                SettingRow(title: "Spend today", caption: Format.payPerUseCaption(via: login.badge)) {
+                    Switch(title: "Spend today", isOn: $settings.planLimits)
+                }
+            } else {
+                SettingRow(title: "Plan limits", caption: Format.limitsCaption, note: limitsNote) {
+                    Switch(title: "Plan limits", isOn: $settings.planLimits)
+                }
             }
             SettingRow(title: "Token use", caption: Format.usageCaption) {
                 Switch(title: "Token use", isOn: $settings.tokenUse)

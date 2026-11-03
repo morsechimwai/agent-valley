@@ -28,6 +28,7 @@
 #     fishing          the 5-hour limit run out: the fish on the bar, the sign over the list
 #     fishing-week     the same for the weekly limit
 #     weekly           a plan with no 5-hour limit: the ring on the bar is the weekly one
+#     payperuse        an API-key, Bedrock or Vertex login: today's spend on the bar, the row and settings
 #     island           a Mac with an island instead of the notch: the notch, then the island shut, alerting and open
 #     away             the Away button on, the yellow band, and a phone message that was not sent
 #     motion           frames of the crew lines moving: a sub-agent starts, then one finishes.

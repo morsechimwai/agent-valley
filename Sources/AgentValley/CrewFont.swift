@@ -183,31 +183,33 @@ enum CrewFont {
         }
     }
 
-    /// `text` with each name tag back to the name it shows and every other character of the font
-    /// taken out: Claude writes the tags for the terminal, and the panel and the phone draw no such font.
+    /// `text` with every character of the font taken out: Claude writes the tags for the terminal,
+    /// and the panel and the phone draw no such font. A badge goes with its space before the name;
+    /// a badge with no name after it, or an older tag (three characters, the name
+    /// drawn in), becomes the name.
     static func untagged(_ text: String) -> String {
         let block = firstScalar...lastScalar
         guard text.unicodeScalars.contains(where: { block.contains($0.value) }) else { return text }
-        var kept = String.UnicodeScalarView()
+        var kept = String.UnicodeScalarView(), names = Set<String>()
         for scalar in text.unicodeScalars {
             if !block.contains(scalar.value) {
                 kept.append(scalar)
             } else if let who = Tag.who(head: scalar.value) {
-                kept.append(contentsOf: who.name.unicodeScalars)
+                kept.append(contentsOf: who.name.unicodeScalars); names.insert(who.name)
             }
         }
-        return String(kept)
+        return names.reduce(String(kept)) {
+            $0.replacingOccurrences(of: "\($1) **\($1)**", with: "**\($1)**").replacingOccurrences(of: "\($1) \($1)", with: $1)
+        }
     }
 
-    /// A name tag for Claude's chat: the person's face and name on a pill in their shirt's pale
-    /// dye, three wide characters long. After the marks: the head (the pill's left end and the
-    /// face) of each look in the order of `place`, then the two name parts of each name in each
-    /// shirt in the order of `dress`. The colours are the font's, not the terminal's.
+    /// A name tag for Claude's chat: a badge, the person's face on a pill in their shirt's pale dye,
+    /// one wide character, then the name in bold. One character, so Ghostty, which draws each colour
+    /// character a little narrower than its cells, leaves no seam in it. After the marks: a badge for
+    /// each look in the order of `place`. The colours are the font's, not the terminal's.
     enum Tag {
         static var firstScalar: UInt32 { Mark.worktree.scalar + 1 }
-        static var lastScalar: UInt32 { firstScalar + UInt32(kinds.count + dresses.count * 2) - 1 }
-        /// The letters.
-        static let ink: UInt32 = 0x111111
+        static var lastScalar: UInt32 { firstScalar + UInt32(kinds.count) - 1 }
 
         /// Every look a head is drawn for, at its `place`.
         static let kinds: [MascotKind] = crew + (0..<Person.leads.count).flatMap { face in
@@ -216,20 +218,9 @@ enum CrewFont {
             }
         }
 
-        /// One look for each name in each shirt, at its `dress`: the crew's own, then each lead in each shirt.
-        static let dresses: [MascotKind] = crew + (0..<Person.leads.count).flatMap { face in
-            (0..<Person.leadShirts.count).map { MascotKind.lead(LeadLook(face: face, shirt: $0)) }
-        }
-
-        private static func dress(_ kind: MascotKind) -> Int {
-            guard case .lead(let look) = kind else { return place(kind) }
-            return crew.count + (look.face % Person.leads.count) * Person.leadShirts.count + look.shirt % Person.leadShirts.count
-        }
-
-        /// The three characters that draw `kind`'s tag.
+        /// `kind`'s tag as Claude writes it: the badge, a space, the name in bold.
         static func text(_ kind: MascotKind) -> String {
-            let parts = firstScalar + UInt32(kinds.count + dress(kind) * 2)
-            return [firstScalar + UInt32(place(kind)), parts, parts + 1].map { String(UnicodeScalar($0)!) }.joined()
+            "\(UnicodeScalar(firstScalar + UInt32(place(kind)))!) **\(who(kind).name)**"
         }
 
         /// Whose name the tag shows.
@@ -242,13 +233,13 @@ enum CrewFont {
             }
         }
 
-        /// Whose tag a head character begins; nil for any other character.
+        /// Whose badge a character is; nil for any other character.
         static func who(head scalar: UInt32) -> Crew? {
             guard scalar >= firstScalar, scalar < firstScalar + UInt32(kinds.count) else { return nil }
             return who(kinds[Int(scalar - firstScalar)])
         }
 
-        /// Behind the letters, and the line around them.
+        /// Behind the face, and the line around it.
         static func colours(_ kind: MascotKind) -> (fill: UInt32, edge: UInt32) {
             let shirt = kind.person.shirt
             return (paler(shirt, by: 0.78), paler(shirt, by: 0.55))
@@ -257,13 +248,18 @@ enum CrewFont {
 
     /// The plan's name on a pill in Claude's orange, as the panel's status row draws it: the fill
     /// faint, the letters a lighter orange. After the tags. Only the plans Claude sells: any other name stays
-    /// plain text.
+    /// plain text. Several characters, but on so faint a fill Ghostty's seams do not show.
     enum Badge: String, CaseIterable {
         case free = "Free", pro = "Pro", max = "Max", ultra = "Ultra", team = "Team", enterprise = "Enterprise"
 
         static let orange: UInt32 = 0xD97757
         /// The fill, over whatever the terminal's background is.
         static let fillOpacity = 0.22
+        /// iTerm leaves a hairline between wide characters, so it gets a set of its own after the
+        /// rings: the fill solid and carried on under the next part, each letter whole on the last part
+        /// it touches. Ghostty shrinks a part drawn past its cells, so other terminals keep the first set.
+        /// ponytail: solid = the faint fill over a #22272E background; a light iTerm theme gets a dark pill.
+        static let solid: UInt32 = 0x4A3937
         /// The letters: a lighter orange, to read on the faint fill over a dark background.
         /// ponytail: on a light background they read weakly; a second set of badges if anyone uses one.
         static let ink: UInt32 = 0xEE9A7D
@@ -283,31 +279,32 @@ enum CrewFont {
 
         static var lastScalar: UInt32 { enterprise.firstScalar + UInt32(enterprise.parts) - 1 }
 
-        var text: String { (0..<UInt32(parts)).map { String(UnicodeScalar(firstScalar + $0)!) }.joined() }
+        /// The solid set's first character, as far past the rings as the first set is past the tags.
+        func firstScalar(solid: Bool) -> UInt32 { firstScalar + (solid ? Bar.lastScalar - Tag.lastScalar : 0) }
+
+        var text: String { text(solid: false) }
+        func text(solid: Bool) -> String {
+            (0..<UInt32(parts)).map { String(UnicodeScalar(firstScalar(solid: solid) + $0)!) }.joined()
+        }
     }
 
-    /// A limit's bar with round ends, as the panel draws it: the used part in the text's colour,
-    /// the rest a faint track over the terminal's background. Each character is two cells, filled
-    /// from the left in eighths: the bar's left end, a middle, its right end. After the badges.
+    /// A limit as a ring, filled clockwise from the top: the used part in the text's colour, the
+    /// rest a faint track over the terminal's background. One character of two cells, so no
+    /// terminal shows a seam in it. After the badges.
     enum Bar {
-        static let levels = 9
+        /// Steps from empty to full: one a 5%.
+        static let levels = 21
         static let track: UInt32 = 0x808080
         static let trackOpacity = 0.45
 
         static var firstScalar: UInt32 { Badge.lastScalar + 1 }
-        static var lastScalar: UInt32 { firstScalar + UInt32(3 * levels) - 1 }
+        static var lastScalar: UInt32 { firstScalar + UInt32(levels) - 1 }
 
-        static func scalar(place: Int, level: Int) -> UInt32 { firstScalar + UInt32(place * levels + level) }
-
-        /// A bar `cells` wide (even, 4 or more) with `percent` used: empty at 0% or less, at
-        /// least an eighth of a character above it, full at 100%.
-        static func text(_ percent: Double, cells: Int) -> String {
-            let count = max(2, cells / 2), eighths = count * 8
-            let full = percent <= 0 ? 0 : min(eighths, max(1, Int((percent / 100 * Double(eighths)).rounded())))
-            return (0..<count).map { i in
-                let place = i == 0 ? 0 : i == count - 1 ? 2 : 1
-                return String(UnicodeScalar(scalar(place: place, level: min(max(full - i * 8, 0), 8)))!)
-            }.joined()
+        /// Empty at 0% or less, at least one step above it, full at 100%.
+        static func text(_ percent: Double) -> String {
+            let steps = levels - 1
+            let level = percent <= 0 ? 0 : min(steps, max(1, Int((percent / 100 * Double(steps)).rounded())))
+            return String(UnicodeScalar(firstScalar + UInt32(level))!)
         }
     }
 
@@ -361,36 +358,29 @@ enum CrewFont {
             let contours = mark.contours.map { "[" + $0.map { "\($0.x),\($0.y)" }.joined(separator: ",") + "]" }
             return "{\"codepoint\":\(mark.scalar),\"contours\":[\(contours.joined(separator: ","))]}"
         }
-        // Each tag part with its colours and name; the head carries the face too.
-        let heads = Tag.kinds.map { kind in
-            tag(Tag.text(kind).unicodeScalars.first!.value, part: 0, kind,
-                rects: runs(MascotView.pose(kind.person, status: .working, callsOut: false, blink: false, wave: 0), kind.person.hex))
-        }
-        let parts = Tag.dresses.flatMap { kind in
-            Tag.text(kind).unicodeScalars.dropFirst().enumerated().map { tag($0.element.value, part: $0.offset + 1, kind, rects: []) }
+        // Each badge with its colours and face.
+        let tags = Tag.kinds.map { kind in
+            let (fill, edge) = Tag.colours(kind)
+            let face = runs(MascotView.pose(kind.person, status: .working, callsOut: false, blink: false, wave: 0), kind.person.hex)
+            return "{\"codepoint\":\(Tag.text(kind).unicodeScalars.first!.value),\"fill\":\"\(String(format: "%06X", fill))\","
+                + "\"edge\":\"\(String(format: "%06X", edge))\",\"rects\":[\(face.joined(separator: ","))]}"
         }
         let (orange, ink) = (String(format: "%06X", Badge.orange), String(format: "%06X", Badge.ink))
-        let badges = Badge.allCases.flatMap { badge in
-            (0..<badge.parts).map { part in
-                "{\"codepoint\":\(badge.firstScalar + UInt32(part)),\"part\":\(part),\"parts\":\(badge.parts),\"name\":\"\(badge.rawValue)\","
-                    + "\"colour\":\"\(orange)\",\"fill\":\(String(format: "%.2f", Badge.fillOpacity)),\"ink\":\"\(ink)\"}"
+        let badges = [false, true].flatMap { solid in
+            Badge.allCases.flatMap { badge in
+                (0..<badge.parts).map { part in
+                    "{\"codepoint\":\(badge.firstScalar(solid: solid) + UInt32(part)),\"part\":\(part),\"parts\":\(badge.parts),\"name\":\"\(badge.rawValue)\","
+                        + "\"colour\":\"\(orange)\",\"fill\":\(String(format: "%.2f", Badge.fillOpacity)),\"ink\":\"\(ink)\""
+                        + (solid ? ",\"solid\":\"\(String(format: "%06X", Badge.solid))\"}" : "}")
+                }
             }
         }
-        let bars = (0..<3).flatMap { place in
-            (0..<Bar.levels).map { level in
-                "{\"codepoint\":\(Bar.scalar(place: place, level: level)),\"place\":\(place),\"level\":\(level),"
-                    + "\"track\":\"\(String(format: "%06X", Bar.track))\",\"opacity\":\(String(format: "%.2f", Bar.trackOpacity))}"
-            }
+        let bars = (0..<Bar.levels).map { level in
+            "{\"codepoint\":\(Bar.firstScalar + UInt32(level)),\"level\":\(level),\"levels\":\(Bar.levels),"
+                + "\"track\":\"\(String(format: "%06X", Bar.track))\",\"opacity\":\(String(format: "%.2f", Bar.trackOpacity))}"
         }
         return Data(("{\"family\":\"\(family)\",\"faces\":[\((faces + pictures).joined(separator: ","))],\"marks\":[\(marks.joined(separator: ","))],"
-            + "\"tags\":[\((heads + parts).joined(separator: ","))],\"badges\":[\(badges.joined(separator: ","))],\"bars\":[\(bars.joined(separator: ","))]}").utf8)
-    }
-
-    private static func tag(_ scalar: UInt32, part: Int, _ kind: MascotKind, rects: [String]) -> String {
-        let (fill, edge) = Tag.colours(kind)
-        let hex = { (colour: UInt32) in String(format: "%06X", colour) }
-        return "{\"codepoint\":\(scalar),\"part\":\(part),\"name\":\"\(Tag.who(kind).name)\",\"fill\":\"\(hex(fill))\",\"edge\":\"\(hex(edge))\","
-            + "\"ink\":\"\(hex(Tag.ink))\",\"rects\":[\(rects.joined(separator: ","))]}"
+            + "\"tags\":[\(tags.joined(separator: ","))],\"badges\":[\(badges.joined(separator: ","))],\"bars\":[\(bars.joined(separator: ","))]}").utf8)
     }
 
     private static func entry(_ scalar: UInt32, opacity: Double, cells: [[Character]], hex colour: (Character) -> UInt32?) -> String {

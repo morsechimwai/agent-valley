@@ -337,6 +337,14 @@ final class PanelPicturesTests: XCTestCase {
             // A plan with no 5-hour window, as Ultra came: the ring takes the weekly one.
             limits = PlanLimitsClient(source: FixedLimits(limits: PlanLimits(fiveHour: nil, week: PlanLimit(usedPercent: 90, resetsAt: Date().addingTimeInterval(37 * 3600)), plan: "Ultra")))
             limits.setEnabled(true)
+        } else if scene == "payperuse" {
+            // An API-key login, paid per use: today's spend where the limits go.
+            limits = PlanLimitsClient(source: FixedLimits(limits: PlanLimits(fiveHour: nil, week: nil)),
+                                      defaults: UserDefaults(suiteName: "pictures-\(UUID().uuidString)")!)
+            limits.record(session: "pictures", login: .api)
+            limits.setSpend(["pictures": 4.27], unpriced: [])
+            settings.planLimits = true
+            limits.setEnabled(true)
         } else {
             limits = PlanLimitsClient()
         }
@@ -733,6 +741,18 @@ final class PanelPicturesTests: XCTestCase {
             picture("open")
         case "island-motion":
             try islandMotion(state: state, window: window, islandOn: islandOn, open: open, shut: shut)
+        case "payperuse":
+            for login in [LoginKind.api, .bedrock, .vertex] {
+                limits.record(session: "pictures", login: login)
+                picture("shut-\(login.rawValue)")
+            }
+            limits.record(session: "pictures", login: .api)
+            open()
+            picture("open")
+            spoken("open")
+            state.showingSettings = true
+            state.settingsTab = .general
+            picture("settings")
         case "weekly":
             picture("shut")
             spoken("shut")

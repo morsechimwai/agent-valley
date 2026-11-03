@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.34 — 2026-11-03
+
+- If you pay for Claude Code per use, with an API key or through Bedrock, Vertex, Foundry or a gateway, the app shows what today has cost at API prices where your plan limits would be: on the bar, at the top of the panel, in settings and in the terminal's status line. A small badge says how you pay, and the count starts again at midnight. When some sessions run on a plan and others pay per use, the plan's limits are shown.
+- The crew's name tags in Claude's replies are a round face and the name in bold. Ghostty showed seams in the old tags.
+- Limits are rings now, in the status line and in the panel.
+- In iTerm the plan badge has no thin lines through it any more. Reopen your terminal app once after the update to see the new look.
+
 ## 0.3.33 — 2026-11-01
 
 - The status line in your terminal has two rows now, like the panel. The top one is this session: its face, the model and how full the context is. The one under it is your plan: its orange badge, then its limits.

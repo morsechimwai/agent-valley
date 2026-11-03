@@ -56,6 +56,13 @@ enum Pricing {
     /// line: "claude-opus-5-7" has no price until the table has it.
     private static func model(_ id: String) -> Model? {
         if let model = byID[id] { return model }
+        // A cloud platform's name for it: "us.anthropic.claude-opus-5-5-v1:0" on Bedrock, or an
+        // ARN that ends so, and "claude-opus-5-5@20261001" on Vertex.
+        var bare = Substring(id)
+        if let prefix = bare.range(of: "anthropic.", options: .backwards) { bare = bare[prefix.upperBound...] }
+        if let at = bare.firstIndex(of: "@") { bare = bare[..<at] }
+        if let version = bare.range(of: #"-v\d+(:\d+)?$"#, options: .regularExpression) { bare = bare[..<version.lowerBound] }
+        if bare != id { return model(String(bare)) }
         guard let dash = id.lastIndex(of: "-") else { return nil }
         let date = id[id.index(after: dash)...]
         guard date.count == 8, date.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }

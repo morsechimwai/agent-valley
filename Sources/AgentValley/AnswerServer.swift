@@ -124,9 +124,9 @@ final class AnswerConnection {
             guard let stop = StopWait(hookInput: body) else { return finish() }
             announced = true
             onStop(stop, self)
-        case .complete(.crewIntro(let pid, let terminal), let body):
+        case .complete(.crewIntro(let pid, let terminal, let login), let body):
             buffer = Data()
-            guard let request = CrewIntroRequest(hookInput: body, pid: pid, terminal: terminal) else { return finish() }
+            guard let request = CrewIntroRequest(hookInput: body, pid: pid, terminal: terminal, login: login) else { return finish() }
             announced = true
             onIntro(request, self)
         }

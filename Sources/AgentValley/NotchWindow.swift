@@ -527,6 +527,8 @@ final class NotchWindowController: NSObject {
     private var leadLooksWatch: AnyCancellable?
     /// The bytes last written for `crew status`, so a refresh that changes nothing writes nothing.
     private var lastLeadLooks: Data?
+    private var spendWatch: AnyCancellable?
+    private var lastSpend: Data?
     /// The panel opened by itself and stays until the cursor has been over it once.
     private var held = false
     /// The island at the last look for the cursor, and the place it shrank from under it.
@@ -569,6 +571,18 @@ final class NotchWindowController: NSObject {
                 self.lastLeadLooks = data
             }
         }
+        // And how each open session pays, when per use, with today's cost: the terminal shows it
+        // where plan limits would go.
+        spendWatch = Publishers.Merge(store.$sessions.map { _ in () }, limits.objectWillChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                guard let self else { return }
+                let open = self.store.sessions.filter { !$0.closed }.map(\.id)
+                let data = CrewSetup.spendData(self.limits.payPerUse(of: open), now: Date())
+                if data != self.lastSpend, (try? CrewSetup.writeSpend(data, home: FileManager.default.homeDirectoryForCurrentUser)) != nil {
+                    self.lastSpend = data
+                }
+            }
         panel.isOpaque = false
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.backgroundColor = .clear

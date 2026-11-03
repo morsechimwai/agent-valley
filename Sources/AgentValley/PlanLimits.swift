@@ -72,6 +72,8 @@ enum LimitsFailure: Error, Equatable {
     case noLogin
     /// The login in it has run out. Only Claude Code renews it; this app never does.
     case loginExpired
+    /// The Keychain's login has no Claude plan: a Console sign-in, billed per use.
+    case notSubscribed
     /// No answer from the usage endpoint.
     case offline
     /// It answered with this HTTP status.
@@ -105,9 +107,20 @@ enum PlanLimitsReader {
         guard let object = SafeJSON.object(data),
               let oauth = object["claudeAiOauth"] as? [String: Any],
               let token = oauth["accessToken"] as? String, !token.isEmpty else { return .failure(.noLogin) }
+        // A Console login keeps an item too, without a plan or the right to chat on one. An item
+        // that names neither, from an older Claude Code, is taken as a plan as before.
+        let plan = (oauth["subscriptionType"] as? String).map { !$0.isEmpty } ?? false
+        if !plan, let scopes = oauth["scopes"] as? [String], !scopes.contains("user:inference") { return .failure(.notSubscribed) }
         if let expires = oauth["expiresAt"] as? NSNumber,
            Date(timeIntervalSince1970: expires.doubleValue / 1000) <= now { return .failure(.loginExpired) }
         return .success(token)
+    }
+
+    /// What `security find-generic-password` gave. No item at all (status 44) is not taken as
+    /// pay per use: a plan login kept under another name, with CLAUDE_CONFIG_DIR set, looks the same.
+    static func login(securityStatus: Int32, item: Data, now: Date) -> Result<String, LimitsFailure> {
+        guard securityStatus == 0 else { return .failure(.noLogin) }
+        return login(fromKeychainItem: item, now: now)
     }
 
     /// The 5-hour and weekly limits in a usage reply, or nil when it holds neither. The reply is
@@ -259,8 +272,7 @@ final class KeychainLimitsSource: PlanLimitsSource {
         let item = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         stop.cancel()
-        guard process.terminationStatus == 0 else { return .failure(.noLogin) }
-        return PlanLimitsReader.login(fromKeychainItem: item, now: Date())
+        return PlanLimitsReader.login(securityStatus: process.terminationStatus, item: item, now: Date())
     }
 
     /// One fetch, shared between the thread that runs it and the one that may cancel it.
@@ -296,6 +308,36 @@ final class KeychainLimitsSource: PlanLimitsSource {
     }
 }
 
+/// How a session pays: by plan, or per use through one of these. Only this word ever leaves
+/// the session's hook; never a key or a token.
+enum LoginKind: String {
+    case plan, api, gateway, bedrock, vertex, foundry
+
+    var payPerUse: Bool { self != .plan }
+
+    /// Shown where a plan's name goes.
+    var badge: String {
+        switch self {
+        case .plan: return "Plan"
+        case .api: return "API"
+        case .gateway: return "Gateway"
+        case .bedrock: return "Bedrock"
+        case .vertex: return "Vertex"
+        case .foundry: return "Foundry"
+        }
+    }
+}
+
+/// A login billed per use rather than by plan: how it pays, and what today has cost so far at API prices.
+struct PayPerUse: Equatable {
+    /// "API", "Bedrock", "Vertex": shown where a plan's name goes.
+    let via: String
+    /// nil while Token use is off: then nothing on this Mac counts it.
+    let spentToday: Double?
+    /// Some of today's answers came from a model with no known price, and are left out of the sum.
+    var unpriced = false
+}
+
 /// Decides when to fetch and what to show. Touches neither the Keychain nor the network itself,
 /// and asks its source for nothing while disabled. All state lives on the main thread.
 final class PlanLimitsClient: ObservableObject {
@@ -316,6 +358,8 @@ final class PlanLimitsClient: ObservableObject {
         case unavailable(LimitsFailure)
         /// `asOf`: set when the latest refresh failed, to the time these older numbers are from.
         case limits(PlanLimits, asOf: Date?)
+        /// Logged in with an API key or a cloud platform: no plan limits, so what today has cost.
+        case payPerUse(PayPerUse)
 
         /// The ring for the shut bar: the 5-hour window, else the weekly one, else nil. An empty
         /// ring would say that nothing has been used.
@@ -340,9 +384,87 @@ final class PlanLimitsClient: ObservableObject {
     @Published private(set) var enabled = false
     /// Why the latest fetch brought no numbers, or nil when it did or none has finished yet.
     @Published private(set) var failure: LimitsFailure?
+    /// Sessions in the order they started, and how each pays as its hook saw it: nil when the
+    /// hook could not tell, which leaves it to the Keychain.
+    // ponytail: never pruned and not kept across launches; a few dozen a day. Prune by `live` if it ever matters.
+    @Published private var started: [Start] = []
+    /// The sessions still open, by id.
+    @Published private var live: Set<String> = []
+    /// What the latest session's hook said, kept across launches: sessions the app never saw
+    /// start, from before it opened, are taken to pay the same way.
+    @Published private var lastHook: LoginKind?
+    /// Today's cost so far by session, at API prices, and the sessions with answers no price is
+    /// known for. `spent` is nil while Token use is off.
+    @Published private var spent: [String: Double]?
+    @Published private var unpriced: Set<String> = []
+
+    private struct Start: Equatable {
+        let session: String
+        let kind: LoginKind?
+    }
+
+    /// What the Keychain says, or nil while it has not said: a plan when it has numbers or any
+    /// trouble that is not about the plan itself.
+    private var keychainKind: LoginKind? {
+        if limits != nil { return .plan }
+        switch failure {
+        case nil, .noLogin: return nil
+        case .notSubscribed: return .api
+        default: return .plan
+        }
+    }
+
+    /// The kinds of the open sessions the app saw start.
+    private var liveKinds: [LoginKind?] {
+        started.filter { live.contains($0.session) }.map(\.kind)
+    }
+
+    /// How the open sessions pay. A plan wins over pay per use: its limits are the thing to watch.
+    var login: LoginKind? {
+        let kinds = liveKinds.map { $0 ?? keychainKind }
+        guard !kinds.isEmpty else { return lastHook ?? keychainKind }
+        if kinds.contains(.plan) { return .plan }
+        if kinds.contains(nil) { return nil }
+        return kinds.last ?? nil
+    }
+
+    /// Whether anything open, or about to open, could be on a plan: only then is the Keychain asked.
+    private var needsKeychain: Bool {
+        let kinds = liveKinds
+        guard !kinds.isEmpty else { return lastHook == nil || lastHook == .plan }
+        return kinds.contains { $0 == nil || $0 == .plan }
+    }
+
+    /// How one session pays: as its hook said, else as the latest hook said, else the Keychain.
+    func kind(of session: String) -> LoginKind? {
+        if let start = started.last(where: { $0.session == session }) { return start.kind ?? keychainKind }
+        return lastHook ?? keychainKind
+    }
+
+    /// What today has cost in the sessions that pay this way, or nil while Token use is off.
+    func spend(_ kind: LoginKind) -> (dollars: Double, unpriced: Bool)? {
+        guard let spent else { return nil }
+        let dollars = spent.reduce(0) { $0 + (self.kind(of: $1.key) == kind ? $1.value : 0) }
+        return (dollars, unpriced.contains { self.kind(of: $0) == kind })
+    }
+
+    /// How each of these sessions pays, for those paid per use, with today's cost that way.
+    func payPerUse(of sessions: some Sequence<String>) -> [String: PayPerUse] {
+        var out: [String: PayPerUse] = [:]
+        for id in sessions {
+            guard let kind = kind(of: id), kind.payPerUse else { continue }
+            let cost = spend(kind)
+            out[id] = PayPerUse(via: kind.badge, spentToday: cost?.dollars, unpriced: cost?.unpriced ?? false)
+        }
+        return out
+    }
 
     var display: Display {
         guard enabled else { return .off }
+        if let login, login.payPerUse {
+            let cost = self.spend(login)
+            return .payPerUse(PayPerUse(via: login.badge, spentToday: cost?.dollars, unpriced: cost?.unpriced ?? false))
+        }
         if let limits { return .limits(limits, asOf: failure == nil ? nil : fetchedAt) }
         return failure.map(Display.unavailable) ?? .loading
     }
@@ -356,10 +478,39 @@ final class PlanLimitsClient: ObservableObject {
     private var attemptedAt: Date?
     private var fetchedAt: Date?
     private var timer: Timer?
+    private let defaults: UserDefaults
+    private static let lastHookKey = "lastLoginKind"
 
-    init(source: PlanLimitsSource = KeychainLimitsSource(), now: @escaping () -> Date = Date.init) {
+    init(source: PlanLimitsSource = KeychainLimitsSource(), now: @escaping () -> Date = Date.init, defaults: UserDefaults = .standard) {
         self.source = source
         self.now = now
+        self.defaults = defaults
+        lastHook = defaults.string(forKey: Self.lastHookKey).flatMap(LoginKind.init(rawValue:))
+    }
+
+    /// A session has started, and its hook said how it pays (nil: it could not tell).
+    func record(session: String, login: LoginKind?) {
+        started.removeAll { $0.session == session }
+        started.append(Start(session: session, kind: login))
+        if lastHook != login {
+            lastHook = login
+            defaults.set(login?.rawValue, forKey: Self.lastHookKey)
+        }
+        if login == nil || login == .plan { refreshIfStale() }
+    }
+
+    /// The sessions now open. Asks the Keychain when the last one that kept it from asking has closed.
+    func setLive(_ sessions: Set<String>) {
+        guard sessions != live else { return }
+        let needed = needsKeychain
+        live = sessions
+        if !needed, needsKeychain { refreshIfStale() }
+    }
+
+    /// Today's cost by session, from the token history; nil while Token use is off.
+    func setSpend(_ spent: [String: Double]?, unpriced: Set<String>) {
+        if self.spent != spent { self.spent = spent }
+        if self.unpriced != unpriced { self.unpriced = unpriced }
     }
 
     deinit {
@@ -406,7 +557,7 @@ final class PlanLimitsClient: ObservableObject {
     }
 
     private func refresh() {
-        guard enabled else { return }
+        guard enabled, needsKeychain else { return }
         if inFlight, let attemptedAt, now().timeIntervalSince(attemptedAt) >= Self.giveUpAfter {
             abandonFlight()
             failure = .noAnswer

@@ -352,11 +352,33 @@ enum Format {
         // Switched off is a choice, not news: it is not said again in every glance.
         case .off: return nil
         case .unavailable: return "Plan limits unavailable"
-        case .loading, .limits: return nil
+        case .loading, .limits, .payPerUse: return nil
         }
     }
 
     static let limitsLoading = "Checking limits…"
+
+    /// Today's spend in the status row: "$4.27", or "—" while Token use is off and nothing counts it.
+    static func spentToday(_ dollars: Double?) -> String { dollars.map { String(format: "$%.2f", $0) } ?? "—" }
+
+    /// Today's spend on the shut bar, where the ring stands: four characters at most, as a wait is.
+    static func barSpend(_ dollars: Double) -> String {
+        if dollars < 9.95 { return String(format: "$%.1f", dollars) }
+        if dollars < 999.5 { return String(format: "$%.0f", dollars) }
+        return "$\(Int((dollars / 1000).rounded()))k"
+    }
+
+    static func payPerUseHelp(_ use: PayPerUse) -> String {
+        let start = "Paid per use (\(use.via)), so there are no plan limits."
+        guard let dollars = use.spentToday else { return start + " Turn on Token use in Settings to count what today cost." }
+        return start + " Spent today: \(spentToday(dollars)), at API prices, counted on this Mac."
+            + (use.unpriced ? " Some answers came from a model with no known price and are not counted." : "")
+    }
+
+    /// Under the switch when the login is paid per use.
+    static func payPerUseCaption(via: String) -> String {
+        "You pay per use (\(via)), so there are no plan limits. Shows what today has cost at API prices, counted from the sessions on this Mac. Nothing is sent anywhere."
+    }
 
     /// The sign the crew hangs up when a plan limit has run out: a few hours out fishing, or days away.
     static func fishingSign(weekly: Bool) -> String {
@@ -390,6 +412,7 @@ enum Format {
     static func limitsReason(_ failure: LimitsFailure) -> String {
         switch failure {
         case .noLogin: return "No Claude Code login in Keychain. Sign in with Claude Code first."
+        case .notSubscribed: return "The Claude Code login in Keychain has no Claude plan, so there are no plan limits to show."
         case .loginExpired: return "The Claude Code login has expired. Use Claude Code once to renew it."
         case .offline: return "No connection to api.anthropic.com. \(limitsRetry)"
         case .refused(let status): return "api.anthropic.com answered with error \(status). \(limitsRetry)"
@@ -1521,6 +1544,12 @@ struct PanelView: View {
                     LimitRingView(ring: ring)
                         .opacity(state.expanded ? 0 : 1)
                         .animation(motion.reveal(index: 0), value: state.expanded)
+                } else if case .payPerUse(let use) = limits.display, let dollars = use.spentToday {
+                    // No limits to fill a ring: what today has cost, dim, as the panel row has it.
+                    Text(verbatim: Format.barSpend(dollars)).foregroundStyle(.white.opacity(0.6)).fixedSize()
+                        .opacity(state.expanded ? 0 : 1)
+                        .animation(motion.reveal(index: 0), value: state.expanded)
+                        .accessibilityLabel(Text(verbatim: "\(Format.spentToday(dollars)) spent today"))
                 }
             }
             // Five points from the left end: with the mascot, a gap of three and a count of two

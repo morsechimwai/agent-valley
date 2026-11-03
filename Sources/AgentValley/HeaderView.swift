@@ -124,6 +124,19 @@ struct StatusRow: View {
                 .help("Open settings")
             } else if case .loading = display {
                 Text(verbatim: Format.limitsLoading).foregroundStyle(.white.opacity(0.6))
+            } else if case .payPerUse(let use) = display {
+                // Where a plan's name and its bars go: how it pays, and today's spend.
+                HStack(spacing: 12) {
+                    PlanBadge(name: use.via)
+                    HStack(spacing: 6) {
+                        Text(verbatim: "Today").foregroundStyle(.white.opacity(0.6))
+                        Text(verbatim: Format.spentToday(use.spentToday)).fontWeight(.semibold)
+                    }
+                }
+                .contentShape(Rectangle())
+                .help(Format.payPerUseHelp(use))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: Format.payPerUseHelp(use)))
             } else if case .limits(let limits, let asOf) = display {
                 HStack(spacing: 10) {
                     // Numbers from before a refresh that failed say how old they are. Dimming
@@ -138,11 +151,11 @@ struct StatusRow: View {
                     // Then, with all three counts on the left, the reset times go too: first those of
                     // limits with room to spare, and only at the last that of one near its end.
                     ViewThatFits(in: .horizontal) {
-                        meters(limits, barWidth: 44, badge: true)
+                        meters(limits, rings: true, badge: true)
                         // The plan's name goes first: it is the one thing here that never changes.
-                        meters(limits, barWidth: 44)
+                        meters(limits, rings: true)
                         ForEach(LimitResets.ladder, id: \.self) { resets in
-                            meters(limits, barWidth: 0, resets: resets)
+                            meters(limits, rings: false, resets: resets)
                         }
                     }
                 }
@@ -155,15 +168,14 @@ struct StatusRow: View {
         }
     }
 
-    /// Both bars share one width, so their lengths compare by eye.
-    private func meters(_ limits: PlanLimits, barWidth: CGFloat, resets: LimitResets = .all, badge: Bool = false) -> some View {
+    private func meters(_ limits: PlanLimits, rings: Bool, resets: LimitResets = .all, badge: Bool = false) -> some View {
         HStack(spacing: 0) {
             if badge, let plan = limits.plan {
                 PlanBadge(name: plan).padding(.trailing, 12)
             }
             if let limit = limits.fiveHour {
                 LimitMeter(name: "5h", spoken: Format.limitHelp(spoken: "5-hour limit", percent: limit.percentLabel, reset: limit.resetLabel(now: now)),
-                           limit: limit, width: barWidth, reset: resets.shows(limit) ? limit.resetLabel(now: now) : nil)
+                           limit: limit, ring: rings, reset: resets.shows(limit) ? limit.resetLabel(now: now) : nil)
             }
             // A rule between the two windows: the gap alone read as one run of numbers.
             if limits.fiveHour != nil, limits.week != nil {
@@ -173,14 +185,14 @@ struct StatusRow: View {
             }
             if let limit = limits.week {
                 LimitMeter(name: "7d", spoken: Format.limitHelp(spoken: "Weekly limit", percent: limit.percentLabel, reset: limit.resetLabel(now: now)),
-                           limit: limit, width: barWidth, reset: resets.shows(limit) ? limit.resetLabel(now: now) : nil)
+                           limit: limit, ring: rings, reset: resets.shows(limit) ? limit.resetLabel(now: now) : nil)
             }
         }
     }
 }
 
-/// The plan's name on a pill in Claude's orange, as the terminal's status line draws it: the fill
-/// faint, the letters a lighter orange.
+/// The plan's name on a pill in Claude's orange: the fill faint, the letters a lighter orange, as the
+/// terminal draws it.
 struct PlanBadge: View {
     let name: String
 
@@ -224,7 +236,7 @@ struct LimitRingView: View {
     }
 }
 
-/// One plan limit: its name, a bar, the percent used and, when known, the time until it resets.
+/// One plan limit: its name, a ring, the percent used and, when known, the time until it resets.
 /// Both windows show that time: the weekly one resets on a day people rarely remember.
 struct LimitMeter: View {
     let name: String
@@ -232,7 +244,7 @@ struct LimitMeter: View {
     /// read out, and shown to the pointer.
     let spoken: String
     let limit: PlanLimit
-    let width: CGFloat
+    let ring: Bool
     let reset: String?
 
     /// A limit near its end has its number in an outlined chip. Outlined: filled, it was the
@@ -247,14 +259,17 @@ struct LimitMeter: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(verbatim: name).foregroundStyle(.white.opacity(0.6))
-            if width > 0 {
-                Capsule().fill(Color.white.opacity(0.18))
-                    .frame(width: width, height: 4)
-                    .overlay(alignment: .leading) {
-                        // White at every level: the number carries the warning. Yellow bars as
-                        // well made the limits the loudest thing on a panel about agents.
-                        Capsule().fill(Color.white).frame(width: width * limit.fraction, height: 4)
-                    }
+            if ring {
+                // As the terminal draws it: filled from the top, clockwise. White at every level:
+                // the number carries the warning. Yellow as well made the limits the loudest
+                // thing on a panel about agents.
+                ZStack {
+                    Circle().inset(by: 1.5).stroke(Color.white.opacity(0.2), lineWidth: 3)
+                    Circle().inset(by: 1.5).trim(from: 0, to: limit.fraction)
+                        .stroke(Color.white, lineWidth: 3)
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: 13, height: 13)
             }
             // The percentage is the number to read; the time until reset sits back, marked by its icon
             // so two numbers side by side are not mistaken for one reading.

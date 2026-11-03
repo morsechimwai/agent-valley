@@ -12,7 +12,8 @@ enum CrewSetup {
         case missingFont
     }
 
-    static let leadLooksName = "crew-leads.json", backupName = "crew-backup.json", rosterName = "crew-roster.json"
+    static let leadLooksName = "crew-leads.json", backupName = "crew-backup.json", rosterName = "crew-roster.json",
+               spendName = "pay-per-use.json"
     static let ghosttyLines = ["# AgentValley: the crew's faces in Claude Code come from this font",
                                "font-codepoint-map = U+3F000-U+3F7FF=AgentValley Crew"]
     /// The narrower map of the versions before the faces with things in hand. Install and the
@@ -303,5 +304,43 @@ enum CrewSetup {
         guard let data, let parts = SafeJSON.object(data)?[sessionID] as? [Int], parts.count == 3,
               parts.allSatisfy({ $0 >= 0 }) else { return nil }
         return LeadLook(face: parts[0], hair: parts[1], shirt: parts[2])
+    }
+
+    /// The day a spend file counts, as "2026-11-03" in the Mac's time zone and the common era.
+    private static func day(_ date: Date) -> String {
+        let format = DateFormatter()
+        format.calendar = HistoryReport.calendar()
+        format.timeZone = format.calendar.timeZone
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.dateFormat = "yyyy-MM-dd"
+        return format.string(from: date)
+    }
+
+    /// The open sessions paid per use as `{"day": …, "sessions": {"<uuid>": {"via": "API", "today": 4.27}}}`,
+    /// for `crew status` to show in place of plan limits. `today` is left out while Token use is off.
+    static func spendData(_ sessions: [String: PayPerUse], now: Date) -> Data {
+        let byID = sessions.mapValues { use -> [String: Any] in
+            var row: [String: Any] = ["via": use.via]
+            if let today = use.spentToday { row["today"] = today }
+            return row
+        }
+        let all: [String: Any] = ["day": day(now), "sessions": byID]
+        return (try? JSONSerialization.data(withJSONObject: all, options: .sortedKeys)) ?? Data("{}".utf8)
+    }
+
+    /// Puts the spend where `crew status` reads it.
+    static func writeSpend(_ data: Data, home: URL) throws {
+        try makeFolder(home)
+        try data.write(to: folder(home).appendingPathComponent(spendName), options: .atomic)
+    }
+
+    /// How a session pays when per use, with today's cost when the file is from today; nil for a
+    /// plan, an unknown session, or while the app has written nothing.
+    static func spend(for sessionID: String, in data: Data?, now: Date) -> (via: String, today: Double?)? {
+        guard let data, let all = SafeJSON.object(data), let sessions = all["sessions"] as? [String: Any],
+              let row = sessions[sessionID] as? [String: Any], let via = row["via"] as? String,
+              !via.isEmpty, via.count <= 12, via.allSatisfy(\.isLetter) else { return nil }
+        let today = (all["day"] as? String) == day(now) ? (row["today"] as? Double).flatMap { $0.isFinite && $0 >= 0 ? $0 : nil } : nil
+        return (via, today)
     }
 }

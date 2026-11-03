@@ -118,7 +118,7 @@ final class TranscriptReaderTests: XCTestCase {
     func testNameTagsReadAsNames() {
         let tagged = read(#"{"type":"assistant","message":{"id":"m","stop_reason":"end_turn","content":[{"type":"text","text":"\#(CrewFont.Tag.text(.general)) is back. Next, \#(CrewFont.Tag.text(.explore))."}]}}"#)
         XCTAssertEqual(tagged.thought, "Felix is back. Next, Faye.")
-        XCTAssertEqual(tagged.handedBack, "Felix is back. Next, Faye.")
+        XCTAssertEqual(tagged.handedBack, "**Felix** is back. Next, **Faye**.")
     }
 
     // "> Thinking" told the person nothing. Between calls a row says where the agent is headed:

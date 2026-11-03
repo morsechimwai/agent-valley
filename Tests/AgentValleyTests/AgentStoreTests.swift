@@ -225,7 +225,7 @@ final class AgentStoreTests: XCTestCase {
             let other = AgentStore(root: URL(fileURLWithPath: store.root), drawsTags: { asked.append($0); return draws })
             let lead = try XCTUnwrap(note(introduce(start("f1", pid: 4321, terminal: "ghostty"), on: other)))
             let sub = try XCTUnwrap(note(introduce(CrewIntroRequest(event: "SubagentStart", session: "f1", cwd: store.root + "/work", agentType: "Plan", pid: 4321, terminal: "ghostty"), on: other)))
-            let judy = CrewFont.Tag.text(.plan) + " = Judy"
+            let judy = CrewFont.Tag.text(.plan)
             XCTAssertEqual(lead.contains(judy), draws, lead)
             XCTAssertEqual(sub.contains(judy), draws, sub)
             XCTAssertEqual(asked.map(\.pid), [4321, 4321])

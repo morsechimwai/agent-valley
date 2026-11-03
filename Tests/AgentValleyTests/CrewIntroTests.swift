@@ -39,11 +39,11 @@ final class CrewIntroTests: XCTestCase {
         let look = LeadLook(face: 1, hair: 0, shirt: 0)
         let tag = { (kind: MascotKind) in CrewFont.Tag.text(kind) }
         let lead = CrewIntro.leadNote(.walt, tags: CrewIntro.tags(lead: look))
-        XCTAssertTrue(lead.contains("\(tag(.lead(look))) = Walt, \(tag(.plan)) = Judy, \(tag(.explore)) = Faye, \(tag(.general)) = Felix."), lead)
+        XCTAssertTrue(lead.contains("\(tag(.lead(look))), \(tag(.plan)), \(tag(.explore)), \(tag(.general))."), lead)
         XCTAssertTrue(lead.contains("tool inputs"))
         // A sub-agent of a type of its own wears the shirt the notch gives that type.
         let sub = CrewIntro.subNote(.felix, lead: .walt, tags: CrewIntro.tags(sub: "code-reviewer", lead: look))
-        XCTAssertTrue(sub.contains("\(tag(.lead(look))) = Walt, \(tag(MascotKind(type: "code-reviewer"))) = Felix."), sub)
+        XCTAssertTrue(sub.contains("\(tag(.lead(look))), \(tag(MascotKind(type: "code-reviewer")))."), sub)
         // A type that reads as a session's own agent is still Felix, and never takes the lead's place.
         XCTAssertEqual(CrewIntro.tags(sub: "main", lead: LeadLook()), [.sunny: tag(.lead(LeadLook())), .felix: tag(.general)])
         // No font, no tags: an empty box helps no one.

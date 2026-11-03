@@ -123,8 +123,11 @@ enum CrewLine {
     /// `look`: nil while the app has given the session no lead. `atWork`: its turn is open.
     /// `newFont`: the terminal has the font with things in hand and the bar's pictures; without
     /// it a face stands in for each picture, Sunny where there is no look.
+    /// `solidBadge`: the terminal is iTerm, which takes the plan badge's solid set.
+    /// `spend`: the session pays per use, as the app saw it: how, and today's cost when known.
+    /// It takes the plan's place, unless Claude Code brought plan limits after all.
     static func status(_ input: [String: Any], columns: Int, plan: String?, look: LeadLook?, holding: Activity? = nil,
-                       atWork: Bool = false, newFont: Bool = true, now: Date) -> String {
+                       atWork: Bool = false, newFont: Bool = true, solidBadge: Bool = false, spend: (via: String, today: Double?)? = nil, now: Date) -> String {
         let model = (input["model"] as? [String: Any])?["display_name"] as? String ?? ""
         // As on the bar: a limit run out sends the crew off, unless someone works on past it.
         // With no lead yet, nobody has sat down, and the coffee waits.
@@ -138,9 +141,14 @@ enum CrewLine {
         }
         let face = picture?.0.character ?? CrewFont.character(.lead(look ?? LeadLook()), .working, holding: holding)
         // The plan on the panel's badge where the font has one for it; else as quiet text.
-        let badge = newFont ? plan.flatMap(CrewFont.Badge.init(plan:)) : nil
-        let planText = badge?.text ?? plan.flatMap { $0.isEmpty ? nil : Style.faint + $0 + Style.reset }
         let limits = [("five_hour", "5h"), ("seven_day", "7d")].compactMap { key, name in limit(input, key).map { (name, $0) } }
+        let spend = limits.isEmpty ? spend : nil
+        let badge = newFont && spend == nil ? plan.flatMap(CrewFont.Badge.init(plan:)) : nil
+        var planText = badge?.text(solid: solidBadge) ?? plan.flatMap { $0.isEmpty ? nil : Style.faint + $0 + Style.reset }
+        if let spend {
+            planText = Style.faint + spend.via + Style.reset
+                + (spend.today.map { Style.faint + " · Today " + Style.reset + Style.bold + Format.spentToday($0) + Style.reset } ?? "")
+        }
         let context = (input["context_window"] as? [String: Any]).flatMap { window in
             number(window["used_percentage"]).map { (used: $0, size: number(window["context_window_size"]) ?? 0) }
         }
@@ -191,13 +199,13 @@ enum CrewLine {
         return PlanLimit(usedPercent: used, resetsAt: number(window["resets_at"]).map { Date(timeIntervalSince1970: $0) })
     }
 
-    /// `round`: the font's bar with round ends, as the panel's, its used part in the text's colour.
+    /// `round`: the font's ring, one character, its used arc in the text's colour.
     private static func meter(_ name: String, _ limit: PlanLimit, cells: Int, tail: String, round: Bool, now: Date) -> String {
         let (full, empty) = bar(limit.usedPercent, cells: cells)
         var number = limit.percentLabel
         if limit.level == .critical { number = "[\(number)]" }
         number = (limit.level == .normal ? Style.bold : Style.bold + Style.yellow) + number + Style.reset
-        let drawn = round ? CrewFont.Bar.text(limit.usedPercent, cells: cells)
+        let drawn = round ? CrewFont.Bar.text(limit.usedPercent)
             : String(repeating: "━", count: full) + Style.faint + String(repeating: "━", count: empty) + Style.reset
         var text = Style.faint + name + Style.reset + " " + drawn + " " + number
         if !tail.isEmpty { text += " " + Style.faint + tail + Style.reset }

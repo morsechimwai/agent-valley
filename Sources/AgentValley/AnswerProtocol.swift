@@ -6,8 +6,8 @@ enum HookPath: Equatable {
     case permissionRequest
     case stopWait
     /// SessionStart or SubagentStart asking who it is. `pid`: the Claude Code it runs under;
-    /// `terminal`: the terminal's TERM_PROGRAM.
-    case crewIntro(pid: Int32?, terminal: String?)
+    /// `terminal`: the terminal's TERM_PROGRAM; `login`: how that Claude Code signs in.
+    case crewIntro(pid: Int32?, terminal: String?, login: LoginKind? = nil)
 }
 
 /// What the bytes received from the hook script amount to so far.
@@ -23,8 +23,8 @@ enum AnswerProtocol {
     static let maxBodyBytes = 1024 * 1024
 
     /// Reads the request a hook script sends: `POST /permission-request`, `POST /stop-wait` or
-    /// `POST /crew-intro` with a JSON body, the last with `X-Claude-Pid` and `X-Term-Program`
-    /// headers if it has them.
+    /// `POST /crew-intro` with a JSON body, the last with `X-Claude-Pid`, `X-Term-Program` and
+    /// `X-Claude-Login` headers if it has them.
     /// Anything else is invalid; nothing here is guessed at or repaired.
     static func parse(_ data: Data) -> HTTPRequest {
         guard let end = data.range(of: Data("\r\n\r\n".utf8)) else {
@@ -43,7 +43,7 @@ enum AnswerProtocol {
             return .invalid
         }
         var length: Int?
-        var pid: Int32?, terminal: String?
+        var pid: Int32?, terminal: String?, login: LoginKind?
         for line in lines.dropFirst() {
             let parts = line.split(separator: ":", maxSplits: 1)
             guard parts.count == 2 else { continue }
@@ -52,10 +52,11 @@ enum AnswerProtocol {
             case "content-length": length = Int(value)
             case "x-claude-pid": pid = Int32(value)
             case "x-term-program": terminal = value.isEmpty ? nil : value
+            case "x-claude-login": login = LoginKind(rawValue: value)
             default: break
             }
         }
-        if case .crewIntro = path { path = .crewIntro(pid: pid, terminal: terminal) }
+        if case .crewIntro = path { path = .crewIntro(pid: pid, terminal: terminal, login: login) }
         guard let length, (0...maxBodyBytes).contains(length) else { return .invalid }
         let body = data[end.upperBound...]
         return body.count < length ? .needMore : .complete(path: path, body: Data(body.prefix(length)))
@@ -129,21 +130,24 @@ struct CrewIntroRequest: Equatable {
     let pid: Int32?
     /// The terminal's TERM_PROGRAM, as the hook found it.
     let terminal: String?
+    /// How the session's Claude Code signs in, as the hook read its settings; nil if it could not tell.
+    let login: LoginKind?
 
-    init(event: String, session: String, cwd: String, agentType: String, pid: Int32?, terminal: String? = nil) {
+    init(event: String, session: String, cwd: String, agentType: String, pid: Int32?, terminal: String? = nil, login: LoginKind? = nil) {
         self.event = event
         self.session = session
         self.cwd = cwd
         self.agentType = agentType
         self.pid = pid
         self.terminal = terminal
+        self.login = login
     }
 
-    init?(hookInput: Data, pid: Int32?, terminal: String? = nil) {
+    init?(hookInput: Data, pid: Int32?, terminal: String? = nil, login: LoginKind? = nil) {
         guard let object = SafeJSON.object(hookInput), let event = object["hook_event_name"] as? String,
               let session = (object["session_id"] as? String).flatMap({ $0.isEmpty ? nil : $0 })
                 ?? (object["transcript_path"] as? String).flatMap(AnswerProtocol.session(transcriptPath:)) else { return nil }
-        self.init(event: event, session: session, cwd: object["cwd"] as? String ?? "", agentType: object["agent_type"] as? String ?? "", pid: pid, terminal: terminal)
+        self.init(event: event, session: session, cwd: object["cwd"] as? String ?? "", agentType: object["agent_type"] as? String ?? "", pid: pid, terminal: terminal, login: login)
     }
 }
 

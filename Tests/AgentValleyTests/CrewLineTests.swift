@@ -19,22 +19,29 @@ final class CrewLineTests: XCTestCase {
 
     /// The context meter after the model, with the font's round bar or with lines.
     func context(_ newFont: Bool) -> String {
-        " · context " + (newFont ? CrewFont.Bar.text(22, cells: 10) : "━━━━━━━━━━") + " 22% 220k/1.0m"
+        " · context " + (newFont ? CrewFont.Bar.text(22) : "━━━━━━━━━━") + " 22% 220k/1.0m"
     }
 
-    // With the font, a plan it has a badge for wears it, as in the panel, and the bars have round ends.
+    // With the font, a plan it has a badge for wears it, as in the panel, and the limits are rings.
     func testTheFontDrawsThePlanBadgeAndRoundBars() {
         let ultra = lines(102, plan: "Ultra", newFont: true)
         XCTAssertEqual(ultra[0], "\u{3F015}  Opus 5.5" + context(true))
-        XCTAssertTrue(ultra[1].hasPrefix(CrewFont.Badge.ultra.text + "  5h " + CrewFont.Bar.text(6, cells: 10) + " 6%"), ultra[1])
+        XCTAssertTrue(ultra[1].hasPrefix(plain(CrewFont.Badge.ultra.text) + "  5h " + CrewFont.Bar.text(6) + " 6%"), ultra[1])
         XCTAssertFalse(ultra.joined().contains("━"))
         // A name the font has no badge for stays quiet text.
         XCTAssertTrue(lines(102, plan: "Max 20x", newFont: true)[1].hasPrefix("Max 20x  5h "))
         // With no limits the badge stays on top, after the model.
         input["rate_limits"] = nil
-        XCTAssertEqual(lines(102, plan: "Ultra", newFont: true), ["\u{3F015}  Opus 5.5  " + CrewFont.Badge.ultra.text + context(true)])
+        XCTAssertEqual(lines(102, plan: "Ultra", newFont: true), ["\u{3F015}  Opus 5.5  " + plain(CrewFont.Badge.ultra.text) + context(true)])
         input["model"] = nil
-        XCTAssertEqual(lines(102, plan: "Pro", newFont: true)[0], "\u{3F015}  " + CrewFont.Badge.pro.text + context(true))
+        XCTAssertEqual(lines(102, plan: "Pro", newFont: true)[0], "\u{3F015}  " + plain(CrewFont.Badge.pro.text) + context(true))
+    }
+
+    // iTerm takes the badge's solid set, so no hairline shows between its parts.
+    func testITermTakesTheSolidBadge() {
+        let row = plain(CrewLine.status(input, columns: 102, plan: "Ultra", look: LeadLook(), solidBadge: true, now: now))
+        XCTAssertTrue(row.contains(CrewFont.Badge.ultra.text(solid: true)), row)
+        XCTAssertFalse(row.contains(CrewFont.Badge.ultra.text), row)
     }
 
     // On top this session, as its card in the panel; below the plan and its limits, as the status row.
