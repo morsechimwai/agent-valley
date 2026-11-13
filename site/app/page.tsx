@@ -11,6 +11,7 @@ import { Maker } from '@/components/sections/maker';
 import { Nav } from '@/components/sections/nav';
 import { NeedsYou } from '@/components/sections/needs-you';
 import { Problem } from '@/components/sections/problem';
+import { Reviews } from '@/components/sections/reviews';
 import { Rows } from '@/components/sections/rows';
 import { Terminal } from '@/components/sections/terminal';
 import { Trust } from '@/components/sections/trust';
@@ -32,6 +33,7 @@ export default function Home() {
         <Terminal />
         <Trust />
         <Also />
+        <Reviews />
         <Install />
         <Words />
         <Credits />

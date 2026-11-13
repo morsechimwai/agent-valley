@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ReviewCard } from '@/components/review-card';
 import { Button } from '@/components/ui/button';
 import { TOKEN } from '@/lib/analytics';
 import { cleanHandle, handleOk, MAX_WORDS, reviewBody, starsFromQuery, type HandleSite } from '@/lib/review';
@@ -151,22 +152,14 @@ export function ReviewForm() {
 
       <aside aria-label="Preview" className="grid min-w-0 gap-3">
         <h2 className="font-mono text-[.9375rem] font-normal">How it would look on our site</h2>
-        <figure className={`m-0 grid gap-3 rounded-xl border border-border bg-card p-5 ${show ? '' : 'opacity-60'}`} data-testid="preview">
-          <div aria-label={stars ? `${stars} out of 5 stars` : 'No stars yet'} style={{ color: 'var(--amber)' }} className="text-xl tracking-wide">
-            {'★'.repeat(stars)}
-            <span style={{ color: 'var(--border)' }}>{'★'.repeat(5 - stars)}</span>
-          </div>
-          <blockquote className="m-0 break-words">&ldquo;{words.trim() || 'What you write shows up here.'}&rdquo;</blockquote>
-          <figcaption className="flex items-center gap-3">
-            <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-accent font-semibold">
-              {shownName[0].toUpperCase()}
-            </span>
-            <span className="min-w-0 break-words">
-              <b>{shownName}</b>
-              {handle && !badHandle && <span className="block text-sm text-accent-text">@{handle} {on}</span>}
-            </span>
-          </figcaption>
-        </figure>
+        <ReviewCard
+          data-testid="preview"
+          className={show ? '' : 'opacity-60'}
+          stars={stars}
+          words={words.trim() || 'What you write shows up here.'}
+          name={shownName}
+          handle={handle && !badHandle ? `@${handle} ${on}` : undefined}
+        />
         {!show && <p className="font-mono text-sm text-muted-foreground">Dimmed because it stays private unless you tick the box.</p>}
       </aside>
     </div>

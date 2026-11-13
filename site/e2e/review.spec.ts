@@ -35,3 +35,11 @@ test('a failed send keeps the words and offers another try', async ({ page }) =>
   await expect(page.getByLabel('Your words')).toHaveValue('Lives in my notch, pays no rent.');
   await expect(page.getByRole('button', { name: 'Try again' })).toBeEnabled();
 });
+
+test('the home page shows the reviews we put up, with a way to write one', async ({ page }) => {
+  await page.goto('/');
+  const section = page.locator('#reviews');
+  await expect(section.getByRole('img', { name: '5 out of 5 stars' })).toBeVisible();
+  await expect(section).toContainText('Simple. But a lot of fun!');
+  await expect(section.getByRole('link', { name: 'Write us a few words' })).toHaveAttribute('href', '/review/');
+});
